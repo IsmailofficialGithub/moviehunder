@@ -616,6 +616,9 @@ async function handleEpisodes(slug) {
   const resource = data.resource || {};
   const seasonsData = resource.seasons || [];
 
+  // MovieBox API detail returns nested list structures, let's find subjectId in resource or data
+  const subjectId = data.subject?.subjectId || data.subjectId || resource.id || null;
+
   if (!seasonsData.length) {
     return json({
       slug,
@@ -631,7 +634,13 @@ async function handleEpisodes(slug) {
       episodes.push({
         name: `Episode ${i}`,
         ep: i,
-        se: s.se
+        se: s.se,
+        watch_url: subjectId 
+          ? `/watch/${subjectId}?detail_path=${slug}&se=${s.se}&ep=${i}` 
+          : null,
+        stream_api_url: subjectId 
+          ? `/api/stream/${subjectId}?detail_path=${slug}&se=${s.se}&ep=${i}` 
+          : null
       });
     }
     return {
@@ -643,7 +652,7 @@ async function handleEpisodes(slug) {
 
   return json({
     slug,
-    subject_id: data.subjectId || null,
+    subject_id: subjectId,
     total_seasons: seasons.length,
     seasons
   });
