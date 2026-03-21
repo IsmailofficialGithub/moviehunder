@@ -717,6 +717,37 @@ async function handleStreamApi(subjectId, params) {
       return rb - ra;
     });
 
+  // Fetch subtitles (only EN requested)
+  let subtitles = [];
+  const streamId = streams[0]?.id;
+  if (streamId) {
+    try {
+      const capUrl = `${H5_API}/wefeed-h5api-bff/subject/caption?subjectId=${subjectId}&id=${streamId}&detailPath=${detailPath}`;
+      const capResp = await fetch(capUrl, {
+        headers: { 
+          "User-Agent": UA, 
+          accept: "application/json",
+          "x-client-info": '{"timezone":"Asia/Dhaka"}',
+          cookie: "uuid=d8c3539e-2e46-4000-af20-7046a856e30a"
+        },
+      });
+      if (capResp.ok) {
+        const capBody = await capResp.json();
+        const subs = capBody?.data?.subtitles || [];
+        subtitles = subs
+          .filter((s) => s.lan === "en" || s.lanName?.toLowerCase().includes("english"))
+          .map((s) => ({
+            language: s.lanName || "English",
+            url: s.url,
+          }));
+      } else {
+        console.error("Caption API error:", await capResp.text());
+      }
+    } catch (err) {
+      console.error("Subtitle fetch failed:", err);
+    }
+  }
+
   return json({
     subject_id: subjectId,
     detail_path: detailPath,
@@ -725,6 +756,7 @@ async function handleStreamApi(subjectId, params) {
     stream_domain: domain,
     count: formatted.length,
     sources: formatted,
+    subtitles,
   });
 }
 
