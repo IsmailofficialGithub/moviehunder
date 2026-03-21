@@ -82,6 +82,10 @@ export default {
       m = p.match(/^\/detail\/(.+)$/);
       if (m) return handleDetail(decodeURIComponent(m[1]));
 
+      // ── Episodes ──────────────────────────────────────────
+      m = p.match(/^\/episodes\/(.+)$/);
+      if (m) return handleEpisodes(decodeURIComponent(m[1]));
+
       // ── Streaming ─────────────────────────────────────────
       m = p.match(/^\/api\/stream\/(\d+)$/);
       if (m) return handleStreamApi(m[1], url.searchParams);
@@ -141,6 +145,7 @@ function handleRoot() {
       },
       detail: {
         "/detail/{slug}": "Get full metadata, cast, seasons, streams",
+        "/episodes/{slug}": "Get episode list and counts for all seasons",
       },
       streaming: {
         "/api/stream/{subject_id}?detail_path=...": "Get raw stream URLs (JSON)",
@@ -593,6 +598,54 @@ async function handleDetail(slug) {
         })),
     },
     streams: { mp4: mp4Urls, hls: hlsUrls },
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GET /episodes/{slug}  — episode list from detail API
+// ══════════════════════════════════════════════════════════════════
+
+async function handleEpisodes(slug) {
+  const resp = await fetch(
+    `${H5_API}/wefeed-h5api-bff/detail?detailPath=${slug}`,
+    { headers: { "User-Agent": UA } }
+  );
+  if (!resp.ok) return json({ error: "Movie/Series not found" }, 404);
+  const body = await resp.json();
+  const data = body?.data || {};
+  const resource = data.resource || {};
+  const seasonsData = resource.seasons || [];
+
+  if (!seasonsData.length) {
+    return json({
+      slug,
+      message: "No seasons/episodes found. This might be a movie.",
+      seasons: []
+    });
+  }
+
+  const seasons = seasonsData.map((s) => {
+    const epCount = s.maxEp || 0;
+    const episodes = [];
+    for (let i = 1; i <= epCount; i++) {
+      episodes.push({
+        name: `Episode ${i}`,
+        ep: i,
+        se: s.se
+      });
+    }
+    return {
+      season: s.se,
+      episode_count: epCount,
+      episodes
+    };
+  });
+
+  return json({
+    slug,
+    subject_id: data.subjectId || null,
+    total_seasons: seasons.length,
+    seasons
   });
 }
 

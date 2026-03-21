@@ -113,6 +113,7 @@ https://moviebox-stream-proxy.<your-subdomain>.workers.dev
 | `GET /search?q={query}` | Search for any title |
 | `GET /search/suggest?q={query}` | Get autocomplete suggestions |
 | `GET /detail/{slug}` | Full metadata, cast, seasons, and stream links |
+| `GET /episodes/{slug}` | Get episode list and counts for all seasons |
 
 ### ▶️ Streaming (CDN Bypass)
 | Endpoint | Description |
