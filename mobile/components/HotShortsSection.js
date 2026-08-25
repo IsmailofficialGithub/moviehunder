@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import LazyHList from "./LazyHList";
 import ShortCard from "./ShortCard";
 import { colors, spacing } from "../lib/theme";
 
@@ -14,18 +15,14 @@ export default function HotShortsSection({ section }) {
         <Text style={styles.title}>{section.section || "Hot Short TV"}</Text>
         <Text style={styles.count}>{section.count || items.length} shorts</Text>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.row}
-      >
-        {items.map((item, i) => (
-          <ShortCard
-            key={item.slug || item.subject_id || `${item.name}-${i}`}
-            item={item}
-          />
-        ))}
-      </ScrollView>
+      <LazyHList
+        data={items}
+        initialNumToRender={4}
+        keyExtractor={(item, i) =>
+          item.slug || item.subject_id || `${item.name}-${i}`
+        }
+        renderItem={({ item }) => <ShortCard item={item} />}
+      />
     </View>
   );
 }
@@ -49,8 +46,5 @@ const styles = StyleSheet.create({
   count: {
     color: colors.muted,
     fontSize: 12,
-  },
-  row: {
-    paddingHorizontal: spacing.md,
   },
 });

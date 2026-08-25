@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { NavigationBar } from "expo-navigation-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AccessBlocked from "../components/AccessBlocked";
 import AppSplash from "../components/AppSplash";
+import { BrandLogoSymbol } from "../components/BrandLogo";
 import {
   AppUpdateGate,
   SoftUpdateModal,
@@ -24,6 +26,20 @@ const IS_EXPO_GO =
 
 /** Skip splash on dev reload — only show on first open this session. */
 let splashShownThisSession = false;
+
+function BootScreen({ label = "Loading…" }) {
+  return (
+    <View style={styles.center}>
+      <BrandLogoSymbol size={56} />
+      <ActivityIndicator
+        size="large"
+        color={colors.secondary}
+        style={styles.bootSpinner}
+      />
+      <Text style={styles.bootLabel}>{label}</Text>
+    </View>
+  );
+}
 
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(splashShownThisSession);
@@ -48,6 +64,13 @@ export default function RootLayout() {
     if (!allowed || IS_EXPO_GO) return;
     setupMusicNotifications().catch(() => {});
   }, [allowed]);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    NavigationBar.setBackgroundColorAsync("#0b0b10").catch(() => {});
+    NavigationBar.setButtonStyleAsync("light").catch(() => {});
+    NavigationBar.setBehaviorAsync("inset-swipe").catch(() => {});
+  }, []);
 
   const showUpdateCheck =
     splashDone && update.checking && !update.blocking;
@@ -82,10 +105,10 @@ export default function RootLayout() {
             error={update.error}
             onUpdate={update.startUpdate}
           />
-        ) : showUpdateCheck || showInitialLoader ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={colors.secondary} />
-          </View>
+        ) : showUpdateCheck ? (
+          <BootScreen label="Checking for updates…" />
+        ) : showInitialLoader ? (
+          <BootScreen label="Getting things ready…" />
         ) : showBlocked ? (
           <AccessBlocked reason={access?.reason} onRetry={recheck} />
         ) : showApp ? (
@@ -139,7 +162,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: colors.bg,
   },
   stack: {
     flex: 1,
@@ -148,6 +171,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#000000",
+    backgroundColor: colors.bg,
+    gap: 16,
+  },
+  bootSpinner: {
+    marginTop: 20,
+  },
+  bootLabel: {
+    marginTop: 4,
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

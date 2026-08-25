@@ -29,7 +29,9 @@ export default function WideTitleCard({ item, width = 280 }) {
             style={styles.poster}
             contentFit="cover"
             cachePolicy="memory-disk"
-            transition={200}
+            recyclingKey={item.poster_url}
+            priority="normal"
+            transition={180}
           />
         ) : (
           <View style={[styles.poster, styles.ph]}>

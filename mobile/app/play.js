@@ -31,11 +31,25 @@ import {
 } from "../lib/stream";
 import { getCachedStreams, prefetchStreams } from "../lib/streamCache";
 import { colors, radii, spacing } from "../lib/theme";
+import { toUserMessage } from "../lib/userFacingError";
 import { cueAtTime } from "../lib/subtitles";
 import {
   getDownloadById,
   hydrateDownloads,
 } from "../lib/downloads";
+import {
+  clearWatchProgress,
+  formatResumeTime,
+  getWatchProgress,
+  isResumable,
+  saveWatchProgress,
+  watchProgressKey,
+} from "../lib/watchProgress";
+import {
+  isVaultUnlocked,
+  prepareVaultPlayUri,
+  releaseVaultPlayUri,
+} from "../lib/vault";
 import SubtitlePanel from "../components/SubtitlePanel";
 import * as FileSystem from "expo-file-system/legacy";
 
@@ -155,6 +169,9 @@ export default function PlayScreen() {
   const [subtitles, setSubtitles] = useState([]);
   const [activeSubId, setActiveSubId] = useState("off");
   const [cueText, setCueText] = useState("");
+  /** Saved progress offer — null once user picks Resume or Start over */
+  const [resumeOffer, setResumeOffer] = useState(null);
+  const [resumeReady, setResumeReady] = useState(false);
 
   const resumeAtRef = useRef(0);
   const fallbackTried = useRef(false);
@@ -172,6 +189,22 @@ export default function PlayScreen() {
   const preloadPollRef = useRef(null);
   const preloadedRef = useRef(false);
   const videoPanStart = useRef({ x: 0, y: 0 });
+  const resumeOfferRef = useRef(null);
+  const lastProgressSaveRef = useRef(0);
+  const progressKeyRef = useRef("");
+
+  const progressKey = useMemo(
+    () =>
+      watchProgressKey({
+        subjectId,
+        se,
+        ep,
+        downloadId,
+      }),
+    [subjectId, se, ep, downloadId]
+  );
+  progressKeyRef.current = progressKey;
+  resumeOfferRef.current = resumeOffer;
 
   const active = sources[qualityIndex] || null;
 
@@ -209,6 +242,17 @@ export default function PlayScreen() {
   const finishPreload = useCallback(() => {
     clearPreloadTimers();
     preloadedRef.current = true;
+    // Wait for Resume / Start over before playing
+    if (resumeOfferRef.current) {
+      try {
+        player.muted = false;
+        player.pause();
+      } catch {
+        /* ignore */
+      }
+      setWaitingToPlay(false);
+      return;
+    }
     const go = userWantsPlayRef.current;
     try {
       const at = resumeAtRef.current || 0;
@@ -238,6 +282,7 @@ export default function PlayScreen() {
   }, [player]);
 
   const togglePlayPause = useCallback(() => {
+    if (resumeOfferRef.current) return;
     try {
       if (player.playing) {
         player.pause();
@@ -270,6 +315,12 @@ export default function PlayScreen() {
     setControlsVisible(true);
     scheduleHide();
   }, [locked, scheduleHide]);
+
+  // Keep a stable ref so stream `load()` is not recreated (and re-run) when
+  // opening/closing settings — that was resetting quality back to Auto.
+  const showControlsRef = useRef(showControls);
+  showControlsRef.current = showControls;
+  const streamKeyRef = useRef("");
 
   useEffect(() => {
     if (status === "ready" && !locked && isPlaying && !waitingToPlay) {
@@ -310,14 +361,76 @@ export default function PlayScreen() {
     const sub = player.addListener("timeUpdate", () => {
       if (scrubbingRef.current) return;
       try {
-        setCurrentTime(player.currentTime || 0);
-        setDuration(player.duration || 0);
+        const t = player.currentTime || 0;
+        const d = player.duration || 0;
+        setCurrentTime(t);
+        setDuration(d);
+        const now = Date.now();
+        if (
+          progressKeyRef.current &&
+          !resumeOfferRef.current &&
+          now - lastProgressSaveRef.current > 5000
+        ) {
+          lastProgressSaveRef.current = now;
+          saveWatchProgress(progressKeyRef.current, {
+            position: t,
+            duration: d,
+            title,
+          }).catch(() => {});
+        }
       } catch {
         /* ignore */
       }
     });
     return () => sub.remove();
-  }, [player]);
+  }, [player, title]);
+
+  // Load saved progress — offer resume for live + downloads
+  useEffect(() => {
+    let cancelled = false;
+    setResumeReady(false);
+    setResumeOffer(null);
+    resumeAtRef.current = 0;
+    (async () => {
+      if (!progressKey) {
+        if (!cancelled) setResumeReady(true);
+        return;
+      }
+      try {
+        const hit = await getWatchProgress(progressKey);
+        if (cancelled) return;
+        if (isResumable(hit)) {
+          setResumeOffer(hit);
+          userWantsPlayRef.current = false;
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setResumeReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [progressKey]);
+
+  // Flush progress when leaving the player
+  useEffect(() => {
+    return () => {
+      try {
+        const t = player.currentTime || 0;
+        const d = player.duration || 0;
+        const key = progressKeyRef.current;
+        if (key && t > 5) {
+          saveWatchProgress(key, { position: t, duration: d, title }).catch(
+            () => {}
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [player, title]);
 
   const activeSubTrack = useMemo(
     () => subtitles.find((t) => t.id === activeSubId) || null,
@@ -407,6 +520,7 @@ export default function PlayScreen() {
       return;
     }
     let cancelled = false;
+    const vaultPlayRef = { uri: "" };
     setOfflineReady(false);
     (async () => {
       try {
@@ -420,7 +534,24 @@ export default function PlayScreen() {
           }
           return;
         }
-        const info = await FileSystem.getInfoAsync(item.fileUri);
+
+        let playFileUri = item.fileUri;
+        if (item.inVault) {
+          if (!isVaultUnlocked()) {
+            if (!cancelled) {
+              setError(
+                "This file is in Movie Safe. Unlock the vault from Downloads (tap Device storage 5 times), then play again."
+              );
+              setStatus("error");
+              setOfflineReady(true);
+            }
+            return;
+          }
+          playFileUri = await prepareVaultPlayUri(item);
+          vaultPlayRef.uri = playFileUri;
+        }
+
+        const info = await FileSystem.getInfoAsync(playFileUri);
         const minBytes = 256 * 1024;
         if (!info.exists || (info.size != null && info.size < minBytes)) {
           if (!cancelled) {
@@ -435,10 +566,10 @@ export default function PlayScreen() {
           return;
         }
         if (!cancelled) {
-          setOfflineUri(item.fileUri);
+          setOfflineUri(playFileUri);
           setSources([
             {
-              url: item.fileUri,
+              url: playFileUri,
               resolution: item.resolution || "Offline",
               height: item.height || 0,
               format: "MP4",
@@ -451,11 +582,13 @@ export default function PlayScreen() {
           setWaitingToPlay(false);
           setStatus("ready");
           setOfflineReady(true);
-          showControls();
+          showControlsRef.current?.();
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err?.message || "Couldn’t open download.");
+          setError(
+            toUserMessage(err, "Couldn't open download. Try again.")
+          );
           setStatus("error");
           setOfflineReady(true);
         }
@@ -463,8 +596,11 @@ export default function PlayScreen() {
     })();
     return () => {
       cancelled = true;
+      if (vaultPlayRef.uri) {
+        releaseVaultPlayUri(vaultPlayRef.uri).catch(() => {});
+      }
     };
-  }, [downloadId, wantsAutoplay, showControls]);
+  }, [downloadId, wantsAutoplay]);
 
   const load = useCallback(async () => {
     if (downloadId) return; // handled by offline effect
@@ -474,6 +610,10 @@ export default function PlayScreen() {
       setStatus("error");
       return;
     }
+
+    const streamKey = `${subjectId}|${detailPath}|${se}|${ep}`;
+    const isNewEpisode = streamKeyRef.current !== streamKey;
+
     setError("");
     setUseWatchFallback(false);
     fallbackTried.current = false;
@@ -481,14 +621,23 @@ export default function PlayScreen() {
     preloadedRef.current = false;
     setWaitingToPlay(wantsAutoplay);
 
+    const applySources = (nextSources) => {
+      setSources(nextSources);
+      // Only reset quality when switching title/episode — never when UI helpers
+      // recreate and accidentally re-trigger load (e.g. closing settings).
+      if (isNewEpisode) {
+        streamKeyRef.current = streamKey;
+        setQualityMode("auto");
+        setQualityIndex(pickAutoIndex(nextSources, AUTO_MAX));
+      }
+      setStatus("ready");
+      showControlsRef.current?.();
+    };
+
     const streamParams = { subjectId, detailPath, se, ep };
     const cached = getCachedStreams(streamParams);
     if (cached?.sources?.length) {
-      setSources(cached.sources);
-      setQualityMode("auto");
-      setQualityIndex(pickAutoIndex(cached.sources, AUTO_MAX));
-      setStatus("ready");
-      showControls();
+      applySources(cached.sources);
       return;
     }
 
@@ -498,16 +647,17 @@ export default function PlayScreen() {
       if (!result.sources.length) {
         throw new Error("No streams available for this title.");
       }
-      setSources(result.sources);
-      setQualityMode("auto");
-      setQualityIndex(pickAutoIndex(result.sources, AUTO_MAX));
-      setStatus("ready");
-      showControls();
+      applySources(result.sources);
     } catch (err) {
-      setError(err?.message || "Couldn’t load streams.");
+      setError(
+        toUserMessage(
+          err,
+          "Couldn't load streams. Check your connection and try again."
+        )
+      );
       setStatus("error");
     }
-  }, [downloadId, subjectId, detailPath, se, ep, showControls, wantsAutoplay]);
+  }, [downloadId, subjectId, detailPath, se, ep, wantsAutoplay]);
 
   useEffect(() => {
     load();
@@ -530,6 +680,7 @@ export default function PlayScreen() {
   // Load / replace media only when the URI actually changes (not on every render)
   const loadedUriRef = useRef("");
   useEffect(() => {
+    if (!resumeReady) return;
     if (!playUri || status !== "ready") return;
     if (downloadId && !offlineReady) return;
     if (loadedUriRef.current === playUri) return;
@@ -541,7 +692,7 @@ export default function PlayScreen() {
 
     const isOffline = Boolean(offlineUri);
 
-    if (userWantsPlayRef.current && !isOffline) {
+    if (userWantsPlayRef.current && !isOffline && !resumeOfferRef.current) {
       setWaitingToPlay(true);
     }
 
@@ -557,12 +708,17 @@ export default function PlayScreen() {
         if (isOffline) {
           try {
             player.muted = false;
-            if (wantsAutoplay) player.play();
+            if (resumeOfferRef.current) {
+              player.pause();
+              setWaitingToPlay(false);
+            } else if (wantsAutoplay) {
+              player.play();
+            }
           } catch {
             /* ignore */
           }
           preloadedRef.current = true;
-          setWaitingToPlay(false);
+          if (!resumeOfferRef.current) setWaitingToPlay(false);
           return;
         }
 
@@ -598,6 +754,7 @@ export default function PlayScreen() {
       clearPreloadTimers();
     };
   }, [
+    resumeReady,
     playUri,
     status,
     player,
@@ -724,6 +881,41 @@ export default function PlayScreen() {
     setSettingsOpen(false);
     showControls();
   };
+
+  const chooseResume = useCallback(() => {
+    const pos = Number(resumeOffer?.position) || 0;
+    resumeAtRef.current = pos;
+    setResumeOffer(null);
+    userWantsPlayRef.current = true;
+    setWaitingToPlay(true);
+    showControls();
+    if (!preloadedRef.current) return;
+    try {
+      player.currentTime = pos;
+      player.muted = false;
+      player.play();
+    } catch {
+      /* ignore */
+    }
+  }, [resumeOffer, player, showControls]);
+
+  const chooseStartOver = useCallback(() => {
+    const key = progressKeyRef.current;
+    if (key) clearWatchProgress(key).catch(() => {});
+    resumeAtRef.current = 0;
+    setResumeOffer(null);
+    userWantsPlayRef.current = true;
+    setWaitingToPlay(true);
+    showControls();
+    if (!preloadedRef.current) return;
+    try {
+      player.currentTime = 0;
+      player.muted = false;
+      player.play();
+    } catch {
+      /* ignore */
+    }
+  }, [player, showControls]);
 
   const applyDisplayMode = (id) => {
     setDisplayMode(id);
@@ -1192,6 +1384,32 @@ export default function PlayScreen() {
           </>
         )}
       </View>
+
+      <Modal
+        visible={Boolean(resumeOffer)}
+        transparent
+        animationType="fade"
+        onRequestClose={chooseResume}
+      >
+        <View style={styles.resumeBackdrop}>
+          <View style={styles.resumeCard}>
+            <Text style={styles.resumeTitle}>Continue watching?</Text>
+            <Text style={styles.resumeSub}>
+              You left off at {formatResumeTime(resumeOffer?.position || 0)}
+              {resumeOffer?.duration
+                ? ` of ${formatResumeTime(resumeOffer.duration)}`
+                : ""}
+            </Text>
+            <Pressable style={styles.resumePrimary} onPress={chooseResume}>
+              <Ionicons name="play" size={18} color={colors.accentInk} />
+              <Text style={styles.resumePrimaryText}>Resume</Text>
+            </Pressable>
+            <Pressable style={styles.resumeSecondary} onPress={chooseStartOver}>
+              <Text style={styles.resumeSecondaryText}>Start from beginning</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={settingsOpen}
@@ -1707,6 +1925,56 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
+  },
+  resumeBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  resumeCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: colors.panel,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  resumeTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  resumeSub: {
+    color: colors.muted,
+    fontSize: 14,
+    marginBottom: spacing.sm,
+  },
+  resumePrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
+    paddingVertical: 14,
+  },
+  resumePrimaryText: {
+    color: colors.accentInk,
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  resumeSecondary: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  resumeSecondaryText: {
+    color: colors.accentLight,
+    fontWeight: "700",
+    fontSize: 14,
   },
   sheet: {
     backgroundColor: colors.bg,

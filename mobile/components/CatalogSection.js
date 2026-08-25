@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import LazyHList from "./LazyHList";
 import PosterCard from "./PosterCard";
 import { colors, spacing } from "../lib/theme";
 
@@ -16,18 +17,14 @@ export default function CatalogSection({ section }) {
           {section.count || movies.length} titles
         </Text>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.row}
-      >
-        {movies.map((item, i) => (
-          <PosterCard
-            key={item.slug || item.subject_id || `${item.name}-${i}`}
-            item={item}
-          />
-        ))}
-      </ScrollView>
+      <LazyHList
+        data={movies}
+        initialNumToRender={4}
+        keyExtractor={(item, i) =>
+          item.slug || item.subject_id || `${item.name}-${i}`
+        }
+        renderItem={({ item }) => <PosterCard item={item} />}
+      />
     </View>
   );
 }
@@ -51,8 +48,5 @@ const styles = StyleSheet.create({
   count: {
     color: colors.muted,
     fontSize: 12,
-  },
-  row: {
-    paddingHorizontal: spacing.md,
   },
 });

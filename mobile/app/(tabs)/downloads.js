@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  AppState,
   LayoutAnimation,
   Pressable,
   RefreshControl,
@@ -14,6 +15,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import EmptyState from "../../components/EmptyState";
 import DownloadSheet from "../../components/DownloadSheet";
+import VaultModal, {
+  resolveVaultModalMode,
+} from "../../components/VaultModal";
 import Screen from "../../components/Screen";
 import {
   enqueueBestEffort,
@@ -24,6 +28,8 @@ import {
   isEpisodeCovered,
   canPlayPartial,
   isPartialOnly,
+  moveDownloadFromVault,
+  moveDownloadToVault,
   pauseDownload,
   progressOf,
   removeDownload,
@@ -40,6 +46,12 @@ import {
 } from "../../lib/musicDownloads";
 import { playTrack } from "../../lib/musicPlayer";
 import { openMusicPlayer } from "../../lib/musicUi";
+import { toUserMessage } from "../../lib/userFacingError";
+import {
+  isVaultUnlocked,
+  lockVault,
+  subscribeVault,
+} from "../../lib/vault";
 import { colors, radii, spacing } from "../../lib/theme";
 
 function isSeriesItem(d) {
@@ -93,12 +105,32 @@ function QualityBadge({ item }) {
   );
 }
 
-function EpisodeRow({ item, onPlay, onPause, onResume, onDelete }) {
+function EpisodeRow({
+  item,
+  onPlay,
+  onPause,
+  onResume,
+  onDelete,
+  onVaultToggle,
+  vaultMode,
+}) {
   const pct = Math.round(progressOf(item) * 100);
   const written = formatBytes(item.bytesWritten || 0);
   const total = formatBytes(item.totalBytes || item.sizeHint || 0);
   const playable = canPlayPartial(item);
   const partial = isPartialOnly(item);
+  const active =
+    !item.pending &&
+    (item.status === "downloading" || item.status === "queued");
+  const canResume =
+    !item.pending && (item.status === "paused" || item.status === "failed");
+  // While downloading: pause + delete only. Play when paused/ready (partial OK).
+  const showPlay =
+    playable && !item.pending && item.status !== "downloading" && item.status !== "queued";
+  const canVault =
+    typeof onVaultToggle === "function" &&
+    item.status === "completed" &&
+    !item.pending;
 
   return (
     <View style={styles.epRow}>
@@ -126,41 +158,72 @@ function EpisodeRow({ item, onPlay, onPause, onResume, onDelete }) {
                   ? `${pct}%`
                   : ""}
         </Text>
+        {partial && !active ? (
+          <Text style={styles.partialHint}>Partial — may stop early</Text>
+        ) : null}
       </View>
       <View style={styles.epActions}>
-        {playable && !item.pending ? (
+        {showPlay ? (
           <Pressable style={styles.iconAct} onPress={() => onPlay(item)} hitSlop={6}>
             <Ionicons name="play" size={16} color={colors.accentInk} />
           </Pressable>
         ) : null}
-        {!item.pending &&
-        (item.status === "downloading" || item.status === "queued") ? (
+        {active ? (
           <Pressable style={styles.iconGhost} onPress={() => onPause(item)} hitSlop={6}>
             <Ionicons name="pause" size={16} color={colors.text} />
           </Pressable>
         ) : null}
-        {!item.pending && (item.status === "paused" || item.status === "failed") ? (
+        {canResume ? (
           <Pressable style={styles.iconAct} onPress={() => onResume(item)} hitSlop={6}>
             <Ionicons name="refresh" size={16} color={colors.accentInk} />
+          </Pressable>
+        ) : null}
+        {canVault ? (
+          <Pressable
+            style={styles.iconGhost}
+            onPress={() => onVaultToggle(item)}
+            hitSlop={6}
+          >
+            <Ionicons
+              name={vaultMode ? "lock-open-outline" : "shield-outline"}
+              size={16}
+              color={colors.accentLight}
+            />
           </Pressable>
         ) : null}
         <Pressable style={styles.iconGhost} onPress={() => onDelete(item)} hitSlop={6}>
           <Ionicons name="trash-outline" size={16} color={colors.danger} />
         </Pressable>
       </View>
-      {partial ? (
-        <Text style={styles.partialHint}>Partial — may stop early</Text>
-      ) : null}
     </View>
   );
 }
 
-function MovieCard({ item, onPlay, onPause, onResume, onDelete }) {
+function MovieCard({
+  item,
+  onPlay,
+  onPause,
+  onResume,
+  onDelete,
+  onVaultToggle,
+  vaultMode,
+}) {
   const pct = Math.round(progressOf(item) * 100);
   const written = formatBytes(item.bytesWritten || 0);
   const total = formatBytes(item.totalBytes || item.sizeHint || 0);
   const playable = canPlayPartial(item);
   const partial = isPartialOnly(item);
+  const active =
+    !item.pending &&
+    (item.status === "downloading" || item.status === "queued");
+  const canResume =
+    !item.pending && (item.status === "paused" || item.status === "failed");
+  const showPlay =
+    playable && !item.pending && item.status !== "downloading" && item.status !== "queued";
+  const canVault =
+    typeof onVaultToggle === "function" &&
+    item.status === "completed" &&
+    !item.pending;
 
   return (
     <View style={styles.pack}>
@@ -203,7 +266,7 @@ function MovieCard({ item, onPlay, onPause, onResume, onDelete }) {
             </View>
           )}
           <View style={[styles.epActions, { marginTop: 10, justifyContent: "flex-start" }]}>
-            {playable && !item.pending ? (
+            {showPlay ? (
               <Pressable style={styles.playWide} onPress={() => onPlay(item)}>
                 <Ionicons name="play" size={16} color={colors.accentInk} />
                 <Text style={styles.playWideText}>
@@ -211,22 +274,37 @@ function MovieCard({ item, onPlay, onPause, onResume, onDelete }) {
                 </Text>
               </Pressable>
             ) : null}
-            {!item.pending &&
-            (item.status === "downloading" || item.status === "queued") ? (
+            {active ? (
               <Pressable style={styles.iconGhost} onPress={() => onPause(item)}>
                 <Ionicons name="pause" size={16} color={colors.text} />
               </Pressable>
             ) : null}
-            {!item.pending &&
-            (item.status === "paused" || item.status === "failed") ? (
+            {canResume ? (
               <Pressable style={styles.iconAct} onPress={() => onResume(item)}>
                 <Ionicons name="refresh" size={16} color={colors.accentInk} />
+              </Pressable>
+            ) : null}
+            {canVault ? (
+              <Pressable
+                style={styles.iconGhost}
+                onPress={() => onVaultToggle(item)}
+              >
+                <Ionicons
+                  name={vaultMode ? "lock-open-outline" : "shield-outline"}
+                  size={16}
+                  color={colors.accentLight}
+                />
               </Pressable>
             ) : null}
             <Pressable style={styles.iconGhost} onPress={() => onDelete(item)}>
               <Ionicons name="trash-outline" size={16} color={colors.danger} />
             </Pressable>
           </View>
+          {partial && !active ? (
+            <Text style={[styles.partialHint, { marginTop: 6 }]}>
+              Partial — may stop early
+            </Text>
+          ) : null}
         </View>
       </View>
     </View>
@@ -314,6 +392,8 @@ function SeriesPack({
   onResume,
   onDelete,
   onDeleteAll,
+  onVaultToggle,
+  vaultMode,
   catalog,
   catalogBusy,
   onFetchMore,
@@ -521,6 +601,8 @@ function SeriesPack({
               onPause={onPause}
               onResume={onResume}
               onDelete={onDelete}
+              onVaultToggle={onVaultToggle}
+              vaultMode={vaultMode}
             />
           ))}
         </View>
@@ -543,6 +625,23 @@ export default function DownloadsScreen() {
   const [catalogByPack, setCatalogByPack] = useState({});
   const [catalogBusyKey, setCatalogBusyKey] = useState(null);
   const [dlSheet, setDlSheet] = useState(null);
+  const [vaultMode, setVaultMode] = useState(false);
+  const [vaultUnlocked, setVaultUnlocked] = useState(isVaultUnlocked());
+  const [vaultModal, setVaultModal] = useState(null); // 'setup' | 'unlock' | null
+  const [vaultBusy, setVaultBusy] = useState(false);
+  const storageTaps = useRef({ count: 0, at: 0 });
+
+  useEffect(() => subscribeVault(setVaultUnlocked), []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        lockVault();
+        setVaultMode(false);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -605,15 +704,19 @@ export default function DownloadsScreen() {
     }
   }, [expandKey, list.length]);
 
+  const visibleList = useMemo(
+    () => list.filter((d) => (vaultMode ? d.inVault : !d.inVault)),
+    [list, vaultMode]
+  );
+
   const movies = useMemo(
-    () =>
-      list.filter((d) => !isSeriesItem(d)),
-    [list]
+    () => visibleList.filter((d) => !isSeriesItem(d)),
+    [visibleList]
   );
 
   const seriesPacks = useMemo(() => {
     const map = new Map();
-    for (const d of list.filter(isSeriesItem)) {
+    for (const d of visibleList.filter(isSeriesItem)) {
       const key = `${d.subjectId}|${d.detailPath}`;
       if (!map.has(key)) {
         map.set(key, {
@@ -639,7 +742,73 @@ export default function DownloadsScreen() {
     return [...map.values()].sort((a, b) =>
       String(a.title).localeCompare(String(b.title))
     );
-  }, [list]);
+  }, [visibleList]);
+
+  const onStorageTap = async () => {
+    const now = Date.now();
+    if (now - storageTaps.current.at > 2500) {
+      storageTaps.current = { count: 1, at: now };
+      return;
+    }
+    storageTaps.current.count += 1;
+    storageTaps.current.at = now;
+    if (storageTaps.current.count < 5) return;
+    storageTaps.current = { count: 0, at: 0 };
+
+    if (vaultUnlocked) {
+      setVaultMode(true);
+      return;
+    }
+    const mode = await resolveVaultModalMode();
+    setVaultModal(mode);
+  };
+
+  const onVaultUnlocked = () => {
+    setVaultMode(true);
+    if (tab === "songs") setTab("movies");
+  };
+
+  const exitVaultView = () => {
+    setVaultMode(false);
+  };
+
+  const lockAndExit = () => {
+    lockVault();
+    setVaultMode(false);
+  };
+
+  const onVaultToggle = async (item) => {
+    if (vaultBusy) return;
+    try {
+      if (!vaultUnlocked) {
+        const mode = await resolveVaultModalMode();
+        setVaultModal(mode);
+        Alert.alert(
+          "Movie Safe",
+          "Unlock the vault first (tap Device storage 5 times), then tap the shield on a finished download."
+        );
+        return;
+      }
+      setVaultBusy(true);
+      if (item.inVault) {
+        await moveDownloadFromVault(item.id);
+        Alert.alert("Moved out", "This title is back in normal Downloads.");
+      } else {
+        await moveDownloadToVault(item.id);
+        Alert.alert(
+          "Sealed in vault",
+          "Hidden from Downloads and sealed so file apps can’t play it. Open the vault (5 taps) to watch it."
+        );
+      }
+    } catch (err) {
+      Alert.alert(
+        "Vault",
+        toUserMessage(err, "Couldn’t update vault. Try again.")
+      );
+    } finally {
+      setVaultBusy(false);
+    }
+  };
 
   const onPlay = (item) => {
     router.push({
@@ -706,7 +875,10 @@ export default function DownloadsScreen() {
           preferredHeight: item.height || 720,
         });
       } catch (err) {
-        Alert.alert("Retry failed", err?.message || "Couldn’t restart download");
+        Alert.alert(
+          "Retry failed",
+          toUserMessage(err, "Couldn't restart download. Check your connection.")
+        );
       }
       return;
     }
@@ -759,17 +931,18 @@ export default function DownloadsScreen() {
         Alert.alert("No episodes", "Server returned no seasons for this title.");
       }
     } catch (err) {
+      const friendly = toUserMessage(
+        err,
+        "Couldn't load episodes. Check your connection and try again."
+      );
       setCatalogByPack((prev) => ({
         ...prev,
         [pack.key]: {
           seasons: prev[pack.key]?.seasons || [],
-          error: err?.message || "Couldn’t fetch episodes",
+          error: friendly,
         },
       }));
-      Alert.alert(
-        "Fetch failed",
-        err?.message || "Couldn’t load seasons. Is the API running?"
-      );
+      Alert.alert("Couldn't load", friendly);
     } finally {
       setCatalogBusyKey(null);
     }
@@ -820,45 +993,80 @@ export default function DownloadsScreen() {
     setRefreshing(false);
   };
 
-  const empty =
-    tab === "movies"
+  const empty = vaultMode
+    ? movies.length === 0 && seriesPacks.length === 0
+    : tab === "movies"
       ? movies.length === 0
       : tab === "series"
         ? seriesPacks.length === 0
         : songs.length === 0;
 
   const emptyCopy =
-    tab === "movies"
+    vaultMode
       ? {
-          title: "No movie downloads",
-          hint: "Open a title and tap Download to pick a quality.",
+          title: "Vault is empty",
+          hint: "Unlock the vault, go back to Downloads, and tap the shield on a finished download to seal it here.",
         }
-      : tab === "series"
+      : tab === "movies"
         ? {
-            title: "No series downloads",
-            hint: "Open a show and tap Download season, or download episodes one by one.",
+            title: "No movie downloads",
+            hint: "Open a title and tap Download to pick a quality.",
           }
-        : {
-            title: "No song downloads",
-            hint: "Open Songs, tap the download icon on a track, then find it here under Songs.",
-          };
+        : tab === "series"
+          ? {
+              title: "No series downloads",
+              hint: "Open a show and tap Download season, or download episodes one by one.",
+            }
+          : {
+              title: "No song downloads",
+              hint: "Open Songs, tap the download icon on a track, then find it here under Songs.",
+            };
 
   return (
-    <Screen title="Downloads">
-      <View style={styles.storageCard}>
+    <Screen title={vaultMode ? "Movie Safe" : "Downloads"}>
+      <Pressable style={styles.storageCard} onPress={onStorageTap}>
         <View style={styles.storageIcon}>
-          <Ionicons name="cloud-download-outline" size={18} color={colors.accent} />
+          <Ionicons
+            name={vaultMode ? "shield-checkmark" : "cloud-download-outline"}
+            size={18}
+            color={colors.accent}
+          />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.storageTitle}>Device storage</Text>
+          <Text style={styles.storageTitle}>
+            {vaultMode ? "Movie Safe · unlocked" : "Device storage"}
+          </Text>
           <Text style={styles.storageText}>
-            Used {formatBytes(stats.used)}
-            {stats.free ? ` · Free ${formatBytes(stats.free)}` : ""}
-            {stats.count ? ` · ${stats.count} files` : ""}
+            {vaultMode
+              ? "Sealed downloads only · Lock when you leave"
+              : `Used ${formatBytes(stats.used)}${
+                  stats.free ? ` · Free ${formatBytes(stats.free)}` : ""
+                }${stats.count ? ` · ${stats.count} files` : ""}`}
           </Text>
         </View>
-      </View>
+        {vaultMode ? (
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            <Pressable onPress={exitVaultView} hitSlop={8} style={styles.exitBtn}>
+              <Text style={styles.exitBtnText}>Downloads</Text>
+            </Pressable>
+            <Pressable onPress={lockAndExit} hitSlop={8} style={styles.lockBtn}>
+              <Ionicons name="lock-closed" size={16} color={colors.accentInk} />
+              <Text style={styles.lockBtnText}>Lock</Text>
+            </Pressable>
+          </View>
+        ) : vaultUnlocked ? (
+          <Pressable
+            onPress={() => setVaultMode(true)}
+            hitSlop={8}
+            style={styles.lockBtn}
+          >
+            <Ionicons name="shield" size={16} color={colors.accentInk} />
+            <Text style={styles.lockBtnText}>Safe</Text>
+          </Pressable>
+        ) : null}
+      </Pressable>
 
+      {!vaultMode ? (
       <View style={styles.tabs}>
         <Pressable
           style={[styles.tab, tab === "movies" && styles.tabOn]}
@@ -927,6 +1135,54 @@ export default function DownloadsScreen() {
           ) : null}
         </Pressable>
       </View>
+      ) : (
+      <View style={styles.tabs}>
+        <Pressable
+          style={[styles.tab, tab === "movies" && styles.tabOn]}
+          onPress={() => setTab("movies")}
+        >
+          <Ionicons
+            name="film-outline"
+            size={15}
+            color={tab === "movies" ? colors.accentInk : colors.muted}
+          />
+          <Text style={[styles.tabText, tab === "movies" && styles.tabTextOn]}>
+            Movies
+          </Text>
+          {movies.length ? (
+            <View style={[styles.countPill, tab === "movies" && styles.countPillOn]}>
+              <Text
+                style={[styles.countText, tab === "movies" && styles.countTextOn]}
+              >
+                {movies.length}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
+        <Pressable
+          style={[styles.tab, tab === "series" && styles.tabOn]}
+          onPress={() => setTab("series")}
+        >
+          <Ionicons
+            name="tv-outline"
+            size={15}
+            color={tab === "series" ? colors.accentInk : colors.muted}
+          />
+          <Text style={[styles.tabText, tab === "series" && styles.tabTextOn]}>
+            Series
+          </Text>
+          {seriesPacks.length ? (
+            <View style={[styles.countPill, tab === "series" && styles.countPillOn]}>
+              <Text
+                style={[styles.countText, tab === "series" && styles.countTextOn]}
+              >
+                {seriesPacks.length}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
+      )}
 
       {empty ? (
         <EmptyState title={emptyCopy.title} hint={emptyCopy.hint} />
@@ -941,8 +1197,10 @@ export default function DownloadsScreen() {
             />
           }
         >
-          {tab === "movies"
-            ? movies.map((item) => (
+          {(() => {
+            const viewTab = vaultMode && tab === "songs" ? "movies" : tab;
+            if (viewTab === "movies") {
+              return movies.map((item) => (
                 <MovieCard
                   key={item.id}
                   item={item}
@@ -950,48 +1208,55 @@ export default function DownloadsScreen() {
                   onPause={onPause}
                   onResume={onResume}
                   onDelete={onDelete}
+                  onVaultToggle={onVaultToggle}
+                  vaultMode={vaultMode}
                 />
-              ))
-            : tab === "series"
-              ? seriesPacks.map((pack) => (
-                  <SeriesPack
-                    key={pack.key}
-                    pack={pack}
-                    expanded={!!expanded[pack.key]}
-                    onToggle={() => togglePack(pack.key)}
-                    onPlay={onPlay}
-                    onPause={onPause}
-                    onResume={onResume}
-                    onDelete={onDelete}
-                    onDeleteAll={() => onDeletePack(pack)}
-                    catalog={catalogByPack[pack.key]}
-                    catalogBusy={catalogBusyKey === pack.key}
-                    onFetchMore={() => onFetchMore(pack)}
-                    onDownloadSeason={(se) => onDownloadSeason(pack, se)}
-                    onDownloadEpisode={(se, ep) =>
-                      onDownloadEpisode(pack, se, ep)
-                    }
-                  />
-                ))
-              : songs.map((item) => (
-                  <SongCard
-                    key={item.id}
-                    item={item}
-                    onPlay={onPlaySong}
-                    onPause={(d) => pauseMusicDownload(d.id)}
-                    onResume={(d) => resumeMusicDownload(d.id)}
-                    onDelete={(d) => {
-                      Alert.alert("Remove download", `Delete “${d.name}”?`, [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                          text: "Delete",
-                          style: "destructive",
-                          onPress: () => removeMusicDownload(d.id),
-                        },
-                      ]);
-                    }}
-                  />
-                ))}
+              ));
+            }
+            if (viewTab === "series") {
+              return seriesPacks.map((pack) => (
+                <SeriesPack
+                  key={pack.key}
+                  pack={pack}
+                  expanded={!!expanded[pack.key]}
+                  onToggle={() => togglePack(pack.key)}
+                  onPlay={onPlay}
+                  onPause={onPause}
+                  onResume={onResume}
+                  onDelete={onDelete}
+                  onDeleteAll={() => onDeletePack(pack)}
+                  onVaultToggle={onVaultToggle}
+                  vaultMode={vaultMode}
+                  catalog={vaultMode ? undefined : catalogByPack[pack.key]}
+                  catalogBusy={catalogBusyKey === pack.key}
+                  onFetchMore={() => onFetchMore(pack)}
+                  onDownloadSeason={(se) => onDownloadSeason(pack, se)}
+                  onDownloadEpisode={(se, ep) =>
+                    onDownloadEpisode(pack, se, ep)
+                  }
+                />
+              ));
+            }
+            return songs.map((item) => (
+              <SongCard
+                key={item.id}
+                item={item}
+                onPlay={onPlaySong}
+                onPause={(d) => pauseMusicDownload(d.id)}
+                onResume={(d) => resumeMusicDownload(d.id)}
+                onDelete={(d) => {
+                  Alert.alert("Remove download", `Delete “${d.name}”?`, [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Delete",
+                      style: "destructive",
+                      onPress: () => removeMusicDownload(d.id),
+                    },
+                  ]);
+                }}
+              />
+            ));
+          })()}
         </ScrollView>
       )}
       <DownloadSheet
@@ -1007,6 +1272,12 @@ export default function DownloadsScreen() {
         kind={dlSheet?.kind || "series"}
         mode={dlSheet?.mode || "single"}
         season={dlSheet?.season}
+      />
+      <VaultModal
+        visible={!!vaultModal}
+        mode={vaultModal || "unlock"}
+        onClose={() => setVaultModal(null)}
+        onUnlocked={onVaultUnlocked}
       />
     </Screen>
   );
@@ -1040,6 +1311,34 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 11,
     marginTop: 2,
+  },
+  lockBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+  },
+  lockBtnText: {
+    color: colors.accentInk,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+  exitBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.panelSoft,
+    borderWidth: 1,
+    borderColor: colors.line,
+    justifyContent: "center",
+  },
+  exitBtnText: {
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: 12,
   },
   tabs: {
     flexDirection: "row",

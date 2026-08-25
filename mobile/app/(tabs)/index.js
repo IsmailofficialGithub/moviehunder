@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  InteractionManager,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,7 @@ import EmptyState from "../../components/EmptyState";
 import HomeHeader from "../../components/HomeHeader";
 import HomeSkeleton from "../../components/HomeSkeleton";
 import HotShortsSection from "../../components/HotShortsSection";
+import LazyHList from "../../components/LazyHList";
 import Screen from "../../components/Screen";
 import WideTitleCard from "../../components/WideTitleCard";
 import {
@@ -32,9 +34,12 @@ import {
 } from "../../lib/catalogCache";
 import { getTabScroll, saveTabScroll } from "../../lib/tabScroll";
 import { isHotShortsSection } from "../../lib/shorts";
+import { toUserMessage } from "../../lib/userFacingError";
 import { colors, spacing } from "../../lib/theme";
 
-const PREFETCH = ["trending", "movie", "tv", "animation", "ranking"];
+const PREFETCH = ["movie", "tv", "animation", "ranking"];
+/** First paint: banner + trending + this many rows below. */
+const INITIAL_ROW_COUNT = 2;
 
 async function fetchCategory(id) {
   if (id === "movie") return getMovies();
@@ -108,8 +113,10 @@ export default function HomeScreen() {
   const [syncing, setSyncing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [visibleRows, setVisibleRows] = useState(INITIAL_ROW_COUNT);
   const scrollRef = useRef(null);
   const scrollYRef = useRef(0);
+  const viewportHRef = useRef(700);
   const activeKeyRef = useRef("trending");
   const prefetched = useRef(false);
 
@@ -199,7 +206,12 @@ export default function HomeScreen() {
         if (!getCachedSections(key)?.length) {
           setSections([]);
           if (key === "trending") setBannerItems([]);
-          setError(err?.message || "Couldn’t load. Is the server running?");
+          setError(
+            toUserMessage(
+              err,
+              "Couldn't load the catalog. Check your connection and try again."
+            )
+          );
         }
         setLoading(false);
       } finally {
@@ -215,19 +227,41 @@ export default function HomeScreen() {
     load(category);
   }, [cacheReady, category, load]);
 
+  // Reset progressive rows when switching category tabs
   useEffect(() => {
-    if (!cacheReady || prefetched.current) return;
+    setVisibleRows(INITIAL_ROW_COUNT);
+  }, [category]);
+
+  // Warm other tabs only after home is interactive — one category at a time
+  useEffect(() => {
+    if (!cacheReady || prefetched.current || loading) return;
     prefetched.current = true;
-    PREFETCH.forEach(async (id) => {
-      if (isCacheFresh(id)) return;
-      try {
-        const data = await fetchCategory(id);
-        saveCache(id, normalizeSections(data));
-      } catch {
-        /* ignore background prefetch */
-      }
+    let cancelled = false;
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      (async () => {
+        // Give banner + first rows time to grab bandwidth
+        await new Promise((r) => setTimeout(r, 1200));
+        for (const id of PREFETCH) {
+          if (cancelled) return;
+          if (isCacheFresh(id)) continue;
+          try {
+            const data = await fetchCategory(id);
+            if (cancelled) return;
+            saveCache(id, normalizeSections(data));
+          } catch {
+            /* ignore background prefetch */
+          }
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      })();
     });
-  }, [cacheReady, saveCache]);
+
+    return () => {
+      cancelled = true;
+      task?.cancel?.();
+    };
+  }, [cacheReady, loading, saveCache]);
 
   const onCategoryChange = useCallback(
     (id) => {
@@ -257,6 +291,7 @@ export default function HomeScreen() {
     () => orderHomeRows(sections),
     [sections]
   );
+  const mountedRows = otherRows.slice(0, visibleRows);
   const showSkeleton = loading && !featuredRow && !otherRows.length && !error;
   const showContent =
     featuredRow || otherRows.length || bannerItems.length || showSkeleton;
@@ -267,6 +302,19 @@ export default function HomeScreen() {
     !featuredRow &&
     !otherRows.length &&
     !bannerItems.length;
+
+  const revealMoreRows = useCallback(
+    (y, viewportH, contentH) => {
+      if (visibleRows >= otherRows.length) return;
+      // Near bottom while scrolling, or content still shorter than the screen
+      const nearEnd = y + viewportH > contentH - 720;
+      const underfilled = contentH < viewportH + 120;
+      if (nearEnd || underfilled) {
+        setVisibleRows((n) => Math.min(otherRows.length, n + 2));
+      }
+    },
+    [otherRows.length, visibleRows]
+  );
 
   return (
     <Screen>
@@ -286,20 +334,33 @@ export default function HomeScreen() {
           <Text style={styles.retry} onPress={() => load(category)}>
             Tap to retry
           </Text>
-          <Text style={styles.hint}>
-            On your PC run: cd server && npm run dev
-          </Text>
         </View>
       ) : empty ? (
-        <EmptyState hint="Start the API with cd server && npm run dev" />
+        <EmptyState hint="Nothing here yet. Pull down to refresh." />
       ) : showContent ? (
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           scrollEventThrottle={16}
+          onLayout={(e) => {
+            viewportHRef.current = e.nativeEvent.layout.height || 700;
+          }}
           onScroll={(e) => {
-            scrollYRef.current = e.nativeEvent.contentOffset.y;
+            const { contentOffset, layoutMeasurement, contentSize } =
+              e.nativeEvent;
+            scrollYRef.current = contentOffset.y;
+            revealMoreRows(
+              contentOffset.y,
+              layoutMeasurement.height,
+              contentSize.height
+            );
+          }}
+          onContentSizeChange={(_, h) => {
+            // Fill the first screen only — don't cascade-load the whole catalog
+            if (h < viewportHRef.current + 120) {
+              revealMoreRows(scrollYRef.current, viewportHRef.current, h);
+            }
           }}
           refreshControl={
             <RefreshControl
@@ -324,22 +385,18 @@ export default function HomeScreen() {
                       {featuredRow.section || "Trending"}
                     </Text>
                   </View>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.wideRow}
-                  >
-                    {(featuredRow.movies || []).slice(0, 16).map((item, i) => (
-                      <WideTitleCard
-                        key={item.slug || item.subject_id || `${item.name}-${i}`}
-                        item={item}
-                      />
-                    ))}
-                  </ScrollView>
+                  <LazyHList
+                    data={(featuredRow.movies || []).slice(0, 16)}
+                    initialNumToRender={3}
+                    keyExtractor={(item, i) =>
+                      item.slug || item.subject_id || `${item.name}-${i}`
+                    }
+                    renderItem={({ item }) => <WideTitleCard item={item} />}
+                  />
                 </View>
               ) : null}
 
-              {otherRows.map((section, index) =>
+              {mountedRows.map((section, index) =>
                 isHotShortsSection(section) ? (
                   <HotShortsSection
                     key={`${section.section}-${index}`}
@@ -391,9 +448,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 17,
     fontWeight: "700",
-  },
-  wideRow: {
-    paddingHorizontal: spacing.md,
   },
   center: {
     flex: 1,

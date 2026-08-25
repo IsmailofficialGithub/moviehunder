@@ -5,7 +5,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORE_KEY = "flick.catalog.v1";
-const TTL_MS = 10 * 60 * 1000;
+/** Keep catalog longer so reopen feels instant; background sync still refreshes. */
+const TTL_MS = 6 * 60 * 60 * 1000;
 
 /** @type {Map<string, { sections: any[], at: number }>} */
 const store = new Map();

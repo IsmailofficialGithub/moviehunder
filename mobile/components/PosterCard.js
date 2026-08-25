@@ -20,7 +20,9 @@ export default function PosterCard({ item, width = 118, onPress }) {
             style={{ width, height, borderRadius: 10 }}
             contentFit="cover"
             cachePolicy="memory-disk"
-            transition={200}
+            recyclingKey={item.poster_url}
+            priority="normal"
+            transition={180}
           />
         ) : (
           <View style={[styles.placeholder, { width, height }]}>

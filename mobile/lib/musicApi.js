@@ -1,4 +1,5 @@
 import { getApiBase, apiClientHeaders } from "./config";
+import { toUserMessage } from "./userFacingError";
 
 async function api(path) {
   const url = `${getApiBase()}${path.startsWith("/") ? path : `/${path}`}`;
@@ -11,9 +12,18 @@ async function api(path) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error || data.hint || `Request failed (${res.status})`);
+      throw new Error(
+        toUserMessage(
+          data.error || data.hint || data.reason,
+          "Request failed. Please try again."
+        )
+      );
     }
     return data;
+  } catch (err) {
+    throw new Error(
+      toUserMessage(err, "Couldn't load music. Check your connection.")
+    );
   } finally {
     clearTimeout(timer);
   }

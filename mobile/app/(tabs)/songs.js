@@ -48,6 +48,7 @@ import {
   subscribeMusicDownloads,
 } from "../../lib/musicDownloads";
 import { openMusicPlayer } from "../../lib/musicUi";
+import { toUserMessage } from "../../lib/userFacingError";
 import { colors, radii, spacing } from "../../lib/theme";
 
 const MODES = [
@@ -389,7 +390,10 @@ export default function SongsScreen() {
         await resumeMusicDownload(track.id);
       }
     } catch (err) {
-      Alert.alert("Download", err?.message || "Couldn’t download");
+      Alert.alert(
+        "Download",
+        toUserMessage(err, "Couldn't download. Check your connection.")
+      );
     }
   }, []);
 
@@ -419,7 +423,9 @@ export default function SongsScreen() {
         setSpotifyPlaylists(data.playlists || []);
       }
     } catch (err) {
-      setError(err?.message || "Search failed");
+      setError(
+        toUserMessage(err, "Search failed. Check your connection and try again.")
+      );
       setTracks([]);
       setSpotifyPlaylists([]);
     } finally {
@@ -538,7 +544,10 @@ export default function SongsScreen() {
         setActivePlaylistId(pl.id);
         Alert.alert("Imported", `${remoteTracks.length} tracks saved locally`);
       } catch (err) {
-        Alert.alert("Import failed", err?.message || "Couldn’t import playlist");
+        Alert.alert(
+          "Import failed",
+          toUserMessage(err, "Couldn't import playlist. Check your connection.")
+        );
       } finally {
         setBusy(false);
       }
