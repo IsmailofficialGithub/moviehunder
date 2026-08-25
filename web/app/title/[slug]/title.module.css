@@ -1,0 +1,15 @@
+.wrap {
+  padding-left: 28px;
+  padding-right: 28px;
+  display: grid;
+  gap: 16px;
+}
+
+.back {
+  color: var(--muted);
+  width: fit-content;
+}
+
+.back:hover {
+  color: var(--gold);
+}

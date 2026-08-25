@@ -1,0 +1,19 @@
+{
+  "name": "flick-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Catalog API (Cloudflare Worker) + local play relay",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "wrangler dev --port 8787",
+    "dev:relay": "node play-relay.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  }
+}
