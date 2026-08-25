@@ -1,10 +1,10 @@
 {
-  "latest_version": "1.0.0",
-  "min_supported_version": "1.0.0",
-  "release_notes": "Initial release. Bump these fields when you publish a new APK on GitHub Releases.",
+  "latest_version": "0.0.1",
+  "min_supported_version": "0.0.1",
+  "release_notes": "MovieHunter v0.0.1 — first release.",
   "android": {
     "version_code": 1,
-    "apk_url": "https://github.com/YOUR_ORG/YOUR_REPO/releases/download/v1.0.0/moviehunter-1.0.0.apk",
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.1/moviehunter-0.0.1.apk",
     "force": false
   }
 }
