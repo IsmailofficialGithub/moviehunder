@@ -84,6 +84,12 @@ export function createConfig(env = {}) {
     AUDIUS_API_BASE: pick(env, "AUDIUS_API_BASE").replace(/\/+$/, ""),
     AUDIUS_APP_NAME: pick(env, "AUDIUS_APP_NAME", ""),
     AUDIUS_WEB_BASE: pick(env, "AUDIUS_WEB_BASE").replace(/\/+$/, ""),
+    /** Comma-separated browser origins allowed to call the API (web app). */
+    CORS_ALLOWED_ORIGINS: list(env, "CORS_ALLOWED_ORIGINS", []).map((h) =>
+      h.replace(/\/+$/, "")
+    ),
+    /** Shared secret for the mobile app (header X-App-Key). */
+    APP_CLIENT_KEY: pick(env, "APP_CLIENT_KEY", ""),
     get WEB_BFF() {
       return `${this.BASE_URL}${this.WEB_BFF_PATH}`;
     },

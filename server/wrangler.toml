@@ -1,6 +1,7 @@
 name = "moviebox-stream-proxy"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
 
 # Free tier: 100K requests/day, 10ms CPU time (streaming I/O doesn't count)
 # The Worker streams video through without buffering → near-zero RAM usage

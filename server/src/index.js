@@ -18,14 +18,11 @@ import {
 } from "./music.js";
 import { downloadSubdl, searchSubdl, subdlConfigured } from "./subdl.js";
 import { toWebVtt } from "./subtitles.js";
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Range, Content-Type",
-  "Access-Control-Expose-Headers":
-    "Content-Length, Content-Range, Accept-Ranges, X-Stream-Resolution",
-};
+import {
+  activeCorsHeaders,
+  authorizeClient,
+  requestContext,
+} from "./cors.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -215,18 +212,56 @@ export default {
     const config = createConfig(env || {});
     setActiveConfig(config);
     if (config.missing.length) {
-      return json(
+      return new Response(
+        JSON.stringify(
+          {
+            error: "Server misconfigured",
+            missing: config.missing,
+            hint: "Copy server/.env.example to server/.dev.vars and fill values",
+          },
+          null,
+          2
+        ),
         {
-          error: "Server misconfigured",
-          missing: config.missing,
-          hint: "Copy server/.env.example to server/.dev.vars and fill values",
-        },
-        500
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
       );
     }
 
+    const gate = authorizeClient(request);
+    if (!gate.ok) {
+      return new Response(
+        JSON.stringify(
+          {
+            error: "Forbidden",
+            reason: gate.reason || "Unauthorized client",
+          },
+          null,
+          2
+        ),
+        {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "null",
+          },
+        }
+      );
+    }
+
+    return requestContext.run({ cors: gate.cors }, () =>
+      handleRequest(request, env)
+    );
+  },
+};
+
+async function handleRequest(request, env) {
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: CORS });
+      return new Response(null, {
+        status: 204,
+        headers: activeCorsHeaders(),
+      });
     }
 
     const url = new URL(request.url);
@@ -338,8 +373,7 @@ export default {
     } catch (err) {
       return json({ error: err.message || "Internal error" }, 500);
     }
-  },
-};
+}
 
 // ══════════════════════════════════════════════════════════════════
 // GET /api  — endpoint listing
@@ -1202,7 +1236,7 @@ async function handleStreamApi(subjectId, params) {
         headers: {
           "Content-Type": "application/json",
           "Cache-Control": "public, max-age=300",
-          ...CORS,
+          ...activeCorsHeaders(),
         },
       });
       await caches.default.put(cacheKey, toCache);
@@ -1286,7 +1320,7 @@ async function handleWatch(subjectId, params, request) {
   }
 
   // Response headers
-  const respHeaders = new Headers(CORS);
+  const respHeaders = new Headers(activeCorsHeaders());
   respHeaders.set("Accept-Ranges", "bytes");
   respHeaders.set(
     "Content-Type",
@@ -1500,6 +1534,6 @@ async function handleMusicPlaylistTracks(playlistId, params) {
 function json(body, status = 200) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS },
+    headers: { "Content-Type": "application/json", ...activeCorsHeaders() },
   });
 }

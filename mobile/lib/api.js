@@ -1,4 +1,4 @@
-import { getApiBase } from "./config";
+import { getApiBase, apiClientHeaders } from "./config";
 
 const DEFAULT_TIMEOUT_MS = 12000;
 
@@ -15,7 +15,10 @@ async function api(path, { signal, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: apiClientHeaders(),
+    });
     const contentType = res.headers.get("content-type") || "";
     if (!res.ok) {
       if (contentType.includes("application/json")) {

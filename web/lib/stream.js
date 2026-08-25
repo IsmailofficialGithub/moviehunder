@@ -1,7 +1,7 @@
-import { getApiBase, getPlayRelayBase } from "./config";
+import { getApiBase, getPlayRelayBase, apiClientHeaders, withAppKeyQuery } from "./config";
 
 async function fetchJson(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: apiClientHeaders() });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(data.error || `Request failed (${res.status})`);
@@ -49,8 +49,10 @@ export async function resolveStreams({ subjectId, detailPath, se = 0, ep = 0 }) 
 
 export function proxiedMediaUrl(cdnUrl) {
   if (!cdnUrl) return "";
-  if (cdnUrl.includes("/api/media?")) return cdnUrl;
-  return `${getPlayRelayBase()}/api/media?url=${encodeURIComponent(cdnUrl)}`;
+  if (cdnUrl.includes("/api/media?")) return withAppKeyQuery(cdnUrl);
+  return withAppKeyQuery(
+    `${getPlayRelayBase()}/api/media?url=${encodeURIComponent(cdnUrl)}`
+  );
 }
 
 function normalizeSources(sources) {

@@ -1,4 +1,4 @@
-import { getApiBase } from "./config";
+import { getApiBase, apiClientHeaders } from "./config";
 
 async function api(path) {
   const url = `${getApiBase()}${path.startsWith("/") ? path : `/${path}`}`;
@@ -7,7 +7,7 @@ async function api(path) {
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { Accept: "application/json" },
+      headers: apiClientHeaders({ Accept: "application/json" }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

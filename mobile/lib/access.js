@@ -1,4 +1,4 @@
-import { getApiBase } from "./config";
+import { getApiBase, apiClientHeaders } from "./config";
 import { getDeviceId, getDeviceMeta } from "./deviceId";
 
 /**
@@ -16,11 +16,23 @@ export async function verifyAccess() {
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: apiClientHeaders({
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      }),
       body: JSON.stringify({ device_id, ...meta }),
       signal: ctrl.signal,
     });
     const data = await res.json().catch(() => ({}));
+
+    // CORS / client gate rejection — not a device block
+    if (res.status === 403 && data.error === "Forbidden") {
+      return {
+        allowed: true,
+        mode: "degraded",
+        error: data.reason || "API client unauthorized",
+      };
+    }
 
     // Only block when admin explicitly blocked this device (403)
     if (res.status === 403) {
