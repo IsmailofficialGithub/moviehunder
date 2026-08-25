@@ -8,6 +8,7 @@
     "dev": "node scripts/dev.mjs",
     "dev:api": "wrangler dev --port 8787",
     "dev:relay": "node play-relay.mjs",
+    "start:api": "node scripts/start-api.mjs",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
