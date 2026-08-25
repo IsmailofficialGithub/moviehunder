@@ -12,3 +12,5 @@ Thumbs.db
 *.env.example*
 version.json
 .cursor
+ecosystem.config.cjs
+ecosystem.config.js
