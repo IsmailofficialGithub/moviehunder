@@ -1,4 +1,5 @@
 import { getApiBase, getPlayRelayBase, apiClientHeaders, withAppKeyQuery } from "./config";
+import { toUserMessage } from "./userFacingError";
 
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -22,21 +23,25 @@ async function fetchJson(url, { timeoutMs = FETCH_TIMEOUT_MS } = {}) {
         headers: apiClientHeaders(),
       }),
       timeoutMs + 500,
-      "Request timed out. Check that the server is running."
+      "Request timed out"
     );
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const err = new Error(data.error || `Request failed (${res.status})`);
+      const err = new Error(
+        toUserMessage(data.error || data.reason, "Request failed. Please try again.")
+      );
       err.status = res.status;
       err.code = data.code;
       throw err;
     }
     return data;
   } catch (err) {
-    if (err?.name === "AbortError") {
-      throw new Error("Request timed out. Check that the server is running.");
-    }
-    throw err;
+    throw new Error(
+      toUserMessage(
+        err,
+        "Couldn't load streams. Check your connection and try again."
+      )
+    );
   } finally {
     clearTimeout(timer);
   }

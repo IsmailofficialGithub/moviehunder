@@ -14,6 +14,7 @@ import {
   findDownload,
 } from "../lib/downloads";
 import { formatBytes, resolveStreams } from "../lib/stream";
+import { toUserMessage } from "../lib/userFacingError";
 import { colors, radii, spacing } from "../lib/theme";
 
 /**
@@ -57,7 +58,12 @@ export default function DownloadSheet({
       if (!result.sources?.length) setError("No downloadable streams.");
     } catch (err) {
       setSources([]);
-      setError(err?.message || "Couldn’t load qualities.");
+      setError(
+        toUserMessage(
+          err,
+          "Couldn't load qualities. Check your connection and try again."
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -109,7 +115,12 @@ export default function DownloadSheet({
         onClose?.();
       }
     } catch (err) {
-      setError(err?.message || "Couldn’t start download.");
+      setError(
+        toUserMessage(
+          err,
+          "Couldn't start download. Check your connection and try again."
+        )
+      );
     } finally {
       setBusyHeight(null);
     }

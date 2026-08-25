@@ -7,6 +7,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { getEpisodes } from "./api";
 import { getCachedStreams, prefetchStreams } from "./streamCache";
 import { downloadMediaUrl } from "./stream";
+import { toUserMessage } from "./userFacingError";
 
 const STORE_KEY = "flick.downloads.v1";
 const ROOT = `${FileSystem.documentDirectory || ""}flick-dl/`;
@@ -133,8 +134,10 @@ export function subscribeDownloads(fn) {
   return () => listeners.delete(fn);
 }
 
-export function getDownloads() {
-  return [...items.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+export function getDownloads({ vault = false } = {}) {
+  return [...items.values()]
+    .filter((d) => (vault ? d.inVault : !d.inVault))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export function getDownloadById(id) {
@@ -306,7 +309,7 @@ async function startTask(id) {
       id,
       {
         status: "failed",
-        error: err?.message || "Storage unavailable",
+        error: toUserMessage(err, "Storage unavailable"),
       },
       { emitNow: true }
     );
@@ -335,7 +338,7 @@ async function startTask(id) {
       id,
       {
         status: "failed",
-        error: err?.message || "Couldn’t start download task",
+        error: toUserMessage(err, "Couldn't start download"),
       },
       { emitNow: true }
     );
@@ -391,7 +394,7 @@ async function startTask(id) {
       id,
       {
         status: "failed",
-        error: err?.message || "Download failed",
+        error: toUserMessage(err, "Download failed. Check your connection."),
         resumeData,
       },
       { emitNow: true }
@@ -606,7 +609,9 @@ export async function enqueueBestEffort({
       source,
     });
   } catch (err) {
-    failPending(err?.message || "Couldn’t start download");
+    failPending(
+      toUserMessage(err, "Couldn't start download. Check your connection.")
+    );
     throw err;
   }
 }
@@ -764,6 +769,46 @@ export async function removeDownload(id) {
   schedulePersist();
   emit(true);
   pumpQueue();
+}
+
+/** Move a completed download into the password vault (caller must unlock vault first). */
+export async function moveDownloadToVault(id) {
+  await hydrateDownloads();
+  const item = items.get(id);
+  if (!item) throw new Error("Download not found");
+  if (item.inVault) return item;
+  if (item.status !== "completed") {
+    throw new Error("Only finished downloads can go in the vault");
+  }
+  const { sealDownloadIntoVault } = await import("./vault");
+  const sealed = await sealDownloadIntoVault(item);
+  items.set(id, {
+    ...item,
+    ...sealed,
+    updatedAt: Date.now(),
+  });
+  schedulePersist();
+  emit(true);
+  return items.get(id);
+}
+
+/** Restore a vault download to the normal Downloads list. */
+export async function moveDownloadFromVault(id) {
+  await hydrateDownloads();
+  const item = items.get(id);
+  if (!item?.inVault) return item;
+  await ensureRoot();
+  const destUri = `${ROOT}${fileNameFor(item)}`;
+  const { unsealDownloadFromVault } = await import("./vault");
+  const open = await unsealDownloadFromVault(item, destUri);
+  items.set(id, {
+    ...item,
+    ...open,
+    updatedAt: Date.now(),
+  });
+  schedulePersist();
+  emit(true);
+  return items.get(id);
 }
 
 export async function getStorageStats() {

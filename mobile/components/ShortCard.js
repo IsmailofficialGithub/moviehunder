@@ -20,7 +20,9 @@ export default function ShortCard({ item, width = CARD_W, onPress }) {
             style={{ width, height, borderRadius: 12 }}
             contentFit="cover"
             cachePolicy="memory-disk"
-            transition={200}
+            recyclingKey={item.poster_url}
+            priority="normal"
+            transition={180}
           />
         ) : (
           <View style={[styles.placeholder, { width, height }]}>

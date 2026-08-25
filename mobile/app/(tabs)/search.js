@@ -14,6 +14,12 @@ import EmptyState from "../../components/EmptyState";
 import PosterCard from "../../components/PosterCard";
 import Screen from "../../components/Screen";
 import { searchSuggest, searchTitles } from "../../lib/api";
+import {
+  addSearchHistory,
+  clearSearchHistory,
+  removeSearchHistory,
+  subscribeSearchHistory,
+} from "../../lib/searchHistory";
 import { colors, radii, spacing } from "../../lib/theme";
 
 export default function SearchScreen() {
@@ -22,6 +28,7 @@ export default function SearchScreen() {
   const [q, setQ] = useState(initial);
   const [movies, setMovies] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -29,6 +36,9 @@ export default function SearchScreen() {
   const searchTimer = useRef(null);
   const suggestTimer = useRef(null);
   const skipSuggest = useRef(Boolean(initial));
+  const lastSavedQuery = useRef("");
+
+  useEffect(() => subscribeSearchHistory(setHistory), []);
 
   useEffect(() => {
     if (typeof params.q === "string" && params.q !== q) {
@@ -90,6 +100,10 @@ export default function SearchScreen() {
       try {
         const data = await searchTitles(query);
         setMovies(data.movies || []);
+        if (query !== lastSavedQuery.current) {
+          lastSavedQuery.current = query;
+          addSearchHistory(query).catch(() => {});
+        }
       } catch {
         setMovies([]);
       } finally {
@@ -110,6 +124,14 @@ export default function SearchScreen() {
     setShowSuggestions(false);
     setSuggestions([]);
     setQ(word);
+    addSearchHistory(word).catch(() => {});
+  };
+
+  const pickHistory = (word) => {
+    skipSuggest.current = true;
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setQ(word);
   };
 
   const clearQuery = () => {
@@ -118,6 +140,8 @@ export default function SearchScreen() {
     setSuggestions([]);
     setQ("");
   };
+
+  const showHistory = !q.trim() && !loading && !searched && history.length > 0;
 
   return (
     <Screen title="Search">
@@ -176,6 +200,35 @@ export default function SearchScreen() {
         </View>
       ) : null}
 
+      {showHistory ? (
+        <View style={styles.historyBox}>
+          <View style={styles.historyHead}>
+            <Text style={styles.historyLabel}>Recent searches</Text>
+            <Pressable onPress={() => clearSearchHistory()} hitSlop={8}>
+              <Text style={styles.clearHist}>Clear</Text>
+            </Pressable>
+          </View>
+          {history.map((word) => (
+            <Pressable
+              key={word}
+              style={styles.suggestRow}
+              onPress={() => pickHistory(word)}
+            >
+              <Ionicons name="time-outline" size={16} color={colors.muted} />
+              <Text style={styles.suggestText} numberOfLines={1}>
+                {word}
+              </Text>
+              <Pressable
+                onPress={() => removeSearchHistory(word)}
+                hitSlop={10}
+              >
+                <Ionicons name="close" size={16} color={colors.muted} />
+              </Pressable>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} />
@@ -194,7 +247,7 @@ export default function SearchScreen() {
           columnWrapperStyle={styles.row}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
-            !q.trim() ? (
+            !q.trim() && !history.length ? (
               <Text style={styles.hint}>
                 Type to search — suggestions appear as you type
               </Text>
@@ -241,6 +294,33 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
+  historyBox: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.panelSoft,
+    borderRadius: radii.md,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  historyHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    marginBottom: 4,
+  },
+  historyLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  clearHist: {
+    color: colors.accentLight,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   suggestLabel: {
     color: colors.muted,
     fontSize: 11,
@@ -267,22 +347,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  hint: {
+    color: colors.muted,
+    textAlign: "center",
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
   grid: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
   },
   row: {
-    justifyContent: "flex-start",
-    gap: 8,
-    marginBottom: 12,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   cell: {
-    marginRight: 0,
-  },
-  hint: {
-    color: colors.muted,
-    textAlign: "center",
-    marginTop: spacing.xl,
-    paddingHorizontal: spacing.lg,
+    flex: 1,
   },
 });

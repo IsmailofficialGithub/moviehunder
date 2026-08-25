@@ -16,7 +16,7 @@ import { colors, spacing } from "../lib/theme";
 const WIDTH = Dimensions.get("window").width;
 const HEIGHT = Math.round(WIDTH * 0.62);
 
-function BannerSlide({ item }) {
+function BannerSlide({ item, priority = "normal" }) {
   const [failed, setFailed] = useState(false);
   const uri = item?.poster_url;
   const summary = useDownloadSummary(item?.slug);
@@ -34,6 +34,8 @@ function BannerSlide({ item }) {
           style={styles.image}
           contentFit="cover"
           cachePolicy="memory-disk"
+          recyclingKey={uri}
+          priority={priority}
           transition={200}
           onError={() => setFailed(true)}
         />
@@ -70,7 +72,8 @@ function BannerSlide({ item }) {
 export default function BannerCarousel({ items = [] }) {
   const [index, setIndex] = useState(0);
   const listRef = useRef(null);
-  const data = (items || []).filter((m) => m?.name).slice(0, 12);
+  // Keep a few slides ready; FlatList only mounts the visible window.
+  const data = (items || []).filter((m) => m?.name).slice(0, 8);
 
   if (!data.length) return null;
 
@@ -83,6 +86,10 @@ export default function BannerCarousel({ items = [] }) {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        initialNumToRender={1}
+        maxToRenderPerBatch={1}
+        windowSize={3}
+        removeClippedSubviews
         getItemLayout={(_, i) => ({
           length: WIDTH,
           offset: WIDTH * i,
@@ -92,7 +99,14 @@ export default function BannerCarousel({ items = [] }) {
           const next = Math.round(e.nativeEvent.contentOffset.x / WIDTH);
           setIndex(next);
         }}
-        renderItem={({ item }) => <BannerSlide item={item} />}
+        renderItem={({ item, index: i }) => (
+          <BannerSlide
+            item={item}
+            priority={
+              i === index ? "high" : Math.abs(i - index) <= 1 ? "normal" : "low"
+            }
+          />
+        )}
       />
       <View style={styles.dots}>
         {data.map((_, i) => (

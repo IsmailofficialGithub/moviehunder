@@ -1,4 +1,5 @@
 import { getApiBase, apiClientHeaders } from "./config";
+import { toUserMessage } from "./userFacingError";
 
 const DEFAULT_TIMEOUT_MS = 12000;
 
@@ -23,16 +24,17 @@ async function api(path, { signal, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     if (!res.ok) {
       if (contentType.includes("application/json")) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Request failed");
+        throw new Error(
+          toUserMessage(body.error || body.reason, "Request failed. Please try again.")
+        );
       }
-      throw new Error("Request failed");
+      throw new Error("Request failed. Please try again.");
     }
     return res.json();
   } catch (err) {
-    if (err?.name === "AbortError") {
-      throw new Error("Server timed out. Is the API running?");
-    }
-    throw err;
+    throw new Error(
+      toUserMessage(err, "Couldn't reach MovieHunter. Check your connection.")
+    );
   } finally {
     clearTimeout(timer);
     if (signal) signal.removeEventListener("abort", onAbort);
