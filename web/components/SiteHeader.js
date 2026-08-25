@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -10,9 +11,11 @@ import styles from "./SiteHeader.module.css";
 const NAV = [
   { href: "/", label: "Home", route: "home" },
   { href: "/movies", label: "Movies", route: "movies" },
-  { href: "/tv-series", label: "TV Series", route: "tv-series" },
-  { href: "/animation", label: "Animation", route: "animation" },
-  { href: "/ranking", label: "Ranking", route: "ranking" },
+  { href: "/tv-series", label: "TV", route: "tv-series" },
+  { href: "/animation", label: "Anime", route: "animation" },
+  { href: "/ranking", label: "Top", route: "ranking" },
+  { href: "/songs", label: "Songs", route: "songs" },
+  { href: "/settings", label: "Settings", route: "settings" },
 ];
 
 export default function SiteHeader() {
@@ -21,6 +24,7 @@ export default function SiteHeader() {
   const [q, setQ] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const timer = useRef(null);
   const abortRef = useRef(null);
@@ -30,6 +34,10 @@ export default function SiteHeader() {
     NAV.find((n) =>
       n.href === "/" ? pathname === "/" : pathname.startsWith(n.href)
     )?.route || "";
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -77,61 +85,91 @@ export default function SiteHeader() {
 
   return (
     <header className={styles.topbar}>
-      <Link className={styles.brand} href="/" aria-label="Flick home">
-        <span className={styles.brandMark}>F</span>
-        <span>Flick</span>
-      </Link>
-      <nav className={styles.nav}>
-        {NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={item.route === active ? styles.active : undefined}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-      <form
-        className={styles.search}
-        onSubmit={(e) => {
-          e.preventDefault();
-          goSearch();
-        }}
-        ref={wrapRef}
-      >
-        <div className={styles.searchWrap}>
-          <input
-            type="search"
-            placeholder="Search titles..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setOpen(false);
-            }}
-            disabled={pending}
-            aria-autocomplete="list"
+      <div className={styles.topRow}>
+        <Link className={styles.brand} href="/" aria-label="MovieHunter home">
+          <Image
+            src="/brand/logo-symbol.png"
+            alt=""
+            width={36}
+            height={36}
+            className={styles.brandLogo}
+            priority
           />
-          {open && suggestions.length > 0 ? (
-            <ul className={styles.suggest}>
-              {suggestions.map((word) => (
-                <li key={word}>
-                  <button
-                    type="button"
-                    onClick={() => goSearch(word)}
-                    disabled={pending}
-                  >
-                    {word}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-        <button type="submit" disabled={pending} aria-busy={pending || undefined}>
-          {pending ? <BtnSpinner /> : "Search"}
+          <span className={styles.brandText}>
+            Movie<span className={styles.brandAccent}>Hunter</span>
+          </span>
+        </Link>
+
+        <button
+          type="button"
+          className={styles.menuBtn}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <span />
+          <span />
+          <span />
         </button>
-      </form>
+
+        <nav className={`${styles.nav} ${menuOpen ? styles.navOpen : ""}`}>
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={item.route === active ? styles.active : undefined}
+              onClick={() => setMenuOpen(false)}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <form
+          className={styles.search}
+          onSubmit={(e) => {
+            e.preventDefault();
+            goSearch();
+          }}
+          ref={wrapRef}
+        >
+          <div className={styles.searchWrap}>
+            <input
+              type="search"
+              placeholder="Search movies, series..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setOpen(false);
+              }}
+              disabled={pending}
+              aria-autocomplete="list"
+            />
+            {open && suggestions.length > 0 ? (
+              <ul className={styles.suggest}>
+                {suggestions.map((word) => (
+                  <li key={word}>
+                    <button
+                      type="button"
+                      onClick={() => goSearch(word)}
+                      disabled={pending}
+                    >
+                      {word}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          <button
+            type="submit"
+            disabled={pending}
+            aria-busy={pending || undefined}
+          >
+            {pending ? <BtnSpinner /> : "Go"}
+          </button>
+        </form>
+      </div>
     </header>
   );
 }

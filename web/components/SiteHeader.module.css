@@ -1,14 +1,21 @@
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 40;
+  flex-shrink: 0;
+  background: rgba(12, 12, 14, 0.88);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--accent-border);
+}
+
+.topRow {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 14px 28px;
-  background: #0b0b10;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
+  gap: 20px;
+  padding: 12px var(--page-pad);
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .brand {
@@ -16,50 +23,86 @@
   align-items: center;
   gap: 10px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 
-.brandMark {
-  background: var(--gold);
-  color: var(--gold-ink);
-  border-radius: 6px;
-  padding: 4px 7px;
-  font-size: 13px;
+.brandLogo {
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--accent-border);
+}
+
+.brandText {
+  font-size: 1.05rem;
+}
+
+.brandAccent {
+  color: var(--secondary);
 }
 
 .nav {
   display: flex;
-  gap: 16px;
+  gap: 4px;
   flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.nav::-webkit-scrollbar {
+  display: none;
 }
 
 .nav a {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
 }
 
-.nav a:hover,
+.nav a:hover {
+  color: var(--text);
+  background: var(--accent-muted);
+}
+
 .active {
   color: var(--text) !important;
+  background: linear-gradient(135deg, var(--accent), var(--primary)) !important;
+  box-shadow: 0 6px 18px rgba(61, 0, 129, 0.35);
 }
 
 .search {
   display: flex;
   gap: 8px;
   position: relative;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .searchWrap {
   position: relative;
+  min-width: 0;
 }
 
 .search input {
-  width: min(320px, 42vw);
-  background: #1b1b22;
+  width: min(280px, 36vw);
+  max-width: 100%;
+  background: var(--panel);
   border: 1px solid var(--line);
   color: var(--text);
-  border-radius: 8px;
-  padding: 8px 12px;
+  border-radius: 10px;
+  padding: 9px 12px;
+}
+
+.search input:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-muted);
 }
 
 .suggest {
@@ -67,14 +110,14 @@
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  z-index: 30;
+  z-index: 50;
   margin: 0;
   padding: 6px;
   list-style: none;
-  background: #15151c;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  background: var(--panel);
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   max-height: 320px;
   overflow: auto;
 }
@@ -91,18 +134,18 @@
 }
 
 .suggest button:hover {
-  background: #23232c;
+  background: var(--accent-muted);
 }
 
 .search > button {
   border: 0;
-  border-radius: 8px;
-  background: var(--gold);
-  color: var(--gold-ink);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  color: var(--accent-ink);
   font-weight: 700;
   cursor: pointer;
   padding: 8px 14px;
-  min-width: 5.5rem;
+  min-width: 3.5rem;
   min-height: 2.4rem;
   display: inline-flex;
   align-items: center;
@@ -114,19 +157,69 @@
   cursor: wait;
 }
 
-@media (max-width: 800px) {
-  .topbar {
+.menuBtn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 42px;
+  height: 42px;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+  padding: 10px;
+}
+
+.menuBtn span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: var(--secondary);
+  border-radius: 2px;
+}
+
+@media (max-width: 960px) {
+  .topRow {
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
+  }
+
+  .menuBtn {
+    display: flex;
   }
 
   .nav {
+    display: none;
     order: 3;
     width: 100%;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    gap: 8px;
+    overflow: visible;
+    padding-bottom: 4px;
+  }
+
+  .navOpen {
+    display: flex;
   }
 
   .search {
-    margin-left: auto;
+    order: 2;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .search input {
+    width: 100%;
+    flex: 1;
+  }
+
+  .searchWrap {
+    flex: 1;
+  }
+
+  .search {
+    display: flex;
   }
 }

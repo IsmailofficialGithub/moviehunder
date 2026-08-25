@@ -1,0 +1,101 @@
+.page {
+  padding-left: var(--page-pad);
+  padding-right: var(--page-pad);
+  max-width: 720px;
+}
+
+.head {
+  margin-bottom: 28px;
+}
+
+.logo {
+  height: auto;
+  width: min(220px, 70vw);
+  margin-bottom: 16px;
+}
+
+.head h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 3vw, 2rem);
+}
+
+.sub {
+  margin: 0;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card h2 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  color: var(--secondary);
+}
+
+.dl {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.dl div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.dl dt {
+  color: var(--muted);
+}
+
+.dl dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.muted {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.muted code {
+  color: var(--text);
+  background: var(--accent-muted);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.swatches {
+  display: flex;
+  gap: 10px;
+}
+
+.swatches span {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
+.tips {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  display: grid;
+  gap: 8px;
+}

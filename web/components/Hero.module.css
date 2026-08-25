@@ -1,10 +1,11 @@
 .hero {
   position: relative;
   min-height: 420px;
-  margin: 0 28px 28px;
+  margin: 0 var(--page-pad) 28px;
   border-radius: 18px;
   overflow: hidden;
-  background: #111;
+  background: var(--panel);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
 }
 
 .hero img {
@@ -18,7 +19,7 @@
   position: absolute;
   inset: auto 0 0;
   padding: 48px 32px 28px;
-  background: linear-gradient(transparent, #07070a 78%);
+  background: linear-gradient(transparent, rgba(12, 12, 14, 0.95) 78%);
 }
 
 .copy h1 {
@@ -34,7 +35,7 @@
 
 .eyebrow {
   margin: 0 0 6px;
-  color: var(--gold);
+  color: var(--secondary);
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -44,7 +45,12 @@
 @media (max-width: 640px) {
   .hero,
   .hero img {
-    min-height: 320px;
-    height: 320px;
+    min-height: 300px;
+    height: 300px;
+    border-radius: 14px;
+  }
+
+  .copy {
+    padding: 32px 18px 20px;
   }
 }

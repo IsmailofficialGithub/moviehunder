@@ -2,8 +2,17 @@ import SiteHeader from "../components/SiteHeader";
 import "./globals.css";
 
 export const metadata = {
-  title: "Flick",
-  description: "Browse and stream movies and series",
+  title: {
+    default: "MovieHunter",
+    template: "%s · MovieHunter",
+  },
+  description: "Stream movies, series, and music — MovieHunter",
+  applicationName: "MovieHunter",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/icon.png" }],
+    shortcut: ["/favicon.png"],
+  },
 };
 
 export default function RootLayout({ children }) {

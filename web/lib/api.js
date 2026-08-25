@@ -53,3 +53,20 @@ export function getDetail(slug) {
 export function getEpisodes(slug) {
   return api(`/episodes/${encodeURIComponent(slug)}`);
 }
+
+/** Free Audius catalog via backend */
+export function searchMusic(q, { limit = 24 } = {}) {
+  const query = String(q || "").trim();
+  const path = query
+    ? `/api/music/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    : `/api/music/trending?limit=${limit}`;
+  return api(path);
+}
+
+export function suggestMusic(q, { limit = 8 } = {}) {
+  const query = String(q || "").trim();
+  if (!query) return Promise.resolve({ suggestions: [] });
+  return api(
+    `/api/music/suggest?q=${encodeURIComponent(query)}&limit=${limit}`
+  );
+}
