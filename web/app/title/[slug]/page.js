@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  return { title: `${decodeURIComponent(slug)} · Flick` };
+  return { title: `${decodeURIComponent(slug)}` };
 }
 
 export default async function TitlePage({ params }) {

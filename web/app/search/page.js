@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ searchParams }) {
   const q = (await searchParams)?.q || "";
-  return { title: q ? `Search: ${q} · Flick` : "Search · Flick" };
+  return { title: q ? `Search: ${q}` : "Search" };
 }
 
 export default async function SearchPage({ searchParams }) {
@@ -15,7 +15,7 @@ export default async function SearchPage({ searchParams }) {
     return (
       <main className="page">
         <EmptyState
-          title="Search Flick"
+          title="Search MovieHunter"
           hint="Type a movie or series name in the search bar above."
           actionHref={null}
         />

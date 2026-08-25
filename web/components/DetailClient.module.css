@@ -99,9 +99,9 @@
 }
 
 .epActive {
-  background: var(--gold) !important;
-  color: var(--gold-ink) !important;
-  border-color: var(--gold) !important;
+  background: linear-gradient(135deg, var(--accent), var(--primary)) !important;
+  color: var(--accent-ink) !important;
+  border-color: var(--accent-border) !important;
 }
 
 @media (max-width: 640px) {

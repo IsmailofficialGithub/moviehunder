@@ -1,0 +1,145 @@
+.page {
+  padding-left: var(--page-pad);
+  padding-right: var(--page-pad);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 28px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+}
+
+.sub {
+  margin: 8px 0 0;
+  color: var(--muted);
+  max-width: 36rem;
+}
+
+.search {
+  display: flex;
+  gap: 8px;
+  width: min(420px, 100%);
+}
+
+.search input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.search button {
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  color: var(--accent-ink);
+  font-weight: 700;
+  padding: 0 16px;
+  min-width: 5.5rem;
+  cursor: pointer;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.item:hover {
+  border-color: var(--accent-border);
+  background: var(--panel-soft);
+}
+
+.art,
+.artFallback {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--accent-muted);
+}
+
+.artFallback {
+  display: grid;
+  place-items: center;
+  color: var(--secondary);
+  font-size: 1.4rem;
+}
+
+.meta {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta span {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listen {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent-muted);
+  color: var(--secondary);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.listen:hover {
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  color: var(--accent-ink);
+}
+
+@media (max-width: 640px) {
+  .head {
+    align-items: stretch;
+  }
+
+  .search {
+    width: 100%;
+  }
+}

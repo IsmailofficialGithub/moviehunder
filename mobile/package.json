@@ -34,7 +34,11 @@
     "android": "expo start --android",
     "android:native": "expo run:android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "eas:login": "eas login",
+    "eas:init": "eas init",
+    "build:preview": "eas build -p android --profile preview",
+    "build:production": "eas build -p android --profile production"
   },
   "private": true
 }

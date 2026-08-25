@@ -17,8 +17,8 @@
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(245, 197, 24, 0.12) 0%,
-    rgba(245, 197, 24, 0.03) 45%,
+    rgba(189, 132, 219, 0.2) 0%,
+    rgba(61, 0, 129, 0.08) 45%,
     transparent 70%
   );
   pointer-events: none;
@@ -40,10 +40,10 @@
   border-radius: 20px;
   display: grid;
   place-items: center;
-  color: var(--gold);
-  background: linear-gradient(160deg, #1c1c24 0%, #121218 100%);
-  border: 1px solid #2e2e38;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  color: var(--secondary);
+  background: linear-gradient(160deg, var(--panel-soft) 0%, var(--panel) 100%);
+  border: 1px solid var(--accent-border);
+  box-shadow: 0 12px 40px rgba(61, 0, 129, 0.25);
   margin-bottom: 6px;
 }
 
@@ -52,7 +52,7 @@
   font-size: clamp(1.4rem, 3vw, 1.85rem);
   font-weight: 800;
   letter-spacing: 0.01em;
-  color: #f3f3f7;
+  color: var(--text);
 }
 
 .query {
@@ -62,14 +62,14 @@
 }
 
 .query span {
-  color: #e8e8ee;
+  color: var(--text);
   font-weight: 600;
 }
 
 .hint {
   margin: 0 0 8px;
   max-width: 360px;
-  color: #8b8b98;
+  color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.45;
 }
@@ -82,8 +82,8 @@
   min-height: 2.5rem;
   padding: 0 18px;
   border-radius: 10px;
-  background: var(--gold);
-  color: var(--gold-ink);
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  color: var(--accent-ink);
   font-weight: 700;
   transition: filter 0.15s ease, transform 0.15s ease;
 }
