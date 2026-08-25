@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { URL } from "node:url";
 import { createConfig, setActiveConfig, cfg } from "./src/config.js";
+import { authorizeClient } from "./src/cors.js";
 
 function loadDotEnv(filePath) {
   if (!existsSync(filePath)) return {};
@@ -55,28 +56,46 @@ if (config.missing.length) {
 
 const PORT = Number(process.env.PORT || fileEnv.PORT || 8788);
 
-function cors(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Range");
+function applyCors(res, headers = {}) {
+  for (const [k, v] of Object.entries(headers)) {
+    if (v != null) res.setHeader(k, v);
+  }
   res.setHeader(
     "Access-Control-Expose-Headers",
     "X-Stream-Host, Content-Length, Content-Range, Accept-Ranges"
   );
 }
 
-function sendJson(res, status, body) {
-  cors(res);
+function toFetchRequest(req) {
+  const host = req.headers.host || `127.0.0.1:${PORT}`;
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers || {})) {
+    if (v == null) continue;
+    if (Array.isArray(v)) {
+      for (const item of v) headers.append(k, item);
+    } else {
+      headers.set(k, String(v));
+    }
+  }
+  return new Request(`http://${host}${req.url || "/"}`, {
+    method: req.method || "GET",
+    headers,
+  });
+}
+
+function sendJson(res, status, body, corsHeaders = {}) {
+  applyCors(res, corsHeaders);
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(body, null, 2));
 }
 
 async function proxyMedia(req, res, targetUrl) {
+  const corsHeaders = req._corsHeaders || {};
   let parsed;
   try {
     parsed = new URL(targetUrl);
   } catch {
-    sendJson(res, 400, { error: "Invalid media url" });
+    sendJson(res, 400, { error: "Invalid media url" }, corsHeaders);
     return;
   }
 
@@ -84,7 +103,7 @@ async function proxyMedia(req, res, targetUrl) {
     !/^https?:$/.test(parsed.protocol) ||
     !cfg().isAllowedMediaHost(parsed.hostname)
   ) {
-    sendJson(res, 400, { error: "Media host not allowed" });
+    sendJson(res, 400, { error: "Media host not allowed" }, corsHeaders);
     return;
   }
 
@@ -109,7 +128,7 @@ async function proxyMedia(req, res, targetUrl) {
     });
 
     const outHeaders = {
-      "Access-Control-Allow-Origin": "*",
+      ...(req._corsHeaders || {}),
       "Access-Control-Expose-Headers":
         "Content-Length, Content-Range, Accept-Ranges",
       "Accept-Ranges": "bytes",
@@ -130,7 +149,7 @@ async function proxyMedia(req, res, targetUrl) {
     await pipeline(Readable.fromWeb(upstream.body), res);
   } catch (err) {
     if (ac.signal.aborted || res.writableEnded) return;
-    sendJson(res, 502, { error: "Media proxy failed" });
+    sendJson(res, 502, { error: "Media proxy failed" }, corsHeaders);
   } finally {
     req.off("close", onClose);
   }
@@ -199,7 +218,21 @@ async function resolveStreams(subjectId, detailPath, se, ep) {
 }
 
 const server = http.createServer(async (req, res) => {
-  cors(res);
+  const gate = authorizeClient(toFetchRequest(req));
+  if (!gate.ok) {
+    sendJson(
+      res,
+      403,
+      { error: "Forbidden", reason: gate.reason || "Unauthorized client" },
+      { "Access-Control-Allow-Origin": "null" }
+    );
+    return;
+  }
+
+  const corsHeaders = gate.cors || {};
+  req._corsHeaders = corsHeaders;
+  applyCors(res, corsHeaders);
+
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
@@ -209,12 +242,17 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${PORT}`);
 
   if (url.pathname === "/" || url.pathname === "/health") {
-    sendJson(res, 200, {
-      ok: true,
-      service: "play-relay",
-      port: PORT,
-      usage: `/api/stream/{subjectId}?detail_path=slug&se=1&ep=1`,
-    });
+    sendJson(
+      res,
+      200,
+      {
+        ok: true,
+        service: "play-relay",
+        port: PORT,
+        usage: `/api/stream/{subjectId}?detail_path=slug&se=1&ep=1`,
+      },
+      corsHeaders
+    );
     return;
   }
 
@@ -224,7 +262,7 @@ const server = http.createServer(async (req, res) => {
   ) {
     const target = url.searchParams.get("url");
     if (!target) {
-      sendJson(res, 400, { error: "url is required" });
+      sendJson(res, 400, { error: "url is required" }, corsHeaders);
       return;
     }
     await proxyMedia(req, res, target);
@@ -239,7 +277,7 @@ const server = http.createServer(async (req, res) => {
     const ep = url.searchParams.get("ep") || "0";
 
     if (!detailPath) {
-      sendJson(res, 400, { error: "detail_path is required" });
+      sendJson(res, 400, { error: "detail_path is required" }, corsHeaders);
       return;
     }
 
@@ -250,26 +288,36 @@ const server = http.createServer(async (req, res) => {
         se,
         ep
       );
-      sendJson(res, 200, {
-        subject_id: subjectId,
-        detail_path: detailPath,
-        season: Number(se),
-        episode: Number(ep),
-        stream_domain,
-        count: sources.length,
-        sources,
-        relay: "localhost",
-      });
+      sendJson(
+        res,
+        200,
+        {
+          subject_id: subjectId,
+          detail_path: detailPath,
+          season: Number(se),
+          episode: Number(ep),
+          stream_domain,
+          count: sources.length,
+          sources,
+          relay: "localhost",
+        },
+        corsHeaders
+      );
     } catch (err) {
-      sendJson(res, err.status === 429 ? 429 : 502, {
-        error: "Stream failed",
-        code: err.status === 429 ? "RATE_LIMITED" : "STREAM_ERROR",
-      });
+      sendJson(
+        res,
+        err.status === 429 ? 429 : 502,
+        {
+          error: "Stream failed",
+          code: err.status === 429 ? "RATE_LIMITED" : "STREAM_ERROR",
+        },
+        corsHeaders
+      );
     }
     return;
   }
 
-  sendJson(res, 404, { error: "Not found" });
+  sendJson(res, 404, { error: "Not found" }, corsHeaders);
 });
 
 server.requestTimeout = 0;

@@ -1,4 +1,4 @@
-import { getApiBase, getPlayRelayBase } from "./config";
+import { getApiBase, getPlayRelayBase, apiClientHeaders, withAppKeyQuery } from "./config";
 
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -17,7 +17,10 @@ async function fetchJson(url, { timeoutMs = FETCH_TIMEOUT_MS } = {}) {
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await withTimeout(
-      fetch(url, { signal: ctrl.signal }),
+      fetch(url, {
+        signal: ctrl.signal,
+        headers: apiClientHeaders(),
+      }),
       timeoutMs + 500,
       "Request timed out. Check that the server is running."
     );
@@ -88,8 +91,10 @@ export async function resolveStreams({ subjectId, detailPath, se = 0, ep = 0 }) 
 /** Proxy CDN URL through play relay so Referer/Origin work on device. */
 export function proxiedMediaUrl(cdnUrl) {
   if (!cdnUrl) return "";
-  if (cdnUrl.includes("/api/media?")) return cdnUrl;
-  return `${getPlayRelayBase()}/api/media?url=${encodeURIComponent(cdnUrl)}`;
+  if (cdnUrl.includes("/api/media?")) return withAppKeyQuery(cdnUrl);
+  return withAppKeyQuery(
+    `${getPlayRelayBase()}/api/media?url=${encodeURIComponent(cdnUrl)}`
+  );
 }
 
 /**
@@ -126,7 +131,9 @@ export function watchStreamUrl({ subjectId, detailPath, se = 0, ep = 0, resoluti
     ep: String(ep),
   });
   if (resolution > 0) q.set("resolution", String(resolution));
-  return `${getApiBase()}/watch/${encodeURIComponent(subjectId)}?${q.toString()}`;
+  return withAppKeyQuery(
+    `${getApiBase()}/watch/${encodeURIComponent(subjectId)}?${q.toString()}`
+  );
 }
 
 function normalizeSources(sources) {

@@ -8,7 +8,10 @@
     "dev": "node scripts/dev.mjs",
     "dev:api": "wrangler dev --port 8787",
     "dev:relay": "node play-relay.mjs",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:reload": "pm2 reload ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop moviehunter-api moviehunter-relay"
   },
   "devDependencies": {
     "wrangler": "^3.0.0"
