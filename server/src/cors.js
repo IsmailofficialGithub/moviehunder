@@ -24,6 +24,7 @@ export function corsHeadersForOrigin(originEcho) {
       "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key, Authorization",
     "Access-Control-Expose-Headers":
       "Content-Length, Content-Range, Accept-Ranges, X-Stream-Resolution",
+    "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
   if (originEcho) {

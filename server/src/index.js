@@ -231,6 +231,17 @@ export default {
 
     const gate = authorizeClient(request);
     if (!gate.ok) {
+      const origin = request.headers.get("Origin") || "";
+      // Let browsers surface the 403 body when Origin is present (still denied)
+      const denyCors = origin
+        ? {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+            "Access-Control-Allow-Headers":
+              "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key, Authorization",
+            Vary: "Origin",
+          }
+        : { "Access-Control-Allow-Origin": "null" };
       return new Response(
         JSON.stringify(
           {
@@ -244,7 +255,7 @@ export default {
           status: 403,
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "null",
+            ...denyCors,
           },
         }
       );

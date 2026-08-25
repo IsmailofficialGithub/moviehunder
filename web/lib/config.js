@@ -16,15 +16,20 @@ export function getAppClientKey() {
   return String(process.env.NEXT_PUBLIC_APP_CLIENT_KEY || "").trim();
 }
 
-/** Headers for API / relay when Origin is missing (SSR) or as extra auth. */
+/** Headers for API / relay. Browser relies on Origin allowlist; SSR sends key. */
 export function apiClientHeaders(extra = {}) {
   const headers = {
     Accept: "application/json",
-    "X-MovieHunter-Client": "web",
     ...extra,
   };
-  const key = getAppClientKey();
-  if (key) headers["X-App-Key"] = key;
+  // Only attach app key outside the browser (SSR / Node) — custom headers
+  // force a CORS preflight that browsers send without X-App-Key.
+  const isBrowser = typeof window !== "undefined";
+  if (!isBrowser) {
+    headers["X-MovieHunter-Client"] = "web";
+    const key = getAppClientKey();
+    if (key) headers["X-App-Key"] = key;
+  }
   return headers;
 }
 
