@@ -209,7 +209,11 @@ function moviesFromNuxt(nuxt) {
 
 export default {
   async fetch(request, env) {
-    const config = createConfig(env || {});
+    // Wrangler bindings (.dev.vars) win; fall back to process.env (PM2 / shell)
+    const config = createConfig({
+      ...(typeof process !== "undefined" ? process.env : {}),
+      ...(env || {}),
+    });
     setActiveConfig(config);
     if (config.missing.length) {
       return new Response(
