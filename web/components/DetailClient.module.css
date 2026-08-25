@@ -1,0 +1,115 @@
+.detail {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.top {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 20px;
+}
+
+.top img {
+  width: 180px;
+  border-radius: 10px;
+}
+
+.top h1 {
+  margin: 0 0 8px;
+  font-size: 1.6rem;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.desc {
+  line-height: 1.5;
+  color: #d4d4dc;
+  margin: 0;
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.warn {
+  color: #f87171;
+  font-size: 13px;
+}
+
+.seasonBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.seasonBar label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.seasonBar select {
+  background: #1b1b22;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 180px;
+}
+
+.epsTitle {
+  margin: 18px 0 8px;
+  font-size: 15px;
+}
+
+.episodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.episodes button {
+  background: #23232c;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  min-width: 3.25rem;
+  min-height: 2.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.episodes button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.epActive {
+  background: var(--gold) !important;
+  color: var(--gold-ink) !important;
+  border-color: var(--gold) !important;
+}
+
+@media (max-width: 640px) {
+  .top {
+    grid-template-columns: 1fr;
+  }
+
+  .top img {
+    width: 140px;
+  }
+}

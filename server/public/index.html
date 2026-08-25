@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flick</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#/home" aria-label="Flick home">
+        <span class="brand-mark">F</span>
+        <span>Flick</span>
+      </a>
+      <nav class="nav">
+        <a href="#/home" data-route="home">Home</a>
+        <a href="#/movies" data-route="movies">Movies</a>
+        <a href="#/tv-series" data-route="tv-series">TV Series</a>
+        <a href="#/animation" data-route="animation">Animation</a>
+        <a href="#/ranking" data-route="ranking">Ranking</a>
+      </nav>
+      <form class="search" id="search-form" autocomplete="off">
+        <div class="search-wrap">
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Search titles..."
+            autocomplete="off"
+            aria-autocomplete="list"
+            aria-controls="suggest-list"
+          />
+          <ul class="suggest" id="suggest-list" hidden></ul>
+        </div>
+        <button type="submit">Search</button>
+      </form>
+    </header>
+
+    <main id="app">
+      <p class="status">Loading...</p>
+    </main>
+
+    <div class="overlay" id="detail-overlay" hidden>
+      <article class="detail" id="detail-panel"></article>
+    </div>
+
+    <div class="overlay player-overlay" id="player-overlay" hidden>
+      <div class="player-wrap">
+        <div class="player-toolbar">
+          <button class="close-btn" id="player-close" type="button">Close</button>
+          <div class="player-meta">
+            <span id="player-title" class="player-title"></span>
+            <label class="quality-label" for="quality-select">Quality</label>
+            <select id="quality-select" class="quality-select" hidden></select>
+          </div>
+        </div>
+        <div class="player-stage" id="player-stage">
+          <video id="player" playsinline preload="metadata"></video>
+          <div id="player-loader-slot" class="player-loader-overlay"></div>
+          <button
+            type="button"
+            class="player-big-play"
+            id="player-big-play"
+            aria-label="Play"
+            hidden
+          >
+            ▶
+          </button>
+          <div class="player-controls" id="player-controls">
+            <input
+              type="range"
+              class="player-seek"
+              id="player-seek"
+              min="0"
+              max="1000"
+              value="0"
+              step="1"
+              aria-label="Seek"
+            />
+            <div class="player-controls-row">
+              <button type="button" class="pc-btn" id="player-play" aria-label="Play">
+                ▶
+              </button>
+              <button type="button" class="pc-btn" id="player-mute" aria-label="Mute">
+                🔊
+              </button>
+              <input
+                type="range"
+                class="player-volume"
+                id="player-volume"
+                min="0"
+                max="1"
+                step="0.05"
+                value="1"
+                aria-label="Volume"
+              />
+              <span class="player-time" id="player-time">0:00 / 0:00</span>
+              <span class="player-spacer"></span>
+              <button
+                type="button"
+                class="pc-btn"
+                id="player-fs"
+                aria-label="Fullscreen"
+              >
+                ⛶
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
