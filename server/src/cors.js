@@ -17,6 +17,33 @@ function normalizeOrigin(origin) {
   }
 }
 
+function originFromReferer(request) {
+  const ref = request.headers.get("Referer") || "";
+  if (!ref) return "";
+  return normalizeOrigin(ref);
+}
+
+function isOriginAllowed(origin, allowlist, suffixes) {
+  if (!origin) return false;
+  if (allowlist.includes("*")) return true;
+  if (allowlist.includes(origin)) return true;
+  let host = "";
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  for (const raw of suffixes) {
+    const s = String(raw || "")
+      .trim()
+      .toLowerCase()
+      .replace(/^\.+/, "");
+    if (!s) continue;
+    if (host === s || host.endsWith(`.${s}`)) return true;
+  }
+  return false;
+}
+
 export function corsHeadersForOrigin(originEcho) {
   const base = {
     "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
@@ -33,7 +60,6 @@ export function corsHeadersForOrigin(originEcho) {
       "Access-Control-Allow-Origin": originEcho,
     };
   }
-  // Native app responses don't need ACAO; keep a safe default for browsers
   return {
     ...base,
     "Access-Control-Allow-Origin": "null",
@@ -46,22 +72,33 @@ export function activeCorsHeaders() {
       "Access-Control-Allow-Origin": "null",
       "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
       "Access-Control-Allow-Headers":
-        "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key",
+        "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key, Authorization",
+      "Access-Control-Max-Age": "86400",
       Vary: "Origin",
     }
   );
 }
 
 /**
- * @returns {{ ok: true, cors: Record<string, string>, kind: 'web'|'app' } | { ok: false, reason: string }}
+ * @returns {{ ok: true, cors: Record<string, string>, kind: 'web'|'app' } | { ok: false, reason: string, received_origin?: string }}
  */
 export function authorizeClient(request) {
-  const origins = (cfg().CORS_ALLOWED_ORIGINS || [])
-    .map(normalizeOrigin)
+  const allowlist = (cfg().CORS_ALLOWED_ORIGINS || [])
+    .map((o) => (String(o).trim() === "*" ? "*" : normalizeOrigin(o)))
     .filter(Boolean);
+  const suffixes = cfg().CORS_ALLOWED_ORIGIN_SUFFIXES || [];
   const expectedKey = String(cfg().APP_CLIENT_KEY || "").trim();
+
   const originRaw = request.headers.get("Origin");
-  const origin = originRaw ? normalizeOrigin(originRaw) : "";
+  let origin = originRaw ? normalizeOrigin(originRaw) : "";
+  if (!origin) origin = originFromReferer(request);
+
+  let selfOrigin = "";
+  try {
+    selfOrigin = new URL(request.url).origin;
+  } catch {
+    /* ignore */
+  }
 
   let appKey = String(request.headers.get("X-App-Key") || "").trim();
   if (!appKey) {
@@ -75,41 +112,40 @@ export function authorizeClient(request) {
   }
 
   const keyOk = Boolean(expectedKey) && appKey === expectedKey;
+  const webOk =
+    isOriginAllowed(origin, allowlist, suffixes) ||
+    (Boolean(origin) && Boolean(selfOrigin) && origin === selfOrigin);
 
-  if (!origins.length && !expectedKey) {
+  if (!allowlist.length && !suffixes.length && !expectedKey) {
     return {
       ok: false,
       reason:
-        "CORS not configured — set CORS_ALLOWED_ORIGINS and APP_CLIENT_KEY in .env",
+        "CORS not configured — set CORS_ALLOWED_ORIGINS and APP_CLIENT_KEY in .dev.vars",
+      received_origin: origin || null,
     };
   }
 
-  // Web browser: Origin must be on the allowlist
-  if (origin && origins.includes(origin)) {
+  if (webOk) {
     return {
       ok: true,
       kind: "web",
-      cors: corsHeadersForOrigin(origin),
+      cors: corsHeadersForOrigin(origin || selfOrigin || null),
     };
   }
 
-  // Mobile / native / SSR / media players: shared app key (header or ?app_key=)
   if (keyOk) {
     return {
       ok: true,
       kind: "app",
-      cors: corsHeadersForOrigin(
-        origin && origins.includes(origin) ? origin : null
-      ),
+      cors: corsHeadersForOrigin(origin || null),
     };
-  }
-
-  if (origin && !origins.includes(origin)) {
-    return { ok: false, reason: "Origin not allowed" };
   }
 
   return {
     ok: false,
-    reason: "Unauthorized client — use the official web app or mobile app",
+    reason: origin
+      ? `Origin not allowed: ${origin}`
+      : "Unauthorized client — use the official web app or mobile app",
+    received_origin: origin || null,
   };
 }

@@ -247,6 +247,7 @@ export default {
           {
             error: "Forbidden",
             reason: gate.reason || "Unauthorized client",
+            received_origin: gate.received_origin || null,
           },
           null,
           2
