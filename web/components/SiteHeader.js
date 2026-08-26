@@ -88,16 +88,13 @@ export default function SiteHeader() {
       <div className={styles.topRow}>
         <Link className={styles.brand} href="/" aria-label="MovieHunter home">
           <Image
-            src="/brand/logo-symbol.png"
-            alt=""
-            width={36}
-            height={36}
+            src="/brand/logo-full.png"
+            alt="MovieHunter"
+            width={200}
+            height={48}
             className={styles.brandLogo}
             priority
           />
-          <span className={styles.brandText}>
-            Movie<span className={styles.brandAccent}>Hunter</span>
-          </span>
         </Link>
 
         <button

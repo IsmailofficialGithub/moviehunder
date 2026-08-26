@@ -21,23 +21,18 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  justify-content: center;
   flex-shrink: 0;
+  line-height: 0;
 }
 
 .brandLogo {
-  border-radius: 10px;
-  box-shadow: 0 0 0 1px var(--accent-border);
-}
-
-.brandText {
-  font-size: 1.05rem;
-}
-
-.brandAccent {
-  color: var(--secondary);
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: min(200px, 42vw);
+  object-fit: contain;
+  object-position: left center;
 }
 
 .nav {
@@ -184,6 +179,11 @@
   .topRow {
     flex-wrap: wrap;
     gap: 10px;
+  }
+
+  .brandLogo {
+    height: 34px;
+    max-width: min(160px, 48vw);
   }
 
   .menuBtn {
