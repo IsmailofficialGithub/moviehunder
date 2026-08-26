@@ -19,6 +19,15 @@ import {
 import { downloadSubdl, searchSubdl, subdlConfigured } from "./subdl.js";
 import { toWebVtt } from "./subtitles.js";
 import {
+  checkSafeSearch,
+  filterSafeCatalogItems,
+  filterSafeSuggestions,
+  isBlockedCatalogItem,
+  shouldBlockEmptyAdultSearch,
+  SAFE_SEARCH_MESSAGE,
+  SAFE_SEARCH_TITLE,
+} from "./contentFilter.js";
+import {
   activeCorsHeaders,
   authorizeClient,
   requestContext,
@@ -84,7 +93,7 @@ function mapSubject(s) {
   const name = s.title || s.name || "";
   if (!name) return null;
   const base = cfg().BASE_URL;
-  return {
+  const item = {
     name,
     poster_url: s.cover?.url || s.thumbnail || s.image?.url || null,
     url: s.detailPath ? `${base}/detail/${s.detailPath}` : null,
@@ -95,7 +104,11 @@ function mapSubject(s) {
     rating: s.imdbRatingValue || null,
     subject_id: s.subjectId || s.id || null,
     subject_type: s.subjectType || null,
+    description: s.description || s.desc || s.introduction || s.intro || null,
+    genre: s.genre || null,
   };
+  if (isBlockedCatalogItem(item)) return null;
+  return item;
 }
 
 function sectionsFromOperatingList(ops = []) {
@@ -198,9 +211,17 @@ function moviesFromNuxt(nuxt) {
       blurhash: v.cover?.blurHash || null,
       subject_id: v.subjectId || null,
       subject_type: v.subjectType || null,
+      description:
+        v.description ||
+        v.desc ||
+        v.introduction ||
+        v.intro ||
+        v.overview ||
+        null,
+      genre: v.genre || null,
     });
   }
-  return movies;
+  return filterSafeCatalogItems(movies);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -796,6 +817,17 @@ async function handleSearchSuggest(params) {
   const q = params.get("q");
   if (!q) return json({ error: "q parameter required" }, 400);
 
+  const safe = checkSafeSearch(q);
+  if (safe.blocked) {
+    return json({
+      query: q,
+      suggestions: [],
+      blocked: true,
+      title: safe.title,
+      message: safe.message,
+    });
+  }
+
   try {
     const resp = await fetch(
       `${cfg().H5_API}${cfg().H5_BFF_PATH}/subject/search-suggest`,
@@ -810,9 +842,9 @@ async function handleSearchSuggest(params) {
     );
     if (resp.ok) {
       const body = await resp.json();
-      const suggestions = (body?.data?.items || [])
-        .map((i) => i.word)
-        .filter(Boolean);
+      const suggestions = filterSafeSuggestions(
+        (body?.data?.items || []).map((i) => i.word).filter(Boolean)
+      );
       if (suggestions.length) return json({ query: q, suggestions });
     }
   } catch {
@@ -830,9 +862,9 @@ async function handleSearchSuggest(params) {
         .map((i) => i.title)
         .filter(Boolean);
       const ql = q.toLowerCase();
-      const suggestions = all
-        .filter((t) => t.toLowerCase().includes(ql))
-        .slice(0, 10);
+      const suggestions = filterSafeSuggestions(
+        all.filter((t) => t.toLowerCase().includes(ql)).slice(0, 20)
+      ).slice(0, 10);
       if (suggestions.length) return json({ query: q, suggestions });
     } catch {
       /* try next */
@@ -843,7 +875,9 @@ async function handleSearchSuggest(params) {
   try {
     const pageUrl = `${cfg().MIRROR_URL}/web/searchResult?keyword=${encodeURIComponent(q)}`;
     const movies = moviesFromNuxt(await fetchNuxtData(pageUrl));
-    const suggestions = movies.map((m) => m.name).filter(Boolean).slice(0, 8);
+    const suggestions = filterSafeSuggestions(
+      movies.map((m) => m.name).filter(Boolean)
+    ).slice(0, 8);
     return json({ query: q, suggestions });
   } catch {
     return json({ query: q, suggestions: [] });
@@ -932,6 +966,18 @@ async function handleSearch(params) {
   const q = String(params.get("q") || "").trim();
   if (!q) return json({ error: "q parameter required" }, 400);
 
+  const safe = checkSafeSearch(q);
+  if (safe.blocked) {
+    return json({
+      query: q,
+      count: 0,
+      movies: [],
+      blocked: true,
+      title: safe.title,
+      message: safe.message,
+    });
+  }
+
   const alreadyHindiQuery = /\bhindi\b|\bdub(bed)?\b/i.test(q);
 
   try {
@@ -956,7 +1002,25 @@ async function handleSearch(params) {
       }
     }
 
-    return json({ query: q, count: movies.length, movies });
+    const beforeFilter = movies;
+    movies = filterSafeCatalogItems(movies);
+
+    if (shouldBlockEmptyAdultSearch(q, beforeFilter, movies)) {
+      return json({
+        query: q,
+        count: 0,
+        movies: [],
+        blocked: true,
+        title: SAFE_SEARCH_TITLE,
+        message: SAFE_SEARCH_MESSAGE,
+      });
+    }
+
+    return json({
+      query: q,
+      count: movies.length,
+      movies,
+    });
   } catch (err) {
     return json({ error: err?.message || "Search failed" }, 502);
   }
