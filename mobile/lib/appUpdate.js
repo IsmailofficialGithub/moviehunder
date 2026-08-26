@@ -4,18 +4,6 @@
  * Env:
  *   EXPO_PUBLIC_VERSION_JSON_URL  — raw URL to version.json
  *   EXPO_PUBLIC_GITHUB_RELEASES_URL — releases page fallback
- *
- * Example version.json:
- * {
- *   "latest_version": "1.0.4",
- *   "min_supported_version": "1.0.4",
- *   "release_notes": "…",
- *   "android": {
- *     "version_code": 4,
- *     "apk_url": "https://github.com/ORG/REPO/releases/download/v1.0.4/app.apk",
- *     "force": true
- *   }
- * }
  */
 import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
@@ -25,6 +13,15 @@ import * as IntentLauncher from "expo-intent-launcher";
 const IS_EXPO_GO =
   Constants.appOwnership === "expo" ||
   Constants.executionEnvironment === "storeClient";
+
+/** Intent.FLAG_GRANT_READ_URI_PERMISSION */
+const FLAG_GRANT_READ_URI_PERMISSION = 0x00000001;
+/** Intent.FLAG_ACTIVITY_NEW_TASK — required when launching from RN context */
+const FLAG_ACTIVITY_NEW_TASK = 0x10000000;
+const INSTALL_FLAGS = FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK;
+
+/** Reject tiny/HTML error pages saved as .apk */
+const MIN_APK_BYTES = 5 * 1024 * 1024;
 
 export function getVersionJsonUrl() {
   return String(process.env.EXPO_PUBLIC_VERSION_JSON_URL || "").trim();
@@ -149,8 +146,30 @@ export async function checkForAppUpdate() {
   }
 }
 
+export async function openInstallPermissionSettings() {
+  if (Platform.OS !== "android") return false;
+  const pkg =
+    Constants.expoConfig?.android?.package ||
+    Constants.easConfig?.projectId ||
+    "com.moviehunter.app";
+  try {
+    await IntentLauncher.startActivityAsync(
+      "android.settings.MANAGE_UNKNOWN_APP_SOURCES",
+      { data: `package:${pkg}` }
+    );
+    return true;
+  } catch {
+    try {
+      await Linking.openSettings();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 /**
- * Download APK then open the system installer (replaces existing app if same package + higher versionCode).
+ * Download APK then open the system installer (same package + higher versionCode + same signing key).
  * @param {string} apkUrl
  * @param {(pct: number) => void} [onProgress]
  * @returns {Promise<{ ok: boolean, error?: string }>}
@@ -167,7 +186,9 @@ export async function downloadAndInstallApk(apkUrl, onProgress) {
   }
   if (!apkUrl) return { ok: false, error: "Missing apk_url in version.json" };
 
-  const dir = `${FileSystem.cacheDirectory || ""}updates/`;
+  // Prefer durable storage — some OEMs clear cache while the installer runs
+  const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory || "";
+  const dir = `${baseDir}updates/`;
   try {
     const info = await FileSystem.getInfoAsync(dir);
     if (!info.exists) {
@@ -184,34 +205,87 @@ export async function downloadAndInstallApk(apkUrl, onProgress) {
     /* ignore */
   }
 
+  const downloadHeaders = {
+    Accept: "application/octet-stream,*/*",
+    "User-Agent": "MovieHunter-Updater/1.0 (Android)",
+  };
+
   try {
-    const result = await FileSystem.createDownloadResumable(
+    const resumable = FileSystem.createDownloadResumable(
       apkUrl,
       dest,
-      {},
+      { headers: downloadHeaders },
       (prog) => {
         if (!onProgress) return;
         const total = prog.totalBytesExpectedToWrite || 0;
         const done = prog.totalBytesWritten || 0;
-        if (total > 0) onProgress(Math.min(1, done / total));
+        if (total > 0) onProgress(Math.min(0.99, done / total));
       }
-    ).downloadAsync();
+    );
+    let result = await resumable.downloadAsync();
+
+    // Fallback if resumable yields nothing
+    if (!result?.uri) {
+      result = await FileSystem.downloadAsync(apkUrl, dest, {
+        headers: downloadHeaders,
+      });
+    }
 
     if (!result?.uri) {
       return { ok: false, error: "Download failed" };
     }
 
+    const meta = await FileSystem.getInfoAsync(result.uri, { size: true });
+    const size = Number(meta.size) || 0;
+    if (!meta.exists || size < MIN_APK_BYTES) {
+      try {
+        await FileSystem.deleteAsync(result.uri, { idempotent: true });
+      } catch {
+        /* ignore */
+      }
+      return {
+        ok: false,
+        error:
+          "Download looked incomplete (file too small). Check your connection and try again, or install from GitHub.",
+      };
+    }
+
+    onProgress?.(1);
+
     const contentUri = await FileSystem.getContentUriAsync(result.uri);
-    await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-      data: contentUri,
-      flags: 1,
-      type: "application/vnd.android.package-archive",
-    });
+
+    try {
+      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+        data: contentUri,
+        flags: INSTALL_FLAGS,
+        type: "application/vnd.android.package-archive",
+      });
+    } catch {
+      // Older / OEM fallback
+      await IntentLauncher.startActivityAsync(
+        "android.intent.action.INSTALL_PACKAGE",
+        {
+          data: contentUri,
+          flags: INSTALL_FLAGS,
+          type: "application/vnd.android.package-archive",
+        }
+      );
+    }
+
     return { ok: true };
   } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (/permission|unknown.source|install/i.test(msg)) {
+      await openInstallPermissionSettings();
+      return {
+        ok: false,
+        error:
+          "Allow “Install unknown apps” for MovieHunter, then tap Download & install again.",
+      };
+    }
     return {
       ok: false,
-      error: err?.message || "Couldn’t download or install update",
+      error: msg || "Couldn’t download or install update",
     };
   }
 }

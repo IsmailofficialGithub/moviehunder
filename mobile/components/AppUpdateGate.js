@@ -63,9 +63,10 @@ export function useAppUpdateCheck({ enabled = true } = {}) {
       if (info.canInstallApk && info.apkUrl) {
         const result = await downloadAndInstallApk(info.apkUrl, setProgress);
         if (!result.ok) {
-          setError(result.error || "Update failed");
-          // Fallback: open releases page
-          await openReleasesPage();
+          setError(
+            result.error ||
+              "Update failed. If Android says “App not installed”, uninstall the old app once, then install v0.0.2 from GitHub — after that, in-app updates work (same signing key)."
+          );
         }
       } else {
         const opened = await openReleasesPage();
