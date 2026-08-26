@@ -67,9 +67,12 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS !== "android") return;
-    NavigationBar.setBackgroundColorAsync("#0b0b10").catch(() => {});
-    NavigationBar.setButtonStyleAsync("light").catch(() => {});
-    NavigationBar.setBehaviorAsync("inset-swipe").catch(() => {});
+    // SDK 57+: background/behavior APIs removed — only style + hidden remain
+    try {
+      NavigationBar.setStyle("light");
+    } catch {
+      /* Expo Go / unsupported */
+    }
   }, []);
 
   const showUpdateCheck =

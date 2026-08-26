@@ -10,8 +10,7 @@
     "newArchEnabled": true,
     "androidNavigationBar": {
       "backgroundColor": "#0b0b10",
-      "barStyle": "light-content",
-      "enforceContrast": true
+      "barStyle": "light-content"
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -23,7 +22,6 @@
       "bundleIdentifier": "com.moviehunter.app",
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio",
           "audio"
         ]
       }
@@ -34,21 +32,12 @@
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
-        "backgroundColor": "#3d0081",
+        "backgroundColor": "#0c0c0e",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "navigationBarColor": "#0b0b10",
       "permissions": [
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "WAKE_LOCK",
-        "POST_NOTIFICATIONS",
-        "REQUEST_INSTALL_PACKAGES",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "WAKE_LOCK",
@@ -80,9 +69,8 @@
         "expo-navigation-bar",
         {
           "backgroundColor": "#0b0b10",
-          "barStyle": "light",
-          "borderColor": "#0b0b10",
-          "visibility": "visible"
+          "style": "light",
+          "borderColor": "#0b0b10"
         }
       ]
     ],
