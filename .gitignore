@@ -16,8 +16,12 @@ Thumbs.db
 **/.env.*
 **/.env.example
 **/*.env.example
-version.json
+# Keep root version.json tracked (in-app update + web download)
+# Local APK copies must never be committed
+*.apk
 .cursor
 ecosystem.config.cjs
 ecosystem.config.js
 mobile/eas-env.local.txt
+
+
