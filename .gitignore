@@ -25,3 +25,4 @@ ecosystem.config.js
 mobile/eas-env.local.txt
 
 
+Release_app*
