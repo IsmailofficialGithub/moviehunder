@@ -1,4 +1,5 @@
 import SiteHeader from "../components/SiteHeader";
+import AppDownloadPrompt from "../components/AppDownloadPrompt";
 import "./globals.css";
 
 export const metadata = {
@@ -24,6 +25,7 @@ export default function RootLayout({ children }) {
       <body>
         <SiteHeader />
         <div className="appMain">{children}</div>
+        <AppDownloadPrompt />
       </body>
     </html>
   );

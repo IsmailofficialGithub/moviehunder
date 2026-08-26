@@ -33,6 +33,7 @@
       "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#0c0c0e",
+        "backgroundImage": "./assets/android-icon-background.png",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
