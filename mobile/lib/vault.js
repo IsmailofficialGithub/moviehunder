@@ -151,38 +151,68 @@ function xorHeader(chunk, keyBytes, fileOffset) {
   return out;
 }
 
-/** Stream copy with XOR on the first HEADER_BYTES (seal and unseal are the same). */
-async function streamXorHeader(srcUri, destUri, keyBytes) {
-  const src = new File(srcUri);
-  const dest = new File(destUri);
-  if (dest.exists) {
-    dest.delete();
+/**
+ * Stream copy with XOR on the first HEADER_BYTES (seal and unseal are the same).
+ * @returns {Promise<boolean>} true if header was XOR-sealed / processed
+ */
+async function streamXorHeader(srcUri, destUri, keyBytes, { allowCopyFallback = false } = {}) {
+  const destDir = destUri.replace(/[^/]+$/, "");
+  if (destDir) {
+    const dinfo = await FileSystem.getInfoAsync(destDir);
+    if (!dinfo.exists) {
+      await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
+    }
   }
-  dest.create();
-  const reader = src.readableStream().getReader();
-  const writer = dest.writableStream().getWriter();
-  let offset = 0;
+
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
-      const out =
-        offset < HEADER_BYTES ? xorHeader(chunk, keyBytes, offset) : chunk;
-      await writer.write(out);
-      offset += chunk.byteLength;
+    const src = new File(srcUri);
+    const dest = new File(destUri);
+    if (!src.exists) {
+      throw new Error("Download file missing");
     }
-  } finally {
+    if (dest.exists) {
+      dest.delete();
+    }
+    dest.create();
+    const reader = src.readableStream().getReader();
+    const writer = dest.writableStream().getWriter();
+    let offset = 0;
     try {
-      await writer.close();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
+        const out =
+          offset < HEADER_BYTES ? xorHeader(chunk, keyBytes, offset) : chunk;
+        await writer.write(out);
+        offset += chunk.byteLength;
+      }
+    } finally {
+      try {
+        await writer.close();
+      } catch {
+        /* ignore */
+      }
+      try {
+        reader.releaseLock();
+      } catch {
+        /* ignore */
+      }
+    }
+    return true;
+  } catch (streamErr) {
+    if (!allowCopyFallback) throw streamErr;
+    // Fallback: opaque vault path via legacy copy (no XOR — play must skip unseal)
+    try {
+      await FileSystem.deleteAsync(destUri, { idempotent: true });
     } catch {
       /* ignore */
     }
-    try {
-      reader.releaseLock();
-    } catch {
-      /* ignore */
+    await FileSystem.copyAsync({ from: srcUri, to: destUri });
+    if (__DEV__) {
+      console.warn("Vault used copy fallback (header XOR skipped)", streamErr);
     }
+    return false;
   }
 }
 
@@ -216,19 +246,37 @@ export async function sealDownloadIntoVault(item) {
   const info = await FileSystem.getInfoAsync(item.fileUri);
   if (!info.exists) throw new Error("Download file missing");
 
-  await streamXorHeader(item.fileUri, tmpUri, keyBytes);
-  await FileSystem.moveAsync({ from: tmpUri, to: sealedUri });
+  let didSeal = false;
   try {
-    await FileSystem.deleteAsync(item.fileUri, { idempotent: true });
+    didSeal = await streamXorHeader(item.fileUri, tmpUri, keyBytes, {
+      allowCopyFallback: true,
+    });
+    const sealedInfo = await FileSystem.getInfoAsync(tmpUri);
+    if (!sealedInfo.exists) {
+      throw new Error("Couldn’t seal file into the vault. Try again.");
+    }
+    await FileSystem.moveAsync({ from: tmpUri, to: sealedUri });
+    try {
+      await FileSystem.deleteAsync(item.fileUri, { idempotent: true });
+    } catch {
+      /* ignore */
+    }
   } catch {
-    /* ignore */
+    // Last resort: move the original into the vault folder (hidden path)
+    try {
+      await FileSystem.deleteAsync(tmpUri, { idempotent: true });
+    } catch {
+      /* ignore */
+    }
+    await FileSystem.moveAsync({ from: item.fileUri, to: sealedUri });
+    didSeal = false;
   }
 
   return {
     ...item,
     inVault: true,
     fileUri: sealedUri,
-    vaultSealed: true,
+    vaultSealed: didSeal,
     openFileUri: item.fileUri,
   };
 }
@@ -242,8 +290,12 @@ export async function unsealDownloadFromVault(item, destUri) {
 
   const keyBytes = await deriveKeyBytes(password, meta.salt);
   const tmpUri = `${destUri}.tmp`;
-  await streamXorHeader(item.fileUri, tmpUri, keyBytes);
-  await FileSystem.moveAsync({ from: tmpUri, to: destUri });
+  if (item.vaultSealed) {
+    await streamXorHeader(item.fileUri, tmpUri, keyBytes);
+    await FileSystem.moveAsync({ from: tmpUri, to: destUri });
+  } else {
+    await FileSystem.copyAsync({ from: item.fileUri, to: destUri });
+  }
   try {
     await FileSystem.deleteAsync(item.fileUri, { idempotent: true });
   } catch {

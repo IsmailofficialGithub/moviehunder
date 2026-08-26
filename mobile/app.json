@@ -36,6 +36,11 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0c0c0e"
+      },
       "navigationBarColor": "#0b0b10",
       "permissions": [
         "FOREGROUND_SERVICE",
@@ -71,6 +76,15 @@
           "backgroundColor": "#0b0b10",
           "style": "light",
           "borderColor": "#0b0b10"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#0c0c0e"
         }
       ]
     ],

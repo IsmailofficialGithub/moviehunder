@@ -55,6 +55,9 @@ if (config.missing.length) {
 }
 
 const PORT = Number(process.env.PORT || fileEnv.PORT || 8788);
+/** Cap concurrent media proxies so one phone can't melt the box. */
+const MAX_MEDIA_PROXY = Number(process.env.MAX_MEDIA_PROXY || 3);
+let activeMediaProxies = 0;
 
 function applyCors(res, headers = {}) {
   for (const [k, v] of Object.entries(headers)) {
@@ -91,6 +94,19 @@ function sendJson(res, status, body, corsHeaders = {}) {
 
 async function proxyMedia(req, res, targetUrl) {
   const corsHeaders = req._corsHeaders || {};
+  if (activeMediaProxies >= MAX_MEDIA_PROXY) {
+    sendJson(
+      res,
+      503,
+      {
+        error: "Too many downloads/streams on this relay. Wait and retry.",
+        code: "RELAY_BUSY",
+      },
+      corsHeaders
+    );
+    return;
+  }
+
   let parsed;
   try {
     parsed = new URL(targetUrl);
@@ -119,6 +135,7 @@ async function proxyMedia(req, res, targetUrl) {
   const ac = new AbortController();
   const onClose = () => ac.abort();
   req.on("close", onClose);
+  activeMediaProxies += 1;
 
   try {
     const upstream = await fetch(parsed.href, {
@@ -151,6 +168,7 @@ async function proxyMedia(req, res, targetUrl) {
     if (ac.signal.aborted || res.writableEnded) return;
     sendJson(res, 502, { error: "Media proxy failed" }, corsHeaders);
   } finally {
+    activeMediaProxies = Math.max(0, activeMediaProxies - 1);
     req.off("close", onClose);
   }
 }

@@ -1278,12 +1278,27 @@ async function handleStreamApi(subjectId, params) {
 // GET /watch/{subject_id}  — zero-buffer video streaming
 // ══════════════════════════════════════════════════════════════════
 
-async function handleWatch(subjectId, params, request) {
-  const detailPath = params.get("detail_path");
-  if (!detailPath) return json({ error: "detail_path is required" }, 400);
-  const se = params.get("se") || "0";
-  const ep = params.get("ep") || "0";
-  const resolution = parseInt(params.get("resolution") || "0", 10);
+/** Avoid re-resolving play API on every Range seek / chunk (kills workerd + ports). */
+const WATCH_TARGET_TTL_MS = 8 * 60 * 1000;
+/** @type {Map<string, { streamUrl: string, domain: string, resolutions: string|number, exp: number }>} */
+const watchTargetCache = new Map();
+
+function pruneWatchTargetCache() {
+  if (watchTargetCache.size < 80) return;
+  const now = Date.now();
+  for (const [k, v] of watchTargetCache) {
+    if (v.exp <= now) watchTargetCache.delete(k);
+  }
+  if (watchTargetCache.size > 120) {
+    const keys = [...watchTargetCache.keys()].slice(0, 40);
+    for (const k of keys) watchTargetCache.delete(k);
+  }
+}
+
+async function resolveWatchTarget(subjectId, detailPath, se, ep, resolution) {
+  const key = `${subjectId}|${detailPath}|${se}|${ep}|${resolution || 0}`;
+  const hit = watchTargetCache.get(key);
+  if (hit && hit.exp > Date.now() && hit.streamUrl) return hit;
 
   const discovered = await discoverDomain();
   const { streams, domain } = await fetchStreams(
@@ -1293,9 +1308,12 @@ async function handleWatch(subjectId, params, request) {
     se,
     ep
   );
-  if (!streams.length) return json({ error: "No streams found" }, 404);
+  if (!streams.length) {
+    const err = new Error("No streams found");
+    err.status = 404;
+    throw err;
+  }
 
-  // Pick resolution
   let stream;
   if (resolution > 0) {
     stream =
@@ -1307,10 +1325,47 @@ async function handleWatch(subjectId, params, request) {
     )[0];
   }
 
-  const streamUrl = stream.url;
-  if (!streamUrl) return json({ error: "Stream URL is empty" }, 404);
+  if (!stream?.url) {
+    const err = new Error("Stream URL is empty");
+    err.status = 404;
+    throw err;
+  }
 
-  // Build CDN headers
+  const entry = {
+    streamUrl: stream.url,
+    domain,
+    resolutions: stream.resolutions,
+    exp: Date.now() + WATCH_TARGET_TTL_MS,
+  };
+  watchTargetCache.set(key, entry);
+  pruneWatchTargetCache();
+  return entry;
+}
+
+async function handleWatch(subjectId, params, request) {
+  const detailPath = params.get("detail_path");
+  if (!detailPath) return json({ error: "detail_path is required" }, 400);
+  const se = params.get("se") || "0";
+  const ep = params.get("ep") || "0";
+  const resolution = parseInt(params.get("resolution") || "0", 10);
+
+  let target;
+  try {
+    target = await resolveWatchTarget(
+      subjectId,
+      detailPath,
+      se,
+      ep,
+      resolution
+    );
+  } catch (err) {
+    const status = err.status || 502;
+    return json({ error: err.message || "No streams found" }, status);
+  }
+
+  const { streamUrl, domain, resolutions } = target;
+  const cacheKey = `${subjectId}|${detailPath}|${se}|${ep}|${resolution || 0}`;
+
   const cdnHeaders = {
     Referer: `${domain}/`,
     Origin: domain,
@@ -1318,7 +1373,6 @@ async function handleWatch(subjectId, params, request) {
     "User-Agent": cfg().USER_AGENT,
   };
 
-  // Forward Range header for seeking
   const rangeHeader = request.headers.get("Range");
   if (rangeHeader) cdnHeaders["Range"] = rangeHeader;
 
@@ -1328,6 +1382,7 @@ async function handleWatch(subjectId, params, request) {
   });
 
   if (vidResp.status !== 200 && vidResp.status !== 206) {
+    watchTargetCache.delete(cacheKey);
     const errBody = await vidResp.text();
     return json(
       { error: `CDN returned ${vidResp.status}`, detail: errBody.slice(0, 200) },
@@ -1335,14 +1390,13 @@ async function handleWatch(subjectId, params, request) {
     );
   }
 
-  // Response headers
   const respHeaders = new Headers(activeCorsHeaders());
   respHeaders.set("Accept-Ranges", "bytes");
   respHeaders.set(
     "Content-Type",
     vidResp.headers.get("Content-Type") || "video/mp4"
   );
-  respHeaders.set("X-Stream-Resolution", `${stream.resolutions}p`);
+  respHeaders.set("X-Stream-Resolution", `${resolutions}p`);
   respHeaders.set("Cache-Control", "no-store");
 
   const cl = vidResp.headers.get("Content-Length");
@@ -1350,7 +1404,6 @@ async function handleWatch(subjectId, params, request) {
   const cr = vidResp.headers.get("Content-Range");
   if (cr) respHeaders.set("Content-Range", cr);
 
-  // Pipe ReadableStream straight through — ZERO buffering
   return new Response(vidResp.body, {
     status: vidResp.status,
     headers: respHeaders,

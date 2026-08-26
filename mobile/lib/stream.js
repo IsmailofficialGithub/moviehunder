@@ -103,8 +103,9 @@ export function proxiedMediaUrl(cdnUrl) {
 }
 
 /**
- * Best download URL: worker /watch (no relay needed), same quality.
- * Supports progressive Range reads for resume.
+ * Best download URL: CDN via Node play-relay (supports Range / resume).
+ * Never use Worker /watch for downloads — proxying multi‑GB files through
+ * workerd melts CPU and exhausts localhost ports (EADDRNOTAVAIL).
  */
 export function downloadMediaUrl({
   subjectId,
@@ -114,6 +115,8 @@ export function downloadMediaUrl({
   height = 0,
   cdnUrl = "",
 }) {
+  if (cdnUrl) return proxiedMediaUrl(cdnUrl);
+  // Last resort only when CDN URL is unknown
   if (subjectId && detailPath) {
     return watchStreamUrl({
       subjectId,
@@ -123,7 +126,7 @@ export function downloadMediaUrl({
       resolution: height || 0,
     });
   }
-  return proxiedMediaUrl(cdnUrl);
+  return "";
 }
 
 /**

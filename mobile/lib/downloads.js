@@ -11,7 +11,7 @@ import { toUserMessage } from "./userFacingError";
 
 const STORE_KEY = "flick.downloads.v1";
 const ROOT = `${FileSystem.documentDirectory || ""}flick-dl/`;
-const MAX_CONCURRENT = 2;
+const MAX_CONCURRENT = 1;
 const PROGRESS_THROTTLE_MS = 400;
 
 /** @typedef {'queued'|'downloading'|'paused'|'completed'|'failed'} DlStatus */
@@ -112,6 +112,14 @@ export async function hydrateDownloads() {
             }
             // Drop stale preparing rows from previous hung runs
             if (row.pending) continue;
+            // Rebase absolute paths when documentDirectory changes (Expo updates)
+            if (row.fileUri && FileSystem.documentDirectory) {
+              const dl = String(row.fileUri).match(/flick-dl\/[^?#]+/);
+              const vault = String(row.fileUri).match(/\.mh_sys\/[^?#]+/);
+              if (dl) row.fileUri = `${FileSystem.documentDirectory}${dl[0]}`;
+              else if (vault)
+                row.fileUri = `${FileSystem.documentDirectory}${vault[0]}`;
+            }
             items.set(row.id, row);
           }
         }
@@ -144,19 +152,30 @@ export function getDownloadById(id) {
   return items.get(id) || null;
 }
 
-export function findDownload({ subjectId, detailPath, se = "0", ep = "0", height }) {
+export function findDownload({
+  subjectId,
+  detailPath,
+  se = "0",
+  ep = "0",
+  height,
+  includeVault = false,
+}) {
+  const match = (d) => {
+    if (!includeVault && d.inVault) return false;
+    return (
+      d.subjectId === String(subjectId) &&
+      d.detailPath === String(detailPath) &&
+      String(d.se) === String(se) &&
+      String(d.ep) === String(ep)
+    );
+  };
   if (height != null) {
-    return items.get(makeId({ subjectId, detailPath, se, ep, height })) || null;
+    const hit = items.get(makeId({ subjectId, detailPath, se, ep, height }));
+    if (!hit) return null;
+    if (!includeVault && hit.inVault) return null;
+    return hit;
   }
-  return (
-    [...items.values()].find(
-      (d) =>
-        d.subjectId === String(subjectId) &&
-        d.detailPath === String(detailPath) &&
-        String(d.se) === String(se) &&
-        String(d.ep) === String(ep)
-    ) || null
-  );
+  return [...items.values()].find(match) || null;
 }
 
 export function packKeyFromItem(item) {
@@ -183,11 +202,13 @@ export function isPartialOnly(item) {
   return canPlayPartial(item) && item.status !== "completed";
 }
 
-/** Catalog lookup: any downloads for a title slug / detail path. */
+/** Catalog lookup: any non-vault downloads for a title slug / detail path. */
 export function getDownloadSummaryForPath(detailPath) {
   const path = String(detailPath || "");
   if (!path) return null;
-  const list = [...items.values()].filter((d) => d.detailPath === path);
+  const list = [...items.values()].filter(
+    (d) => d.detailPath === path && !d.inVault
+  );
   if (!list.length) return null;
 
   const playable = list.filter(canPlayPartial);
@@ -227,6 +248,67 @@ function fileNameFor(item) {
       ? `_S${item.se}E${item.ep}`
       : "";
   return `${safe}${epPart}_${item.height || "auto"}p.mp4`;
+}
+
+/**
+ * Find the real on-disk URI for a download (handles stale documentDirectory paths).
+ */
+export async function resolveDownloadFileUri(item) {
+  if (!item) return null;
+  const doc = FileSystem.documentDirectory || "";
+  if (!doc) return item.fileUri || null;
+
+  const normalize = (u) => {
+    if (!u) return u;
+    if (u.startsWith("/") && !u.startsWith("file:")) return `file://${u}`;
+    return u;
+  };
+
+  const candidates = [];
+  const push = (u) => {
+    const n = normalize(u);
+    if (n && typeof n === "string" && !candidates.includes(n)) candidates.push(n);
+  };
+
+  push(item.fileUri);
+
+  if (item.fileUri) {
+    const dl = item.fileUri.match(/flick-dl\/[^?#]+/);
+    if (dl) push(`${doc}${dl[0]}`);
+    const vault = item.fileUri.match(/\.mh_sys\/[^?#]+/);
+    if (vault) push(`${doc}${vault[0]}`);
+    const base = item.fileUri.split("/").filter(Boolean).pop();
+    if (base && !item.inVault) {
+      try {
+        push(`${doc}flick-dl/${decodeURIComponent(base)}`);
+      } catch {
+        push(`${doc}flick-dl/${base}`);
+      }
+    }
+    if (base && item.inVault) {
+      try {
+        push(`${doc}.mh_sys/${decodeURIComponent(base)}`);
+      } catch {
+        push(`${doc}.mh_sys/${base}`);
+      }
+    }
+  }
+
+  if (!item.inVault) {
+    push(`${ROOT}${fileNameFor(item)}`);
+  }
+
+  for (const uri of candidates) {
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists && !info.isDirectory) {
+        return info.uri || uri;
+      }
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
 }
 
 function patch(id, partial, { emitNow = false } = {}) {
@@ -367,11 +449,27 @@ async function startTask(id) {
       return;
     }
 
-    const info = await FileSystem.getInfoAsync(latest.fileUri);
+    const savedUri = result.uri || latest.fileUri;
+    const info = await FileSystem.getInfoAsync(savedUri);
+    if (!info.exists) {
+      patch(
+        id,
+        {
+          status: "failed",
+          error: "Download finished but the file wasn’t saved. Try again.",
+          fileUri: savedUri,
+        },
+        { emitNow: true }
+      );
+      tasks.delete(id);
+      pumpQueue();
+      return;
+    }
     patch(
       id,
       {
         status: "completed",
+        fileUri: savedUri,
         bytesWritten: info.size || latest.bytesWritten || 0,
         totalBytes: info.size || latest.totalBytes || 0,
         resumeData: undefined,
@@ -431,6 +529,11 @@ export async function enqueueDownload({
 
   const existing = items.get(id);
   if (existing?.status === "completed") {
+    if (existing.inVault) {
+      throw new Error(
+        "This download is sealed in Movie Safe. Unlock the vault (5 taps on Device storage) to watch or restore it."
+      );
+    }
     return existing;
   }
   if (existing && (existing.status === "downloading" || existing.status === "queued")) {
@@ -616,8 +719,28 @@ export async function enqueueBestEffort({
   }
 }
 
-/** True if this episode is already downloaded, queued, or preparing (any height). */
+/** True if this episode is already downloaded, queued, or preparing (any height). Vault copies do not count (hidden from UI). */
 export function isEpisodeCovered({ subjectId, detailPath, se, ep }) {
+  const sid = String(subjectId);
+  const path = String(detailPath);
+  const seStr = String(se);
+  const epStr = String(ep);
+  for (const item of items.values()) {
+    if (item.inVault) continue;
+    if (
+      item.subjectId === sid &&
+      item.detailPath === path &&
+      String(item.se) === seStr &&
+      String(item.ep) === epStr &&
+      item.status !== "failed"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function episodeExistsIncludingVault({ subjectId, detailPath, se, ep }) {
   const sid = String(subjectId);
   const path = String(detailPath);
   const seStr = String(se);
@@ -662,14 +785,14 @@ export async function enqueueSeason({
     const se = String(row.se ?? season);
     const ep = String(row.ep ?? row.episode);
     if (!ep || ep === "undefined") continue;
-    if (isEpisodeCovered({ subjectId, detailPath, se, ep })) continue;
+    if (episodeExistsIncludingVault({ subjectId, detailPath, se, ep })) continue;
     toQueue.push({ se, ep });
   }
 
   // Resolve streams one-by-one so we don’t hammer the API; UI shows pending rows as each starts.
   void (async () => {
     for (const { se, ep } of toQueue) {
-      if (isEpisodeCovered({ subjectId, detailPath, se, ep })) continue;
+      if (episodeExistsIncludingVault({ subjectId, detailPath, se, ep })) continue;
       try {
         await enqueueBestEffort({
           subjectId,
@@ -780,16 +903,50 @@ export async function moveDownloadToVault(id) {
   if (item.status !== "completed") {
     throw new Error("Only finished downloads can go in the vault");
   }
+
+  const srcUri = await resolveDownloadFileUri(item);
+  if (!srcUri) {
+    throw new Error(
+      "Download file missing on disk. Play or re-download it first, then import again."
+    );
+  }
+  if (srcUri !== item.fileUri) {
+    patch(id, { fileUri: srcUri });
+  }
+
   const { sealDownloadIntoVault } = await import("./vault");
-  const sealed = await sealDownloadIntoVault(item);
+  const sealed = await sealDownloadIntoVault({
+    ...items.get(id),
+    fileUri: srcUri,
+  });
   items.set(id, {
-    ...item,
+    ...items.get(id),
     ...sealed,
     updatedAt: Date.now(),
   });
   schedulePersist();
   emit(true);
   return items.get(id);
+}
+
+/** Seal many finished downloads into the vault (one after another). */
+export async function moveDownloadsToVault(ids) {
+  const moved = [];
+  const failed = [];
+  for (const id of ids || []) {
+    try {
+      moved.push(await moveDownloadToVault(id));
+    } catch (err) {
+      failed.push({
+        id,
+        message: err?.message || "Failed",
+      });
+    }
+  }
+  if (!moved.length && failed.length) {
+    throw new Error(failed[0].message || "Couldn’t import into the vault");
+  }
+  return { moved, failed };
 }
 
 /** Restore a vault download to the normal Downloads list. */
