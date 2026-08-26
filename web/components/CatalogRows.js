@@ -13,11 +13,14 @@ export default function CatalogRows({ sections = [], showHero = true }) {
 
   const banner = usable.find((s) => s.section?.toLowerCase() === "banner");
   const rows = usable.filter((s) => s !== banner);
-  const featured = banner?.movies?.[0] || rows[0]?.movies?.[0];
+  const bannerItems =
+    banner?.movies?.length
+      ? banner.movies
+      : rows[0]?.movies?.slice(0, 8) || [];
 
   return (
     <div>
-      {showHero && featured ? <Hero item={featured} /> : null}
+      {showHero && bannerItems.length ? <Hero items={bannerItems} /> : null}
       {rows.map((section, index) => (
         <section
           key={`${section.section || "row"}-${index}`}
