@@ -12,8 +12,16 @@ import { useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import EmptyState from "../../components/EmptyState";
 import PosterCard from "../../components/PosterCard";
+import SafeSearchMeme from "../../components/SafeSearchMeme";
 import Screen from "../../components/Screen";
 import { searchSuggest, searchTitles } from "../../lib/api";
+import {
+  checkSafeSearch,
+  filterSafeCatalogItems,
+  filterSafeSuggestions,
+  isSafeSearchBlocked,
+  shouldBlockEmptyAdultSearch,
+} from "../../lib/contentFilter";
 import {
   addSearchHistory,
   clearSearchHistory,
@@ -33,6 +41,7 @@ export default function SearchScreen() {
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const suggestTimer = useRef(null);
   const skipSuggest = useRef(Boolean(initial));
   const lastSavedQuery = useRef("");
@@ -51,16 +60,41 @@ export default function SearchScreen() {
     if (query.length < 2) {
       setMovies([]);
       setSearched(false);
+      setBlocked(false);
+      setLoading(false);
+      return;
+    }
+
+    const safe = checkSafeSearch(query);
+    if (safe.blocked) {
+      setMovies([]);
+      setSearched(true);
+      setBlocked(true);
       setLoading(false);
       return;
     }
 
     const reqId = ++searchReq.current;
     setLoading(true);
+    setBlocked(false);
     try {
       const data = await searchTitles(query);
       if (reqId !== searchReq.current) return;
-      setMovies(data.movies || []);
+      if (data?.blocked) {
+        setMovies([]);
+        setSearched(true);
+        setBlocked(true);
+        return;
+      }
+      const before = data.movies || [];
+      const safeMovies = filterSafeCatalogItems(before);
+      if (shouldBlockEmptyAdultSearch(query, before, safeMovies)) {
+        setMovies([]);
+        setSearched(true);
+        setBlocked(true);
+        return;
+      }
+      setMovies(safeMovies);
       setSearched(true);
       if (
         saveHistory &&
@@ -105,11 +139,23 @@ export default function SearchScreen() {
       return;
     }
 
+    if (isSafeSearchBlocked(query)) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setSuggestLoading(false);
+      return;
+    }
+
     setSuggestLoading(true);
     suggestTimer.current = setTimeout(async () => {
       try {
         const data = await searchSuggest(query);
-        const list = (data.suggestions || []).slice(0, 8);
+        if (data?.blocked) {
+          setSuggestions([]);
+          setShowSuggestions(false);
+          return;
+        }
+        const list = filterSafeSuggestions(data.suggestions || []).slice(0, 8);
         setSuggestions(list);
         setShowSuggestions(list.length > 0);
       } catch {
@@ -127,6 +173,7 @@ export default function SearchScreen() {
     setQ(text);
     setSearched(false);
     setMovies([]);
+    setBlocked(false);
   };
 
   const submitSearch = () => runSearch(q);
@@ -142,6 +189,7 @@ export default function SearchScreen() {
     setQ("");
     setMovies([]);
     setSearched(false);
+    setBlocked(false);
   };
 
   const showHistory = !q.trim() && !loading && !searched && history.length > 0;
@@ -246,6 +294,8 @@ export default function SearchScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} />
         </View>
+      ) : blocked ? (
+        <SafeSearchMeme active={blocked} />
       ) : searched && !movies.length ? (
         <EmptyState
           title="No items found"

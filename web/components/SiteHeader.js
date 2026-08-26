@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { searchSuggest } from "../lib/api";
+import { filterSafeSuggestions, isSafeSearchBlocked } from "../lib/contentFilter";
 import { getGithubUrl } from "../lib/config";
 import { openAppDownloadModal } from "./AppDownloadPrompt";
 import BtnSpinner from "./BtnSpinner";
@@ -29,6 +30,7 @@ export default function SiteHeader() {
   const timer = useRef(null);
   const abortRef = useRef(null);
   const wrapRef = useRef(null);
+  const inputRef = useRef(null);
 
   const active =
     NAV.find((n) =>
@@ -53,14 +55,26 @@ export default function SiteHeader() {
       setOpen(false);
       return;
     }
+    // Blocked queries: never fetch / show suggestions
+    if (isSafeSearchBlocked(query)) {
+      setSuggestions([]);
+      setOpen(false);
+      return;
+    }
     timer.current = setTimeout(async () => {
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
       try {
         const data = await searchSuggest(query, { signal: ac.signal });
-        setSuggestions(data.suggestions || []);
-        setOpen(true);
+        if (data?.blocked || isSafeSearchBlocked(query)) {
+          setSuggestions([]);
+          setOpen(false);
+          return;
+        }
+        const list = filterSafeSuggestions(data.suggestions || []);
+        setSuggestions(list);
+        setOpen(list.length > 0);
       } catch (err) {
         if (err.name !== "AbortError") {
           setSuggestions([]);
@@ -75,9 +89,23 @@ export default function SiteHeader() {
     const query = (value ?? q).trim();
     if (!query || pending) return;
     setOpen(false);
+    setSuggestions([]);
     setQ(query);
+    // Leave the search field so cursor/keyboard aren't stuck on the bar
+    inputRef.current?.blur();
+    if (typeof document !== "undefined") {
+      const active = document.activeElement;
+      if (active && typeof active.blur === "function") active.blur();
+    }
+    // Always route to /search — page + client gate show meme for blocked terms
+    // Skip startTransition for blocked terms so autoplay keeps the user gesture
+    const href = `/search?q=${encodeURIComponent(query)}`;
+    if (isSafeSearchBlocked(query)) {
+      router.push(href);
+      return;
+    }
     startTransition(() => {
-      router.push(`/search?q=${encodeURIComponent(query)}`);
+      router.push(href);
     });
   };
 
@@ -150,6 +178,7 @@ export default function SiteHeader() {
               />
             </svg>
             <input
+              ref={inputRef}
               type="search"
               placeholder="Search movies, shows…"
               value={q}
@@ -159,6 +188,7 @@ export default function SiteHeader() {
               }}
               disabled={pending}
               aria-autocomplete="list"
+              autoComplete="off"
             />
             {q ? (
               <button

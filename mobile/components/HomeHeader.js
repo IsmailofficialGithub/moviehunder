@@ -11,6 +11,10 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { searchSuggest } from "../lib/api";
+import {
+  filterSafeSuggestions,
+  isSafeSearchBlocked,
+} from "../lib/contentFilter";
 import { colors, radii, spacing } from "../lib/theme";
 import { BrandLogoSymbol } from "./BrandLogo";
 
@@ -43,8 +47,18 @@ export default function HomeHeader() {
     setLoading(true);
     timer.current = setTimeout(async () => {
       try {
+        if (isSafeSearchBlocked(query)) {
+          setSuggestions([]);
+          setOpen(false);
+          return;
+        }
         const data = await searchSuggest(query);
-        const list = (data.suggestions || []).slice(0, 8);
+        if (data?.blocked) {
+          setSuggestions([]);
+          setOpen(false);
+          return;
+        }
+        const list = filterSafeSuggestions(data.suggestions || []).slice(0, 8);
         setSuggestions(list);
         setOpen(list.length > 0);
       } catch {

@@ -1,12 +1,18 @@
 import EmptyState from "../../components/EmptyState";
-import TitleGrid from "../../components/TitleGrid";
+import SearchResultsClient from "../../components/SearchResultsClient";
 import { searchTitles } from "../../lib/api";
+import {
+  checkSafeSearch,
+  filterSafeCatalogItems,
+  shouldBlockEmptyAdultSearch,
+} from "../../lib/contentFilter";
 import {
   alreadyHasHindiResults,
   mergeWithHindiVariants,
 } from "../../lib/searchEnrich";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function generateMetadata({ searchParams }) {
   const q = (await searchParams)?.q || "";
@@ -27,23 +33,40 @@ export default async function SearchPage({ searchParams }) {
     );
   }
 
+  const safe = checkSafeSearch(q);
+  if (safe.blocked) {
+    return (
+      <main className="page">
+        <SearchResultsClient query={q} movies={[]} serverBlocked />
+      </main>
+    );
+  }
+
   try {
     const data = await searchTitles(q);
+    if (data?.blocked) {
+      return (
+        <main className="page">
+          <SearchResultsClient query={q} movies={[]} serverBlocked />
+        </main>
+      );
+    }
+
     let movies = data.movies || [];
     const alreadyHindiQuery = /\bhindi\b|\bdub(bed)?\b/i.test(q);
 
-    // Merge Hindi dub catalog entries next to English matches (same as mobile API).
     if (!alreadyHindiQuery && !alreadyHasHindiResults(movies)) {
       try {
         const hindiData = await searchTitles(`${q} hindi`);
-        movies = movies.length
-          ? mergeWithHindiVariants(movies, hindiData.movies || [])
-          : hindiData.movies || [];
+        if (!hindiData?.blocked) {
+          movies = movies.length
+            ? mergeWithHindiVariants(movies, hindiData.movies || [])
+            : hindiData.movies || [];
+        }
       } catch {
         /* keep primary */
       }
     } else if (!alreadyHindiQuery && alreadyHasHindiResults(movies)) {
-      // API already merged — ensure badge for UI
       movies = movies.map((m) =>
         isHindiLike(m) && !m.badge
           ? { ...m, badge: "Hindi", dub_lang: m.dub_lang || "hi" }
@@ -51,16 +74,20 @@ export default async function SearchPage({ searchParams }) {
       );
     }
 
-    if (!movies.length) {
+    const beforeFilter = movies;
+    movies = filterSafeCatalogItems(movies);
+
+    if (shouldBlockEmptyAdultSearch(q, beforeFilter, movies)) {
       return (
         <main className="page">
-          <EmptyState query={q} />
+          <SearchResultsClient query={q} movies={beforeFilter} serverBlocked />
         </main>
       );
     }
+
     return (
       <main className="page">
-        <TitleGrid title={`Results for "${q}"`} movies={movies} />
+        <SearchResultsClient query={q} movies={movies} />
       </main>
     );
   } catch {
