@@ -23,6 +23,6 @@ Thumbs.db
 ecosystem.config.cjs
 ecosystem.config.js
 mobile/eas-env.local.txt
-
+mobile/release.env
 
 Release_app*

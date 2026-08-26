@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   detectDevicePlatform,
   fetchAppRelease,
@@ -26,6 +26,7 @@ export default function AppDownloadPrompt() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState(null);
   const [platform, setPlatform] = useState("desktop");
+  const downloadingRef = useRef(false);
 
   const load = useCallback(async () => {
     const detected = detectDevicePlatform();
@@ -83,12 +84,19 @@ export default function AppDownloadPrompt() {
   if (!open) return null;
 
   const startDownload = (url) => {
-    if (!url) return;
-    // Open asset URL — browser downloads the APK; keep this site open
-    const w = window.open(url, "_blank", "noopener,noreferrer");
-    if (!w) {
-      window.location.href = url;
-    }
+    if (!url || downloadingRef.current) return;
+    downloadingRef.current = true;
+    // Single navigation — avoid window.open (often triggers a 2nd download tab)
+    const a = document.createElement("a");
+    a.href = url;
+    a.rel = "noopener noreferrer";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => {
+      downloadingRef.current = false;
+    }, 2500);
   };
 
   return (

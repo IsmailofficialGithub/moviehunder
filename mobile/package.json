@@ -42,6 +42,7 @@
     "eas:init": "eas init",
     "build:preview": "eas build -p android --profile preview",
     "build:production": "eas build -p android --profile production",
+    "release:new": "node scripts/release-new.mjs",
     "icons:generate": "node scripts/generate-icons.mjs"
   },
   "private": true,
