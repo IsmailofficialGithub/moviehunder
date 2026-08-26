@@ -18,6 +18,7 @@ import DownloadSheet from "../../components/DownloadSheet";
 import VaultModal, {
   resolveVaultModalMode,
 } from "../../components/VaultModal";
+import VaultImportModal from "../../components/VaultImportModal";
 import Screen from "../../components/Screen";
 import {
   enqueueBestEffort,
@@ -29,7 +30,7 @@ import {
   canPlayPartial,
   isPartialOnly,
   moveDownloadFromVault,
-  moveDownloadToVault,
+  moveDownloadsToVault,
   pauseDownload,
   progressOf,
   removeDownload,
@@ -111,7 +112,7 @@ function EpisodeRow({
   onPause,
   onResume,
   onDelete,
-  onVaultToggle,
+  onRestoreFromVault,
   vaultMode,
 }) {
   const pct = Math.round(progressOf(item) * 100);
@@ -127,8 +128,9 @@ function EpisodeRow({
   // While downloading: pause + delete only. Play when paused/ready (partial OK).
   const showPlay =
     playable && !item.pending && item.status !== "downloading" && item.status !== "queued";
-  const canVault =
-    typeof onVaultToggle === "function" &&
+  const canRestore =
+    vaultMode &&
+    typeof onRestoreFromVault === "function" &&
     item.status === "completed" &&
     !item.pending;
 
@@ -178,17 +180,13 @@ function EpisodeRow({
             <Ionicons name="refresh" size={16} color={colors.accentInk} />
           </Pressable>
         ) : null}
-        {canVault ? (
+        {canRestore ? (
           <Pressable
             style={styles.iconGhost}
-            onPress={() => onVaultToggle(item)}
+            onPress={() => onRestoreFromVault(item)}
             hitSlop={6}
           >
-            <Ionicons
-              name={vaultMode ? "lock-open-outline" : "shield-outline"}
-              size={16}
-              color={colors.accentLight}
-            />
+            <Ionicons name="lock-open-outline" size={16} color={colors.accentLight} />
           </Pressable>
         ) : null}
         <Pressable style={styles.iconGhost} onPress={() => onDelete(item)} hitSlop={6}>
@@ -205,7 +203,7 @@ function MovieCard({
   onPause,
   onResume,
   onDelete,
-  onVaultToggle,
+  onRestoreFromVault,
   vaultMode,
 }) {
   const pct = Math.round(progressOf(item) * 100);
@@ -220,8 +218,9 @@ function MovieCard({
     !item.pending && (item.status === "paused" || item.status === "failed");
   const showPlay =
     playable && !item.pending && item.status !== "downloading" && item.status !== "queued";
-  const canVault =
-    typeof onVaultToggle === "function" &&
+  const canRestore =
+    vaultMode &&
+    typeof onRestoreFromVault === "function" &&
     item.status === "completed" &&
     !item.pending;
 
@@ -284,16 +283,12 @@ function MovieCard({
                 <Ionicons name="refresh" size={16} color={colors.accentInk} />
               </Pressable>
             ) : null}
-            {canVault ? (
+            {canRestore ? (
               <Pressable
                 style={styles.iconGhost}
-                onPress={() => onVaultToggle(item)}
+                onPress={() => onRestoreFromVault(item)}
               >
-                <Ionicons
-                  name={vaultMode ? "lock-open-outline" : "shield-outline"}
-                  size={16}
-                  color={colors.accentLight}
-                />
+                <Ionicons name="lock-open-outline" size={16} color={colors.accentLight} />
               </Pressable>
             ) : null}
             <Pressable style={styles.iconGhost} onPress={() => onDelete(item)}>
@@ -392,7 +387,7 @@ function SeriesPack({
   onResume,
   onDelete,
   onDeleteAll,
-  onVaultToggle,
+  onRestoreFromVault,
   vaultMode,
   catalog,
   catalogBusy,
@@ -469,6 +464,7 @@ function SeriesPack({
 
       {expanded ? (
         <View style={styles.epList}>
+          {!vaultMode ? (
           <View style={styles.packTools}>
             <Text style={styles.packToolsLabel}>Episodes</Text>
             <View style={styles.packToolsActions}>
@@ -492,12 +488,20 @@ function SeriesPack({
               </Pressable>
             </View>
           </View>
+          ) : (
+          <View style={styles.packTools}>
+            <Text style={styles.packToolsLabel}>Sealed episodes</Text>
+            <Pressable onPress={onDeleteAll} hitSlop={8}>
+              <Text style={styles.deleteAll}>Delete all</Text>
+            </Pressable>
+          </View>
+          )}
 
-          {catalog?.error ? (
+          {!vaultMode && catalog?.error ? (
             <Text style={styles.catalogError}>{catalog.error}</Text>
           ) : null}
 
-          {remoteSeasons.length ? (
+          {!vaultMode && remoteSeasons.length ? (
             <View style={styles.seasonCatalog}>
               <Text style={styles.catalogHint}>
                 From server — tap a season to queue all missing episodes (720p)
@@ -601,7 +605,7 @@ function SeriesPack({
               onPause={onPause}
               onResume={onResume}
               onDelete={onDelete}
-              onVaultToggle={onVaultToggle}
+              onRestoreFromVault={onRestoreFromVault}
               vaultMode={vaultMode}
             />
           ))}
@@ -628,6 +632,7 @@ export default function DownloadsScreen() {
   const [vaultMode, setVaultMode] = useState(false);
   const [vaultUnlocked, setVaultUnlocked] = useState(isVaultUnlocked());
   const [vaultModal, setVaultModal] = useState(null); // 'setup' | 'unlock' | null
+  const [vaultImportOpen, setVaultImportOpen] = useState(false);
   const [vaultBusy, setVaultBusy] = useState(false);
   const storageTaps = useRef({ count: 0, at: 0 });
 
@@ -768,42 +773,57 @@ export default function DownloadsScreen() {
     if (tab === "songs") setTab("movies");
   };
 
-  const exitVaultView = () => {
-    setVaultMode(false);
-  };
-
   const lockAndExit = () => {
     lockVault();
     setVaultMode(false);
+    setVaultImportOpen(false);
   };
 
-  const onVaultToggle = async (item) => {
+  const onRestoreFromVault = async (item) => {
     if (vaultBusy) return;
     try {
-      if (!vaultUnlocked) {
-        const mode = await resolveVaultModalMode();
-        setVaultModal(mode);
-        Alert.alert(
-          "Movie Safe",
-          "Unlock the vault first (tap Device storage 5 times), then tap the shield on a finished download."
-        );
-        return;
-      }
       setVaultBusy(true);
-      if (item.inVault) {
-        await moveDownloadFromVault(item.id);
-        Alert.alert("Moved out", "This title is back in normal Downloads.");
-      } else {
-        await moveDownloadToVault(item.id);
+      await moveDownloadFromVault(item.id);
+      Alert.alert("Restored", "Back in normal Downloads.");
+    } catch (err) {
+      Alert.alert(
+        "Vault",
+        toUserMessage(err, "Couldn’t restore from vault. Try again.")
+      );
+    } finally {
+      setVaultBusy(false);
+    }
+  };
+
+  const onImportToVault = async (ids) => {
+    if (vaultBusy || !ids?.length) return;
+    try {
+      setVaultBusy(true);
+      const { moved, failed } = await moveDownloadsToVault(ids);
+      setVaultImportOpen(false);
+      if (failed.length && moved.length) {
         Alert.alert(
-          "Sealed in vault",
-          "Hidden from Downloads and sealed so file apps can’t play it. Open the vault (5 taps) to watch it."
+          "Partially imported",
+          `${moved.length} added to vault. ${failed.length} skipped (file missing — re-download those first).`
+        );
+      } else if (failed.length) {
+        Alert.alert(
+          "Import",
+          failed[0]?.message ||
+            "File missing on disk. Re-download the title, then import again."
+        );
+      } else {
+        Alert.alert(
+          "Added to vault",
+          moved.length === 1
+            ? "Hidden from Downloads. Only visible here in Movie Safe."
+            : `${moved.length} titles sealed and hidden from Downloads.`
         );
       }
     } catch (err) {
       Alert.alert(
-        "Vault",
-        toUserMessage(err, "Couldn’t update vault. Try again.")
+        "Import",
+        toUserMessage(err, "Couldn’t import into the vault. Try again.")
       );
     } finally {
       setVaultBusy(false);
@@ -1005,7 +1025,7 @@ export default function DownloadsScreen() {
     vaultMode
       ? {
           title: "Vault is empty",
-          hint: "Unlock the vault, go back to Downloads, and tap the shield on a finished download to seal it here.",
+          hint: "Tap Import, pick finished downloads, then Add. They leave Downloads and stay only here.",
         }
       : tab === "movies"
         ? {
@@ -1038,31 +1058,31 @@ export default function DownloadsScreen() {
           </Text>
           <Text style={styles.storageText}>
             {vaultMode
-              ? "Sealed downloads only · Lock when you leave"
+              ? "Import downloads here · Lock when you leave"
               : `Used ${formatBytes(stats.used)}${
                   stats.free ? ` · Free ${formatBytes(stats.free)}` : ""
                 }${stats.count ? ` · ${stats.count} files` : ""}`}
           </Text>
         </View>
         {vaultMode ? (
-          <View style={{ flexDirection: "row", gap: 6 }}>
-            <Pressable onPress={exitVaultView} hitSlop={8} style={styles.exitBtn}>
-              <Text style={styles.exitBtnText}>Downloads</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              onPress={() => setVaultImportOpen(true)}
+              hitSlop={8}
+              style={styles.importBtn}
+            >
+              <Ionicons name="add" size={16} color={colors.accentInk} />
+              <Text style={styles.importBtnText}>Import</Text>
             </Pressable>
-            <Pressable onPress={lockAndExit} hitSlop={8} style={styles.lockBtn}>
-              <Ionicons name="lock-closed" size={16} color={colors.accentInk} />
-              <Text style={styles.lockBtnText}>Lock</Text>
+            <Pressable
+              onPress={lockAndExit}
+              hitSlop={10}
+              style={styles.lockIconBtn}
+              accessibilityLabel="Lock vault"
+            >
+              <Ionicons name="exit-outline" size={18} color={colors.danger} />
             </Pressable>
           </View>
-        ) : vaultUnlocked ? (
-          <Pressable
-            onPress={() => setVaultMode(true)}
-            hitSlop={8}
-            style={styles.lockBtn}
-          >
-            <Ionicons name="shield" size={16} color={colors.accentInk} />
-            <Text style={styles.lockBtnText}>Safe</Text>
-          </Pressable>
         ) : null}
       </Pressable>
 
@@ -1208,7 +1228,7 @@ export default function DownloadsScreen() {
                   onPause={onPause}
                   onResume={onResume}
                   onDelete={onDelete}
-                  onVaultToggle={onVaultToggle}
+                  onRestoreFromVault={onRestoreFromVault}
                   vaultMode={vaultMode}
                 />
               ));
@@ -1225,7 +1245,7 @@ export default function DownloadsScreen() {
                   onResume={onResume}
                   onDelete={onDelete}
                   onDeleteAll={() => onDeletePack(pack)}
-                  onVaultToggle={onVaultToggle}
+                  onRestoreFromVault={onRestoreFromVault}
                   vaultMode={vaultMode}
                   catalog={vaultMode ? undefined : catalogByPack[pack.key]}
                   catalogBusy={catalogBusyKey === pack.key}
@@ -1279,6 +1299,13 @@ export default function DownloadsScreen() {
         onClose={() => setVaultModal(null)}
         onUnlocked={onVaultUnlocked}
       />
+      <VaultImportModal
+        visible={vaultImportOpen}
+        items={list}
+        busy={vaultBusy}
+        onClose={() => setVaultImportOpen(false)}
+        onImport={onImportToVault}
+      />
     </Screen>
   );
 }
@@ -1326,18 +1353,28 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 12,
   },
-  exitBtn: {
-    paddingHorizontal: 10,
+  lockIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.35)",
+  },
+  importBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: radii.pill,
-    backgroundColor: colors.panelSoft,
-    borderWidth: 1,
-    borderColor: colors.line,
-    justifyContent: "center",
   },
-  exitBtnText: {
-    color: colors.text,
-    fontWeight: "700",
+  importBtnText: {
+    color: colors.accentInk,
+    fontWeight: "800",
     fontSize: 12,
   },
   tabs: {
