@@ -1,10 +1,10 @@
 {
-  "latest_version": "0.0.3",
+  "latest_version": "0.0.2",
   "min_supported_version": "0.0.2",
-  "release_notes": "In-app update fix + test release for 0.0.2 to 0.0.3",
+  "release_notes": "MovieHunter v0.0.2",
   "android": {
-    "version_code": 3,
-    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.3/moviehunter-0.0.3.apk",
+    "version_code": 2,
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.2/moviehunter-0.0.2.apk",
     "force": false
   }
 }
