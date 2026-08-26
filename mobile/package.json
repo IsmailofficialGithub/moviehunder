@@ -40,7 +40,11 @@
     "eas:login": "eas login",
     "eas:init": "eas init",
     "build:preview": "eas build -p android --profile preview",
-    "build:production": "eas build -p android --profile production"
+    "build:production": "eas build -p android --profile production",
+    "icons:generate": "node scripts/generate-icons.mjs"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "sharp": "^0.35.3"
+  }
 }
