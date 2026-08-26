@@ -356,30 +356,51 @@ function pumpQueue() {
         updatedAt: Date.now(),
       });
     }
+    // Must clear startingIds BEFORE pumpQueue runs again — otherwise a finished
+    // download still occupies the slot and the next queued item never starts.
     startTask(next.id)
       .catch(() => {})
       .finally(() => {
         startingIds.delete(next.id);
+        pumpQueue();
       });
   }
   emit(true);
 }
 
+/** @type {Map<string, { t: number, bytes: number, rate: number }>} */
+const speedSamples = new Map();
+
 function onProgress(id, { totalBytesWritten, totalBytesExpectedToWrite }) {
+  const written = totalBytesWritten || 0;
+  const total =
+    totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : 0;
+  const now = Date.now();
+  const prev = speedSamples.get(id);
+  let rate = prev?.rate || 0;
+  if (prev && now - prev.t >= 400) {
+    const instant = ((written - prev.bytes) / (now - prev.t)) * 1000;
+    if (Number.isFinite(instant) && instant >= 0) {
+      rate = rate > 0 ? rate * 0.65 + instant * 0.35 : instant;
+    }
+    speedSamples.set(id, { t: now, bytes: written, rate });
+  } else if (!prev) {
+    speedSamples.set(id, { t: now, bytes: written, rate: 0 });
+  }
+
   patch(id, {
-    bytesWritten: totalBytesWritten || 0,
-    totalBytes: totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : 0,
+    bytesWritten: written,
+    totalBytes: total || items.get(id)?.totalBytes || 0,
+    bytesPerSec: rate > 0 ? rate : undefined,
   });
 }
 
 async function startTask(id) {
   const item = items.get(id);
   if (!item || item.pending || !item.sourceUrl) {
-    startingIds.delete(id);
     return;
   }
   if (item.status === "completed") {
-    startingIds.delete(id);
     return;
   }
   if (tasks.has(id)) return;
@@ -395,8 +416,6 @@ async function startTask(id) {
       },
       { emitNow: true }
     );
-    startingIds.delete(id);
-    pumpQueue();
     return;
   }
 
@@ -424,8 +443,6 @@ async function startTask(id) {
       },
       { emitNow: true }
     );
-    startingIds.delete(id);
-    pumpQueue();
     return;
   }
 
@@ -441,11 +458,12 @@ async function startTask(id) {
         {
           status: "paused",
           resumeData: savable.resumeData || latest.resumeData,
+          bytesPerSec: undefined,
         },
         { emitNow: true }
       );
       tasks.delete(id);
-      pumpQueue();
+      speedSamples.delete(id);
       return;
     }
 
@@ -458,11 +476,12 @@ async function startTask(id) {
           status: "failed",
           error: "Download finished but the file wasn’t saved. Try again.",
           fileUri: savedUri,
+          bytesPerSec: undefined,
         },
         { emitNow: true }
       );
       tasks.delete(id);
-      pumpQueue();
+      speedSamples.delete(id);
       return;
     }
     patch(
@@ -474,11 +493,12 @@ async function startTask(id) {
         totalBytes: info.size || latest.totalBytes || 0,
         resumeData: undefined,
         error: undefined,
+        bytesPerSec: undefined,
       },
       { emitNow: true }
     );
     tasks.delete(id);
-    pumpQueue();
+    speedSamples.delete(id);
   } catch (err) {
     let resumeData = latest.resumeData;
     try {
@@ -488,16 +508,17 @@ async function startTask(id) {
       /* ignore */
     }
     tasks.delete(id);
+    speedSamples.delete(id);
     patch(
       id,
       {
         status: "failed",
         error: toUserMessage(err, "Download failed. Check your connection."),
         resumeData,
+        bytesPerSec: undefined,
       },
       { emitNow: true }
     );
-    pumpQueue();
   }
 }
 
@@ -1001,6 +1022,71 @@ export function progressOf(item) {
   const total = item.totalBytes || item.sizeHint || 0;
   if (total <= 0) return 0;
   return Math.min(1, (item.bytesWritten || 0) / total);
+}
+
+/** Remaining seconds for one download, or null if unknown. */
+export function etaSecondsOf(item) {
+  if (!item || item.status === "completed" || item.status === "failed") {
+    return null;
+  }
+  if (item.status !== "downloading" && item.status !== "queued" && !item.pending) {
+    return null;
+  }
+  const total = item.totalBytes || item.sizeHint || 0;
+  const written = item.bytesWritten || 0;
+  const left = total > written ? total - written : 0;
+  const rate = item.bytesPerSec || 0;
+  if (left <= 0 || rate < 2048) return null;
+  return Math.max(1, Math.ceil(left / rate));
+}
+
+/** Human ETA like "45s left", "12m left", "1h 5m left". */
+export function formatEta(seconds) {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return "";
+  const s = Math.ceil(seconds);
+  if (s < 60) return `${s}s left`;
+  if (s < 3600) {
+    const m = Math.ceil(s / 60);
+    return `${m}m left`;
+  }
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
+}
+
+/**
+ * ETA for a series pack: remaining bytes across unfinished eps / observed speed.
+ */
+export function packEtaSeconds(episodes = []) {
+  const list = Array.isArray(episodes) ? episodes : [];
+  const unfinished = list.filter(
+    (e) =>
+      e &&
+      e.status !== "completed" &&
+      e.status !== "failed" &&
+      (e.status === "downloading" ||
+        e.status === "queued" ||
+        e.status === "paused" ||
+        e.pending)
+  );
+  if (!unfinished.length) return null;
+
+  let remBytes = 0;
+  for (const e of unfinished) {
+    const total = e.totalBytes || e.sizeHint || 0;
+    const written = e.bytesWritten || 0;
+    if (total > written) remBytes += total - written;
+  }
+  if (remBytes <= 0) return null;
+
+  const rates = list
+    .map((e) => e.bytesPerSec || 0)
+    .filter((r) => r >= 2048);
+  const rate = rates.length
+    ? rates.reduce((a, b) => a + b, 0) / rates.length
+    : 0;
+  if (rate < 2048) return null;
+  return Math.max(1, Math.ceil(remBytes / rate));
 }
 
 // Kick hydration on import (non-blocking)
