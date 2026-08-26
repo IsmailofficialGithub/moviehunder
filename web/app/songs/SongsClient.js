@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { searchMusic } from "../../lib/api";
 import BtnSpinner from "../../components/BtnSpinner";
+import {
+  clearMediaSession,
+  clearPageTitle,
+  setPageTitle,
+  updateMediaSession,
+} from "../../lib/pageMedia";
 import styles from "./songs.module.css";
 
 function formatMs(ms) {
@@ -22,11 +28,16 @@ export default function SongsClient() {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef(null);
+  const tracksRef = useRef([]);
+  const currentIdRef = useRef(null);
 
   const current = useMemo(
     () => tracks.find((t) => String(t.id) === String(currentId)) || null,
     [tracks, currentId]
   );
+
+  tracksRef.current = tracks;
+  currentIdRef.current = currentId;
 
   const load = useCallback(async (query = "") => {
     setLoading(true);
@@ -46,40 +57,11 @@ export default function SongsClient() {
     load("");
   }, [load]);
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const onTime = () => setProgress(audio.currentTime || 0);
-    const onMeta = () => setDuration(audio.duration || 0);
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onEnded = () => {
-      setPlaying(false);
-      const idx = tracks.findIndex((t) => String(t.id) === String(currentId));
-      if (idx >= 0 && idx < tracks.length - 1) {
-        playTrack(tracks[idx + 1]);
-      }
-    };
-    audio.addEventListener("timeupdate", onTime);
-    audio.addEventListener("loadedmetadata", onMeta);
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
-    audio.addEventListener("ended", onEnded);
-    return () => {
-      audio.removeEventListener("timeupdate", onTime);
-      audio.removeEventListener("loadedmetadata", onMeta);
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
-      audio.removeEventListener("ended", onEnded);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentId, tracks]);
-
-  const playTrack = async (track) => {
+  const playTrack = useCallback(async (track) => {
     const url = track?.stream_url || track?.preview_url;
     if (!url || !audioRef.current) return;
     const audio = audioRef.current;
-    const same = String(track.id) === String(currentId);
+    const same = String(track.id) === String(currentIdRef.current);
     if (same) {
       if (audio.paused) await audio.play().catch(() => {});
       else audio.pause();
@@ -95,7 +77,108 @@ export default function SongsClient() {
     } catch {
       setError("Couldn’t start playback. Try another track.");
     }
-  };
+  }, []);
+
+  const playRelative = useCallback(
+    (delta) => {
+      const list = tracksRef.current;
+      const id = currentIdRef.current;
+      const idx = list.findIndex((t) => String(t.id) === String(id));
+      if (idx < 0) return;
+      const next = list[idx + delta];
+      if (next) playTrack(next);
+    },
+    [playTrack]
+  );
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onTime = () => setProgress(audio.currentTime || 0);
+    const onMeta = () => setDuration(audio.duration || 0);
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    const onEnded = () => {
+      setPlaying(false);
+      playRelative(1);
+    };
+    audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("loadedmetadata", onMeta);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
+    audio.addEventListener("ended", onEnded);
+    return () => {
+      audio.removeEventListener("timeupdate", onTime);
+      audio.removeEventListener("loadedmetadata", onMeta);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("ended", onEnded);
+    };
+  }, [playRelative]);
+
+  useEffect(() => {
+    if (!current) {
+      clearPageTitle("Songs · MovieHunter");
+      clearMediaSession();
+      return;
+    }
+    const name = current.name || current.title || "Now playing";
+    const artist = current.artist || "Unknown artist";
+    setPageTitle([name, artist]);
+
+    const audio = audioRef.current;
+    updateMediaSession({
+      title: name,
+      artist,
+      album: "MovieHunter Songs",
+      artworkUrl: current.image || current.artwork || current.artwork_url || "",
+      kind: "music",
+      playing,
+      duration: duration || (Number(current.duration_ms) || 0) / 1000 || undefined,
+      position: progress,
+      onPlay: () => {
+        audio?.play().catch(() => {});
+      },
+      onPause: () => {
+        audio?.pause();
+      },
+      onPrevious: () => playRelative(-1),
+      onNext: () => playRelative(1),
+      onSeekTo: (details) => {
+        if (!audio || details?.seekTime == null) return;
+        audio.currentTime = details.seekTime;
+        setProgress(details.seekTime);
+      },
+    });
+    // Intentionally omit `progress` — position is patched below without rebinding actions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, playing, duration, playRelative]);
+
+  useEffect(() => {
+    if (!current || typeof navigator === "undefined" || !navigator.mediaSession) {
+      return;
+    }
+    const dur = duration || (Number(current.duration_ms) || 0) / 1000;
+    if (!(dur > 0) || typeof navigator.mediaSession.setPositionState !== "function") {
+      return;
+    }
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: dur,
+        playbackRate: 1,
+        position: Math.min(Math.max(0, progress), dur),
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [current, progress, duration]);
+
+  useEffect(() => {
+    return () => {
+      clearMediaSession();
+      clearPageTitle("MovieHunter");
+    };
+  }, []);
 
   const seek = (e) => {
     const audio = audioRef.current;
@@ -167,14 +250,32 @@ export default function SongsClient() {
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            className={styles.playerBtn}
-            onClick={() => playTrack(current)}
-            aria-label={playing ? "Pause" : "Play"}
-          >
-            {playing ? "Pause" : "Play"}
-          </button>
+          <div className={styles.playerControls}>
+            <button
+              type="button"
+              className={styles.playerBtnGhost}
+              onClick={() => playRelative(-1)}
+              aria-label="Previous track"
+            >
+              ‹ Prev
+            </button>
+            <button
+              type="button"
+              className={styles.playerBtn}
+              onClick={() => playTrack(current)}
+              aria-label={playing ? "Pause" : "Play"}
+            >
+              {playing ? "Pause" : "Play"}
+            </button>
+            <button
+              type="button"
+              className={styles.playerBtnGhost}
+              onClick={() => playRelative(1)}
+              aria-label="Next track"
+            >
+              Next ›
+            </button>
+          </div>
         </div>
       ) : null}
 

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import PlayClient from "./PlayClient";
 
 export const metadata = {
-  title: "Play · Flick",
+  title: "Play",
 };
 
 export default function PlayPage() {

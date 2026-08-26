@@ -222,13 +222,36 @@
   cursor: pointer;
 }
 
+.playerControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.playerBtnGhost {
+  border: 1px solid color-mix(in srgb, var(--secondary) 45%, transparent);
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @media (max-width: 640px) {
   .player {
     flex-wrap: wrap;
   }
 
-  .playerBtn {
+  .playerControls {
     width: 100%;
+    justify-content: stretch;
+  }
+
+  .playerBtn,
+  .playerBtnGhost {
+    flex: 1;
   }
 }
 
