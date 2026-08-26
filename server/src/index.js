@@ -966,6 +966,16 @@ async function handleDetail(slug) {
     return typeof raw === "string" ? raw.trim() : "";
   };
 
+  const spamRe =
+    /(?:whatsapp|telegram|t\.me\/|wa\.me\/|spell|vashikaran|astrolog|black magic|lottery|earn money|click here|china apps?|contact (?:me|us)|\+\d{8,}|\d{10,})/i;
+  const isUsefulReview = (content) => {
+    if (!content || content.length < 2 || content.length > 900) return false;
+    if (spamRe.test(content)) return false;
+    const digits = (content.match(/\d/g) || []).length;
+    if (digits > 40 && digits / content.length > 0.2) return false;
+    return true;
+  };
+
   return json({
     slug,
     source: pageUrl,
@@ -990,7 +1000,7 @@ async function handleDetail(slug) {
         .map((r) => {
           if (!r || typeof r !== "object") return null;
           const content = reviewText(r);
-          if (!content) return null;
+          if (!isUsefulReview(content)) return null;
           return {
             user:
               r.user?.nickname ||
@@ -1003,6 +1013,7 @@ async function handleDetail(slug) {
           };
         })
         .filter(Boolean)
+        .sort((a, b) => a.content.length - b.content.length)
         .slice(0, 12),
     },
     streams: { mp4: mp4Urls, hls: hlsUrls },

@@ -27,6 +27,21 @@ function castName(person) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
+const REVIEW_PREVIEW = 140;
+const SPAM_RE =
+  /(?:whatsapp|telegram|t\.me\/|wa\.me\/|spell|vashikaran|astrolog|black magic|lottery|earn money|click here|china apps?|contact (?:me|us)|call (?:me|now)|\+\d{8,}|\d{10,})/i;
+
+function isUsefulReview(content) {
+  const text = content.trim();
+  if (text.length < 2) return false;
+  if (text.length > 900) return false;
+  if (SPAM_RE.test(text)) return false;
+  // Dense digit / link spam
+  const digits = (text.match(/\d/g) || []).length;
+  if (digits > 40 && digits / text.length > 0.2) return false;
+  return true;
+}
+
 export default function DetailClient({ slug, detail, episodes }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -97,9 +112,9 @@ export default function DetailClient({ slug, detail, episodes }) {
           ...r,
           content: r.content.trim(),
         }))
-        // Prefer shorter, readable comments first
+        .filter((r) => isUsefulReview(r.content))
         .sort((a, b) => a.content.length - b.content.length)
-        .slice(0, 8),
+        .slice(0, 6),
     [meta.user_reviews]
   );
 
@@ -280,10 +295,12 @@ export default function DetailClient({ slug, detail, episodes }) {
               const key = `${r.user || "anon"}-${i}`;
               const name = r.user || "Anonymous";
               const initial = name.slice(0, 1).toUpperCase();
-              const long = r.content.length > 160;
+              const long = r.content.length > REVIEW_PREVIEW;
               const open = expandedReviews.has(key);
               const text =
-                long && !open ? `${r.content.slice(0, 160).trim()}…` : r.content;
+                long && !open
+                  ? `${r.content.slice(0, REVIEW_PREVIEW).trim()}…`
+                  : r.content;
 
               return (
                 <article key={key} className={styles.review}>
