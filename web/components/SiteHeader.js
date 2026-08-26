@@ -8,6 +8,7 @@ import { searchSuggest } from "../lib/api";
 import { filterSafeSuggestions, isSafeSearchBlocked } from "../lib/contentFilter";
 import { getGithubUrl } from "../lib/config";
 import { openAppDownloadModal } from "./AppDownloadPrompt";
+import ActiveUsers from "./ActiveUsers";
 import BtnSpinner from "./BtnSpinner";
 import styles from "./SiteHeader.module.css";
 
@@ -130,6 +131,12 @@ export default function SiteHeader() {
             priority
           />
         </Link>
+
+        {!isPlayPage ? (
+          <div className={styles.live}>
+            <ActiveUsers />
+          </div>
+        ) : null}
 
         {!isPlayPage ? (
           <nav className={styles.nav} aria-label="Primary">

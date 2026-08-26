@@ -28,6 +28,11 @@ import {
   SAFE_SEARCH_TITLE,
 } from "./contentFilter.js";
 import {
+  presenceHeartbeat,
+  presenceLeave,
+  presenceStats,
+} from "./presence.js";
+import {
   activeCorsHeaders,
   authorizeClient,
   requestContext,
@@ -384,6 +389,22 @@ async function handleRequest(request, env) {
       }
       if (p === "/api/access/block" && request.method === "POST") {
         return await handleAccessBlock(request, env);
+      }
+
+      // ── Live watching counter ─────────────────────────────
+      if (p === "/presence" && request.method === "GET") {
+        const out = await presenceStats(env);
+        return json(out, out.status || 200);
+      }
+      if (p === "/presence/heartbeat" && request.method === "POST") {
+        const body = await readJsonBody(request);
+        const out = await presenceHeartbeat(env, body?.id || body?.sessionId);
+        return json(out, out.status || 200);
+      }
+      if (p === "/presence/leave" && request.method === "POST") {
+        const body = await readJsonBody(request);
+        const out = await presenceLeave(env, body?.id || body?.sessionId);
+        return json(out, out.status || 200);
       }
 
       // ── Free music (Audius) ────────────────────────────────
@@ -1800,4 +1821,14 @@ function json(body, status = 200) {
     status,
     headers: { "Content-Type": "application/json", ...activeCorsHeaders() },
   });
+}
+
+async function readJsonBody(request) {
+  try {
+    const text = await request.text();
+    if (!text) return {};
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
 }
