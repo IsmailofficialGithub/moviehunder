@@ -23,6 +23,8 @@
  * Flags:
  *   --platform android|ios|all
  *   --skip-build          skip EAS; use newest file already in Release_app/...
+ *   --from-eas            skip rebuild; download latest finished EAS artifact
+ *   --no-bump             keep current app.json version (use with --from-eas)
  *   --no-push             update files + GitHub release, but do not git push
  *   --force-update        set android.force=true in version.json
  *   --notes "text"
@@ -51,6 +53,8 @@ function parseArgs(argv) {
   const out = {
     platform: process.env.RELEASE_PLATFORM || "android",
     skipBuild: false,
+    fromEas: false,
+    noBump: false,
     noPush: false,
     forceUpdate: false,
     notes: process.env.RELEASE_NOTES || "",
@@ -58,12 +62,13 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--skip-build") out.skipBuild = true;
+    else if (a === "--from-eas") out.fromEas = true;
+    else if (a === "--no-bump") out.noBump = true;
     else if (a === "--no-push") out.noPush = true;
     else if (a === "--force-update") out.forceUpdate = true;
     else if (a === "--platform" && argv[i + 1]) {
       out.platform = String(argv[++i]).toLowerCase();
     } else if (a === "--notes" || a.startsWith("--notes=")) {
-      // npm on Windows often strips quotes → join remaining words until next --flag
       if (a.startsWith("--notes=") && a.length > "--notes=".length) {
         out.notes = a.slice("--notes=".length);
       } else {
@@ -343,7 +348,35 @@ function downloadFile(url, destPath) {
 function parseBuildJson(stdout) {
   const text = String(stdout || "").trim();
   if (!text) return null;
-  // eas may print logs before JSON — take last JSON object/array
+  for (const open of ["[", "{"]) {
+    const start = text.indexOf(open);
+    if (start < 0) continue;
+    const close = open === "[" ? "]" : "}";
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    for (let i = start; i < text.length; i += 1) {
+      const ch = text[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === open) depth += 1;
+      else if (ch === close) {
+        depth -= 1;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(start, i + 1));
+          } catch {
+            break;
+          }
+        }
+      }
+    }
+  }
   const startObj = text.lastIndexOf("{");
   const startArr = text.lastIndexOf("[");
   const start = Math.max(startObj, startArr);
@@ -366,32 +399,73 @@ function artifactUrlFromBuild(build) {
   );
 }
 
+function easJson(args) {
+  const bin = easBin();
+  const res = run(bin, easArgs([...args, "--json", "--non-interactive"]), {
+    stdio: ["ignore", "pipe", "pipe"],
+    allowFail: true,
+  });
+  const combined = `${res.stdout || ""}\n${res.stderr || ""}`;
+  const parsed = parseBuildJson(res.stdout) || parseBuildJson(combined);
+  if (res.status !== 0 && !parsed) {
+    fail(
+      `eas ${args.join(" ")} failed (exit ${res.status})\n${(res.stderr || res.stdout || "").trim()}`
+    );
+  }
+  return parsed;
+}
+
+function latestFinishedBuild(platform) {
+  const profile = process.env.EAS_PROFILE || "production";
+  const list = easJson([
+    "build:list",
+    "--platform",
+    platform,
+    "--status",
+    "finished",
+    "--limit",
+    "1",
+    "--build-profile",
+    profile,
+  ]);
+  const build = Array.isArray(list) ? list[0] : list;
+  if (!build?.id) {
+    fail(`No finished EAS ${platform} build found for profile=${profile}`);
+  }
+  const url = artifactUrlFromBuild(build);
+  if (!url) {
+    fail(`EAS build ${build.id} has no artifact URL yet. Retry with --from-eas`);
+  }
+  log(`Using EAS build ${build.id}`);
+  return { build, url };
+}
+
+function readAppVersion() {
+  const app = readJson(APP_JSON_PATH);
+  return {
+    version: String(app.expo?.version || "0.0.0").replace(/^v/i, ""),
+    versionCode: Number(app.expo?.android?.versionCode || 0),
+  };
+}
+
 function runEasBuild(platform) {
   const profile = process.env.EAS_PROFILE || "production";
   log(`Starting EAS ${platform} build (profile=${profile}) — waiting until finished…`);
   const bin = easBin();
-  const args = easArgs([
-    "build",
-    "--platform",
-    platform,
-    "--profile",
-    profile,
-    "--non-interactive",
-    "--wait",
-    "--json",
-  ]);
-  const res = run(bin, args, { stdio: ["ignore", "pipe", "inherit"] });
-  const parsed = parseBuildJson(res.stdout);
-  const build = Array.isArray(parsed) ? parsed[0] : parsed;
-  if (!build) fail("Could not parse EAS build JSON output");
-  const url = artifactUrlFromBuild(build);
-  if (!url) {
-    fail(
-      "EAS build finished but no artifact URL found. Check Expo dashboard and re-run with --skip-build after placing the file in Release_app."
-    );
-  }
-  log(`EAS build ready: ${build.id || "(no id)"}`);
-  return { build, url };
+  run(
+    bin,
+    easArgs([
+      "build",
+      "--platform",
+      platform,
+      "--profile",
+      profile,
+      "--non-interactive",
+      "--wait",
+    ]),
+    { stdio: "inherit" }
+  );
+  return latestFinishedBuild(platform);
 }
 
 async function saveArtifact(platform, version, url) {
@@ -548,6 +622,11 @@ async function releasePlatform(platform, version, opts) {
     return { dest, fileName: path.basename(dest), platform };
   }
 
+  if (opts.fromEas) {
+    const { url } = latestFinishedBuild(platform);
+    return saveArtifact(platform, version, url);
+  }
+
   const { url } = runEasBuild(platform);
   return saveArtifact(platform, version, url);
 }
@@ -559,10 +638,14 @@ async function main() {
   log(`Repo: ${repo}`);
   ensureReleaseDirs();
 
-  const { version, versionCode } = bumpAppJson();
+  const { version, versionCode } = opts.noBump ? readAppVersion() : bumpAppJson();
+  if (opts.noBump) {
+    log(`Using existing app.json version ${version} (code ${versionCode})`);
+  }
+
   const notes =
     opts.notes ||
-    `MovieHunter v${version} — safe search hardening, update pipeline.`;
+    `MovieHunter v${version}`;
 
   const platforms =
     opts.platform === "all" ? ["android", "ios"] : [opts.platform];
