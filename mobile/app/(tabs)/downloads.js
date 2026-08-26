@@ -24,6 +24,9 @@ import {
   enqueueBestEffort,
   fetchSeasonCatalog,
   formatBytes,
+  formatEta,
+  etaSecondsOf,
+  packEtaSeconds,
   getStorageStats,
   hydrateDownloads,
   isEpisodeCovered,
@@ -133,6 +136,7 @@ function EpisodeRow({
     typeof onRestoreFromVault === "function" &&
     item.status === "completed" &&
     !item.pending;
+  const etaLabel = formatEta(etaSecondsOf(item));
 
   return (
     <View style={styles.epRow}>
@@ -144,7 +148,10 @@ function EpisodeRow({
           <QualityBadge item={item} />
           <StatusDot status={item.status} pending={item.pending} />
         </View>
-        {(item.status === "downloading" || item.status === "paused" || item.pending) && (
+        {(item.status === "downloading" ||
+          item.status === "queued" ||
+          item.status === "paused" ||
+          item.pending) && (
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${pct}%` }]} />
           </View>
@@ -152,13 +159,18 @@ function EpisodeRow({
         <Text style={styles.epSize} numberOfLines={1}>
           {item.error
             ? item.error
-            : total
-              ? `${written}${item.totalBytes ? ` / ${total}` : ""}`
-              : written !== "0 B"
-                ? written
-                : pct > 0
-                  ? `${pct}%`
-                  : ""}
+            : [
+                total
+                  ? `${written}${item.totalBytes || item.sizeHint ? ` / ${total}` : ""}`
+                  : written !== "0 B"
+                    ? written
+                    : pct > 0
+                      ? `${pct}%`
+                      : "",
+                etaLabel,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
         </Text>
         {partial && !active ? (
           <Text style={styles.partialHint}>Partial — may stop early</Text>
@@ -223,6 +235,7 @@ function MovieCard({
     typeof onRestoreFromVault === "function" &&
     item.status === "completed" &&
     !item.pending;
+  const etaLabel = formatEta(etaSecondsOf(item));
 
   return (
     <View style={styles.pack}>
@@ -250,11 +263,16 @@ function MovieCard({
           <Text style={styles.epSize} numberOfLines={2}>
             {item.error
               ? item.error
-              : total
-                ? `${written}${item.totalBytes ? ` / ${total}` : ""}`
-                : written !== "0 B"
-                  ? written
-                  : "Movie"}
+              : [
+                  total
+                    ? `${written}${item.totalBytes || item.sizeHint ? ` / ${total}` : ""}`
+                    : written !== "0 B"
+                      ? written
+                      : "Movie",
+                  etaLabel,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
           </Text>
           {(item.status === "downloading" ||
             item.status === "paused" ||
@@ -415,6 +433,7 @@ function SeriesPack({
       100
   );
   const remoteSeasons = catalog?.seasons || [];
+  const packEta = formatEta(packEtaSeconds(pack.episodes));
 
   return (
     <View style={styles.pack}>
@@ -440,6 +459,7 @@ function SeriesPack({
             {ready ? ` · ${ready} ready` : ""}
             {active ? ` · ${active} active` : ""}
             {bytes ? ` · ${formatBytes(bytes)}` : ""}
+            {packEta ? ` · ${packEta}` : ""}
           </Text>
           <View style={styles.badgeRow}>
             {qualities.slice(0, 3).map((q) => (
