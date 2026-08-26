@@ -3,16 +3,17 @@
   top: 0;
   z-index: 40;
   flex-shrink: 0;
-  background: rgba(12, 12, 14, 0.88);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--accent-border);
+  background: rgba(12, 12, 14, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(46, 46, 54, 0.9);
 }
 
 .topRow {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 12px var(--page-pad);
+  gap: 14px;
+  padding: 10px var(--page-pad);
   min-width: 0;
   width: 100%;
   max-width: 100%;
@@ -24,40 +25,62 @@
   justify-content: center;
   flex-shrink: 0;
   line-height: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .brandLogo {
   display: block;
-  height: 40px;
-  width: auto;
-  max-width: min(200px, 42vw);
-  object-fit: contain;
-  object-position: left center;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+}
+
+.playHint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+
+.topbarPlay .topRow {
+  gap: 10px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.topbarPlay .brand,
+.topbarPlay .brandLogo {
+  width: 36px;
+  height: 36px;
+}
+
+.topbarPlay .actions {
+  display: none;
 }
 
 .nav {
   display: flex;
-  gap: 4px;
-  flex: 1;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.nav::-webkit-scrollbar {
-  display: none;
 }
 
 .nav a {
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
-  padding: 8px 12px;
+  padding: 8px 11px;
   border-radius: 999px;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .nav a:hover {
@@ -68,36 +91,121 @@
 .active {
   color: var(--text) !important;
   background: linear-gradient(135deg, var(--accent), var(--primary)) !important;
-  box-shadow: 0 6px 18px rgba(61, 0, 129, 0.35);
+  box-shadow: 0 6px 16px rgba(61, 0, 129, 0.35);
 }
 
 .search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  max-width: 340px;
+  margin-left: auto;
+}
+
+.searchBar {
   display: flex;
+  align-items: center;
   gap: 8px;
-  position: relative;
-  flex-shrink: 0;
-  min-width: 0;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  background: #2a2a30;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
-.searchWrap {
-  position: relative;
-  min-width: 0;
-}
-
-.search input {
-  width: min(280px, 36vw);
-  max-width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 10px;
-  padding: 9px 12px;
-}
-
-.search input:focus {
-  outline: none;
+.searchBar:focus-within {
   border-color: var(--accent-border);
   box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.searchIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #fff;
+  opacity: 0.85;
+}
+
+.searchBar input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  padding: 0;
+}
+
+.searchBar input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.searchBar input::-webkit-search-cancel-button,
+.searchBar input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.clearBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.clearBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.clearBtn:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.searchSubmit {
+  border: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(61, 0, 129, 0.35);
+  transition:
+    filter 0.15s,
+    transform 0.15s;
+}
+
+.searchSubmit svg {
+  width: 15px;
+  height: 15px;
+}
+
+.searchSubmit:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: scale(1.04);
+}
+
+.searchSubmit:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .suggest {
@@ -107,49 +215,86 @@
   right: 0;
   z-index: 50;
   margin: 0;
-  padding: 6px;
+  padding: 0;
   list-style: none;
-  background: var(--panel);
-  border: 1px solid var(--accent-border);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   max-height: 320px;
   overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.suggest::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.suggest li + li {
+  border-top: 1px solid var(--line);
 }
 
 .suggest button {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-align: left;
   background: transparent;
   border: 0;
   color: var(--text);
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 12px;
   cursor: pointer;
+  font-size: 14px;
 }
 
 .suggest button:hover {
   background: var(--accent-muted);
 }
 
-.search > button {
-  border: 0;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), var(--primary));
-  color: var(--accent-ink);
-  font-weight: 700;
-  cursor: pointer;
-  padding: 8px 14px;
-  min-width: 3.5rem;
-  min-height: 2.4rem;
+.suggestIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.iconBtn {
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 10px;
+  color: var(--muted);
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
-.search > button:disabled {
-  opacity: 0.55;
-  cursor: wait;
+.iconBtn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.iconBtn:hover {
+  color: var(--text);
+  background: var(--accent-muted);
+}
+
+.iconBtnOn {
+  color: var(--secondary);
+  background: var(--accent-muted);
 }
 
 .menuBtn {
@@ -157,14 +302,13 @@
   flex-direction: column;
   justify-content: center;
   gap: 5px;
-  width: 42px;
-  height: 42px;
-  margin-left: auto;
+  width: 38px;
+  height: 38px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
   cursor: pointer;
-  padding: 10px;
+  padding: 9px;
 }
 
 .menuBtn span {
@@ -181,9 +325,10 @@
     gap: 10px;
   }
 
+  .brand,
   .brandLogo {
-    height: 34px;
-    max-width: min(160px, 48vw);
+    width: 40px;
+    height: 40px;
   }
 
   .menuBtn {
@@ -195,9 +340,7 @@
     order: 3;
     width: 100%;
     flex-wrap: wrap;
-    gap: 8px;
-    overflow: visible;
-    padding-bottom: 4px;
+    gap: 6px;
   }
 
   .navOpen {
@@ -206,20 +349,12 @@
 
   .search {
     order: 2;
-    width: 100%;
+    flex: 1 1 100%;
+    max-width: none;
     margin-left: 0;
   }
 
-  .search input {
-    width: 100%;
-    flex: 1;
-  }
-
-  .searchWrap {
-    flex: 1;
-  }
-
-  .search {
-    display: flex;
+  .actions {
+    margin-left: auto;
   }
 }

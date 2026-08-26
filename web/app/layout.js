@@ -9,7 +9,10 @@ export const metadata = {
   description: "Stream movies, series, and music — MovieHunter",
   applicationName: "MovieHunter",
   icons: {
-    icon: [{ url: "/favicon.png", type: "image/png" }],
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/brand/logo-symbol.png", type: "image/png" },
+    ],
     apple: [{ url: "/icon.png" }],
     shortcut: ["/favicon.png"],
   },

@@ -59,7 +59,7 @@ export default function SettingsPage() {
         <h2>Tips</h2>
         <ul className={styles.tips}>
           <li>Use the header search for titles, or Songs for music.</li>
-          <li>On laptop, scroll a row sideways with the trackpad or shift+wheel.</li>
+          <li>Hover a title row to show left/right arrows and browse more titles.</li>
           <li>Install the mobile app for downloads and lock-screen music.</li>
         </ul>
       </section>

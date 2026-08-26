@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LazyPoster from "./LazyPoster";
 import styles from "./TitleCard.module.css";
 
 export default function TitleCard({ item }) {
@@ -9,14 +10,12 @@ export default function TitleCard({ item }) {
     <Link href={`/title/${encodeURIComponent(slug)}`} className={styles.card}>
       <div className={styles.posterWrap}>
         {item.poster_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <LazyPoster
             src={item.poster_url}
             alt={item.name || ""}
-            width={156}
-            height={230}
-            loading="lazy"
-            decoding="async"
+            width={148}
+            height={220}
+            className={styles.poster}
           />
         ) : (
           <div className={styles.fallback}>{item.name || "No poster"}</div>

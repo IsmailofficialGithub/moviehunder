@@ -3,10 +3,8 @@
   width: 148px;
   display: block;
   color: inherit;
-  contain: content;
-  content-visibility: auto;
-  contain-intrinsic-size: 148px 270px;
-  scroll-snap-align: start;
+  /* Keep cards stable while the row scrolls */
+  backface-visibility: hidden;
 }
 
 .card:hover h3 {
@@ -15,9 +13,12 @@
 
 .posterWrap {
   position: relative;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .card img,
+.card .poster,
 .fallback {
   width: 148px;
   height: 220px;
@@ -25,12 +26,15 @@
   border-radius: 12px;
   background: var(--panel);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease, filter 0.2s ease;
+  display: block;
 }
 
 .card:hover img,
+.card:hover .poster,
 .card:hover .fallback {
-  transform: translateY(-3px);
+  /* No translate — that caused jiggling during row scroll */
+  filter: brightness(1.06);
   box-shadow: 0 14px 32px rgba(61, 0, 129, 0.4);
 }
 
@@ -84,10 +88,10 @@
   .card {
     flex: 0 0 120px;
     width: 120px;
-    contain-intrinsic-size: 120px 230px;
   }
 
   .card img,
+  .card .poster,
   .fallback {
     width: 120px;
     height: 178px;

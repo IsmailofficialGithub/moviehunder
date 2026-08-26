@@ -264,13 +264,23 @@ export async function resolveDownloadFileUri(item) {
     return u;
   };
 
+  // Fast path: stored URI is usually correct
+  if (item.fileUri) {
+    try {
+      const info = await FileSystem.getInfoAsync(normalize(item.fileUri));
+      if (info.exists && !info.isDirectory) {
+        return info.uri || normalize(item.fileUri);
+      }
+    } catch {
+      /* fall through to candidates */
+    }
+  }
+
   const candidates = [];
   const push = (u) => {
     const n = normalize(u);
     if (n && typeof n === "string" && !candidates.includes(n)) candidates.push(n);
   };
-
-  push(item.fileUri);
 
   if (item.fileUri) {
     const dl = item.fileUri.match(/flick-dl\/[^?#]+/);
@@ -372,9 +382,11 @@ function pumpQueue() {
 const speedSamples = new Map();
 
 function onProgress(id, { totalBytesWritten, totalBytesExpectedToWrite }) {
-  const written = totalBytesWritten || 0;
+  const written = Number(totalBytesWritten) || 0;
   const total =
-    totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : 0;
+    Number(totalBytesExpectedToWrite) > 0
+      ? Number(totalBytesExpectedToWrite)
+      : 0;
   const now = Date.now();
   const prev = speedSamples.get(id);
   let rate = prev?.rate || 0;
@@ -390,7 +402,7 @@ function onProgress(id, { totalBytesWritten, totalBytesExpectedToWrite }) {
 
   patch(id, {
     bytesWritten: written,
-    totalBytes: total || items.get(id)?.totalBytes || 0,
+    totalBytes: total || Number(items.get(id)?.totalBytes) || 0,
     bytesPerSec: rate > 0 ? rate : undefined,
   });
 }
@@ -1005,15 +1017,17 @@ export async function getStorageStats() {
 }
 
 export function formatBytes(n) {
-  if (!n || n <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let v = n;
+  const num = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(num) || num <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = num;
   let i = 0;
   while (v >= 1024 && i < units.length - 1) {
     v /= 1024;
     i += 1;
   }
-  return `${v.toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
+  const digits = i === 0 ? 0 : i === 1 ? 0 : 1;
+  return `${v.toFixed(digits)} ${units[i]}`;
 }
 
 export function progressOf(item) {

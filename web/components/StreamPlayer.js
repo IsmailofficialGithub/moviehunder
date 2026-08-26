@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MediaController,
   MediaControlBar,
@@ -42,6 +43,38 @@ import {
   updateMediaSession,
 } from "../lib/pageMedia";
 
+const DISPLAY_MODES = [
+  { id: "fit", label: "Fit", hint: "Full video visible", fit: "contain", scale: 1 },
+  { id: "stretch", label: "Stretch", hint: "Fill, may distort", fit: "fill", scale: 1 },
+  { id: "cover", label: "Fill", hint: "Crop edges", fit: "cover", scale: 1 },
+  { id: "zoom", label: "Zoom", hint: "Larger view", fit: "contain", scale: 1.18 },
+];
+
+/** Render overlays inside the fullscreen element so they stay visible when expanded. */
+function FullscreenPortal({ children }) {
+  const [target, setTarget] = useState(null);
+
+  useEffect(() => {
+    const sync = () => {
+      setTarget(
+        document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.body
+      );
+    };
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+    };
+  }, []);
+
+  if (!target) return null;
+  return createPortal(children, target);
+}
+
 export default function StreamPlayer({
   subjectId,
   detailPath,
@@ -64,6 +97,8 @@ export default function StreamPlayer({
   const [subtitles, setSubtitles] = useState([]);
   const [activeSubId, setActiveSubId] = useState("off");
   const [subPanelOpen, setSubPanelOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [displayMode, setDisplayMode] = useState("fit");
   const [subError, setSubError] = useState("");
   const [cueText, setCueText] = useState("");
   const [videoTime, setVideoTime] = useState(0);
@@ -80,6 +115,39 @@ export default function StreamPlayer({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Mobile expand → prefer landscape while fullscreen
+  useEffect(() => {
+    if (!mounted) return;
+
+    const onFullscreen = async () => {
+      const fsEl =
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        null;
+      try {
+        if (fsEl && screen.orientation?.lock) {
+          await screen.orientation.lock("landscape");
+        } else if (!fsEl && screen.orientation?.unlock) {
+          screen.orientation.unlock();
+        }
+      } catch {
+        /* lock not allowed on some browsers until gesture / desktop */
+      }
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreen);
+    document.addEventListener("webkitfullscreenchange", onFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreen);
+      document.removeEventListener("webkitfullscreenchange", onFullscreen);
+      try {
+        screen.orientation?.unlock?.();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [mounted]);
 
   const displayTitle = useMemo(() => {
     const base = cleanSearchTitle(title, detailPath) || title || detailPath || "Player";
@@ -502,18 +570,45 @@ export default function StreamPlayer({
             : ""
         }`;
 
+  const displayActive =
+    DISPLAY_MODES.find((m) => m.id === displayMode) || DISPLAY_MODES[0];
+
   return (
     <div className={styles.wrap}>
       <header className={styles.toolbar}>
-        <div className={styles.titleBlock}>
-          <h1 className={styles.title}>{displayTitle}</h1>
-          <p className={styles.meta}>
-            {Number(se) > 0 || Number(ep) > 0 ? `S${se}E${ep}` : "Movie"}
-            {active ? ` · ${active.resolution}` : ""}
-          </p>
+        <div className={styles.titleRow}>
+          <div className={styles.titleBlock}>
+            <h1 className={styles.title}>{displayTitle}</h1>
+            <p className={styles.meta}>
+              {Number(se) > 0 || Number(ep) > 0 ? `S${se}E${ep}` : "Movie"}
+              {active ? ` · ${active.resolution}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            className={`${styles.settingsBtn} ${styles.settingsBtnTitle}`}
+            aria-label="Playback settings"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen(true)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <path
+                d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.6 7.6 0 0 0-1.7-1L15 4h-4l-.5 2.1a7.6 7.6 0 0 0-1.7 1l-2.3-.7-2 3.4 2 1.2a7.8 7.8 0 0 0 0 2l-2 1.2 2 3.4 2.3-.7a7.6 7.6 0 0 0 1.7 1L11 20h4l.5-2.1a7.6 7.6 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </div>
+
         <div className={styles.actions}>
-          <label className={styles.selectLabel}>
+          <label className={`${styles.selectLabel} ${styles.desktopOnly}`}>
             Quality
             <select
               className={styles.select}
@@ -533,9 +628,24 @@ export default function StreamPlayer({
             </select>
           </label>
 
+          <label className={`${styles.selectLabel} ${styles.desktopOnly}`}>
+            Display
+            <select
+              className={styles.select}
+              value={displayMode}
+              onChange={(e) => setDisplayMode(e.target.value)}
+            >
+              {DISPLAY_MODES.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <button
             type="button"
-            className={`${styles.subToggle} ${
+            className={`${styles.subToggle} ${styles.desktopOnly} ${
               subPanelOpen ? styles.subToggleOn : ""
             }`}
             onClick={() => setSubPanelOpen((v) => !v)}
@@ -543,33 +653,145 @@ export default function StreamPlayer({
             {subButtonLabel}
           </button>
 
-          {prevEpisode && onPrevEpisode ? (
-            <button
-              type="button"
-              className={styles.prevBtn}
-              onClick={goPrev}
-              disabled={busy}
-              aria-busy={navBusy === "prev" || undefined}
-            >
-              {navBusy === "prev" ? <BtnSpinner /> : "← Prev episode"}
-            </button>
-          ) : null}
-
-          {nextEpisode && onNextEpisode ? (
-            <button
-              type="button"
-              className={styles.nextBtn}
-              onClick={goNext}
-              disabled={busy}
-              aria-busy={navBusy === "next" || undefined}
-            >
-              {navBusy === "next" ? <BtnSpinner /> : "Next episode →"}
-            </button>
+          {prevEpisode || nextEpisode ? (
+            <div className={styles.epNav}>
+              {prevEpisode && onPrevEpisode ? (
+                <button
+                  type="button"
+                  className={styles.prevBtn}
+                  onClick={goPrev}
+                  disabled={busy}
+                  aria-busy={navBusy === "prev" || undefined}
+                >
+                  {navBusy === "prev" ? (
+                    <BtnSpinner />
+                  ) : (
+                    <>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path
+                          d="M15 6l-6 6 6 6"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      Prev episode
+                    </>
+                  )}
+                </button>
+              ) : null}
+              {nextEpisode && onNextEpisode ? (
+                <button
+                  type="button"
+                  className={styles.nextBtn}
+                  onClick={goNext}
+                  disabled={busy}
+                  aria-busy={navBusy === "next" || undefined}
+                >
+                  {navBusy === "next" ? (
+                    <BtnSpinner />
+                  ) : (
+                    <>
+                      Next episode
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path
+                          d="M9 6l6 6-6 6"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </>
+                  )}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </header>
 
+      {settingsOpen ? (
+        <FullscreenPortal>
+        <div className={styles.settingsModal} role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className={styles.subBackdrop}
+            aria-label="Close settings"
+            onClick={() => setSettingsOpen(false)}
+          />
+          <section className={styles.settingsPanel}>
+            <div className={styles.settingsHead}>
+              <h2>Settings</h2>
+              <button
+                type="button"
+                className={styles.removeBtn}
+                onClick={() => setSettingsOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <label className={styles.settingsField}>
+              <span>Quality</span>
+              <select
+                className={styles.select}
+                value={qualityIndex}
+                onChange={onQualityChange}
+                disabled={!sources.length}
+              >
+                {sources.map((s, i) => {
+                  const size = formatBytes(s.size_bytes);
+                  return (
+                    <option key={s.id || s.url} value={i}>
+                      {s.resolution}
+                      {size ? ` · ${size}` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+
+            <div className={styles.settingsField}>
+              <span>Display</span>
+              <div className={styles.displayGrid}>
+                {DISPLAY_MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`${styles.displayChip} ${
+                      displayMode === m.id ? styles.displayChipOn : ""
+                    }`}
+                    onClick={() => setDisplayMode(m.id)}
+                  >
+                    <strong>{m.label}</strong>
+                    <span>{m.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={`${styles.settingsAction} ${
+                subPanelOpen ? styles.subToggleOn : ""
+              }`}
+              onClick={() => {
+                setSettingsOpen(false);
+                setSubPanelOpen(true);
+              }}
+            >
+              <span>Subtitles</span>
+              <span className={styles.settingsActionMeta}>{subButtonLabel}</span>
+            </button>
+          </section>
+        </div>
+        </FullscreenPortal>
+      ) : null}
+
       {subPanelOpen ? (
+        <FullscreenPortal>
         <div className={styles.subModal} role="dialog" aria-modal="true">
           <button
             type="button"
@@ -824,6 +1046,7 @@ export default function StreamPlayer({
           ) : null}
         </section>
         </div>
+        </FullscreenPortal>
       ) : null}
 
       {status === "loading" ? (
@@ -855,6 +1078,14 @@ export default function StreamPlayer({
               preload="metadata"
               crossOrigin="anonymous"
               suppressHydrationWarning
+              className={styles.video}
+              style={{
+                objectFit: displayActive.fit,
+                transform:
+                  displayActive.scale !== 1
+                    ? `scale(${displayActive.scale})`
+                    : undefined,
+              }}
             />
             <div
               ref={cueElRef}
@@ -862,12 +1093,35 @@ export default function StreamPlayer({
               hidden
               aria-live="polite"
             />
+            <button
+              type="button"
+              className={styles.playerSettingsBtn}
+              aria-label="Playback settings"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen(true)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.6 7.6 0 0 0-1.7-1L15 4h-4l-.5 2.1a7.6 7.6 0 0 0-1.7 1l-2.3-.7-2 3.4 2 1.2a7.8 7.8 0 0 0 0 2l-2 1.2 2 3.4 2.3-.7a7.6 7.6 0 0 0 1.7 1L11 20h4l.5-2.1a7.6 7.6 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <div className={styles.centerOverlay}>
+              <MediaSeekBackwardButton seekOffset={10} />
+              <MediaPlayButton />
+              <MediaSeekForwardButton seekOffset={10} />
+            </div>
             <MediaLoadingIndicator slot="centered-chrome" />
             <MediaErrorDialog />
-            <MediaControlBar>
-              <MediaPlayButton />
-              <MediaSeekBackwardButton seekOffset={10} />
-              <MediaSeekForwardButton seekOffset={10} />
+            <MediaControlBar className={styles.bottomBar}>
               <MediaTimeRange />
               <MediaTimeDisplay showDuration />
               <MediaMuteButton />

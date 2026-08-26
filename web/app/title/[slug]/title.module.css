@@ -1,15 +1,44 @@
 .wrap {
-  padding-left: 28px;
-  padding-right: 28px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
   display: grid;
-  gap: 16px;
+  gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .back {
   color: var(--muted);
   width: fit-content;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 0;
 }
 
 .back:hover {
   color: var(--secondary);
+}
+
+@media (max-width: 900px) {
+  .wrap {
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: max(88px, env(safe-area-inset-bottom));
+    gap: 10px;
+  }
+
+  .back {
+    font-size: 13px;
+  }
 }
