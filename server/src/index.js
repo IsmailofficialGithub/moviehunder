@@ -935,9 +935,21 @@ async function handleDetail(slug) {
     if (
       resolved.items &&
       Array.isArray(resolved.items) &&
-      resolved.items.some((it) => it && typeof it === "object" && it.content)
+      resolved.items.some(
+        (it) =>
+          it &&
+          typeof it === "object" &&
+          (it.content || it.comment || it.text || it.body)
+      )
     ) {
       userReviews = resolved.items;
+    }
+    // Some payloads nest reviews under comments / reviews lists
+    if (Array.isArray(resolved.comments) && resolved.comments.length) {
+      userReviews = resolved.comments;
+    }
+    if (Array.isArray(resolved.reviews) && resolved.reviews.length) {
+      userReviews = resolved.reviews;
     }
   }
 
@@ -948,6 +960,11 @@ async function handleDetail(slug) {
   const hlsUrls = nuxt.filter(
     (v) => typeof v === "string" && (v.includes(".m3u8") || v.includes("/m3u8/"))
   );
+
+  const reviewText = (r) => {
+    const raw = r?.content ?? r?.comment ?? r?.text ?? r?.body ?? "";
+    return typeof raw === "string" ? raw.trim() : "";
+  };
 
   return json({
     slug,
@@ -970,12 +987,23 @@ async function handleDetail(slug) {
       top_cast: topCast,
       seasons,
       user_reviews: userReviews
-        .filter((r) => r && typeof r === "object" && r.content)
-        .map((r) => ({
-          user: r.user?.nickname || null,
-          content: r.content,
-          created_at: r.createdAt || null,
-        })),
+        .map((r) => {
+          if (!r || typeof r !== "object") return null;
+          const content = reviewText(r);
+          if (!content) return null;
+          return {
+            user:
+              r.user?.nickname ||
+              r.user?.name ||
+              r.nickname ||
+              r.username ||
+              null,
+            content,
+            created_at: r.createdAt || r.created_at || null,
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 12),
     },
     streams: { mp4: mp4Urls, hls: hlsUrls },
   });

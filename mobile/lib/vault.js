@@ -216,21 +216,21 @@ async function streamXorHeader(srcUri, destUri, keyBytes, { allowCopyFallback = 
   }
 }
 
-async function randomVaultName() {
+async function randomVaultName(ext = ".mp4") {
   const bytes = await Crypto.getRandomBytesAsync(16);
-  return (
-    Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("") + ".bin"
-  );
+  const hex = Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `${hex}${ext.startsWith(".") ? ext : `.${ext}`}`;
 }
 
 /**
  * Move a completed download into the vault (must be unlocked).
- * Seals the file so it is not a playable video on disk.
+ * Fast path: rename into opaque `.mh_sys/` (same volume = near-instant).
+ * No full-file XOR copy — that hung on large movies.
  */
 export async function sealDownloadIntoVault(item) {
-  const password = requireSession();
+  requireSession();
   if (!item?.fileUri) throw new Error("No file to vault");
   if (item.inVault) return item;
   if (item.status !== "completed" && !item.bytesWritten) {
@@ -238,68 +238,77 @@ export async function sealDownloadIntoVault(item) {
   }
 
   await ensureVaultDir();
-  const keyBytes = await deriveKeyBytes(password, meta.salt);
   const name = await randomVaultName();
   const sealedUri = `${VAULT_ROOT}${name}`;
-  const tmpUri = `${VAULT_ROOT}${name}.tmp`;
 
   const info = await FileSystem.getInfoAsync(item.fileUri);
   if (!info.exists) throw new Error("Download file missing");
 
-  let didSeal = false;
+  // Instant rename when possible; never stream/copy multi‑GB files on import
   try {
-    didSeal = await streamXorHeader(item.fileUri, tmpUri, keyBytes, {
-      allowCopyFallback: true,
-    });
-    const sealedInfo = await FileSystem.getInfoAsync(tmpUri);
-    if (!sealedInfo.exists) {
-      throw new Error("Couldn’t seal file into the vault. Try again.");
+    await FileSystem.moveAsync({ from: item.fileUri, to: sealedUri });
+  } catch (err) {
+    // Rare: cross-device fallback — still prefer move over XOR seal
+    try {
+      await FileSystem.deleteAsync(sealedUri, { idempotent: true });
+    } catch {
+      /* ignore */
     }
-    await FileSystem.moveAsync({ from: tmpUri, to: sealedUri });
+    await FileSystem.copyAsync({ from: item.fileUri, to: sealedUri });
     try {
       await FileSystem.deleteAsync(item.fileUri, { idempotent: true });
     } catch {
       /* ignore */
     }
-  } catch {
-    // Last resort: move the original into the vault folder (hidden path)
-    try {
-      await FileSystem.deleteAsync(tmpUri, { idempotent: true });
-    } catch {
-      /* ignore */
-    }
-    await FileSystem.moveAsync({ from: item.fileUri, to: sealedUri });
-    didSeal = false;
+  }
+
+  const sealedInfo = await FileSystem.getInfoAsync(sealedUri);
+  if (!sealedInfo.exists) {
+    throw new Error("Couldn’t move file into the vault. Try again.");
   }
 
   return {
     ...item,
     inVault: true,
     fileUri: sealedUri,
-    vaultSealed: didSeal,
+    vaultSealed: false,
     openFileUri: item.fileUri,
   };
 }
 
 /**
- * Move a vault item back to normal downloads storage (unsealed .mp4).
+ * Move a vault download back to the normal Downloads list.
  */
 export async function unsealDownloadFromVault(item, destUri) {
-  const password = requireSession();
+  requireSession();
   if (!item?.fileUri || !item.inVault) return item;
 
-  const keyBytes = await deriveKeyBytes(password, meta.salt);
-  const tmpUri = `${destUri}.tmp`;
   if (item.vaultSealed) {
+    // Legacy XOR-sealed files from older builds
+    const password = requireSession();
+    const keyBytes = await deriveKeyBytes(password, meta.salt);
+    const tmpUri = `${destUri}.tmp`;
     await streamXorHeader(item.fileUri, tmpUri, keyBytes);
     await FileSystem.moveAsync({ from: tmpUri, to: destUri });
   } else {
-    await FileSystem.copyAsync({ from: item.fileUri, to: destUri });
+    try {
+      await FileSystem.moveAsync({ from: item.fileUri, to: destUri });
+    } catch {
+      await FileSystem.copyAsync({ from: item.fileUri, to: destUri });
+      try {
+        await FileSystem.deleteAsync(item.fileUri, { idempotent: true });
+      } catch {
+        /* ignore */
+      }
+    }
   }
+
   try {
-    await FileSystem.deleteAsync(item.fileUri, { idempotent: true });
+    if (item.vaultSealed) {
+      await FileSystem.deleteAsync(item.fileUri, { idempotent: true });
+    }
   } catch {
-    /* ignore */
+    /* ignore — already moved */
   }
 
   return {

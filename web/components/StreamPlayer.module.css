@@ -4,6 +4,9 @@
   gap: 10px;
   flex: 1;
   min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .toolbar {
@@ -13,10 +16,195 @@
   justify-content: space-between;
   gap: 12px;
   flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .titleBlock {
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.settingsBtn {
+  display: none;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #2e2e38;
+  border-radius: 12px;
+  background: #1b1b22;
+  color: #f3f3f7;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.settingsBtn svg,
+.playerSettingsBtn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.settingsBtn:hover {
+  border-color: #f6c443;
+  color: #f6c443;
+}
+
+.playerSettingsBtn {
+  display: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(10, 10, 14, 0.62);
+  color: #fff;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.playerSettingsBtn:hover {
+  background: rgba(90, 0, 162, 0.85);
+}
+
+.settingsModal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.settingsPanel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 380px);
+  background: #16161c;
+  border: 1px solid #2e2e38;
+  border-radius: 16px;
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+  max-height: min(70vh, 480px);
+  overflow: auto;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  margin: 0;
+}
+
+.settingsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settingsHead h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.settingsField {
+  display: grid;
+  gap: 6px;
+  color: #9a9aa8;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.settingsField .select {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.settingsAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #2e2e38;
+  background: #1b1b22;
+  color: #f3f3f7;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.settingsActionMeta {
+  color: #9a9aa8;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+
+.displayGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.displayChip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #2e2e38;
+  background: #1b1b22;
+  color: #f3f3f7;
+  cursor: pointer;
+  text-align: left;
+}
+
+.displayChip strong {
+  font-size: 13px;
+}
+
+.displayChip span {
+  font-size: 11px;
+  color: #9a9aa8;
+  font-weight: 500;
+}
+
+.displayChipOn {
+  border-color: #f6c443;
+  background: rgba(246, 196, 67, 0.12);
+}
+
+.displayChipOn strong {
+  color: #f6c443;
+}
+
+.desktopOnly {
+  /* shown by default on desktop */
 }
 
 .title {
@@ -38,6 +226,7 @@
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 10px;
+  min-width: 0;
 }
 
 .selectLabel {
@@ -81,45 +270,77 @@
   color: #f6c443;
 }
 
-.nextBtn {
-  background: #f6c443;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  height: 40px;
-  padding: 0 14px;
+.epNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.nextBtn,
+.prevBtn {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
   font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.01em;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.nextBtn svg,
+.prevBtn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.nextBtn {
+  border: 0;
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(61, 0, 129, 0.4);
 }
 
 .prevBtn {
-  background: #1b1b22;
+  background: rgba(255, 255, 255, 0.06);
   color: #f3f3f7;
-  border: 1px solid #2e2e38;
-  border-radius: 8px;
-  height: 40px;
-  padding: 0 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-.prevBtn:hover {
-  border-color: #f6c443;
-  color: #f6c443;
+.prevBtn:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--secondary);
+  background: var(--accent-muted);
 }
 
-.nextBtn:hover {
-  filter: brightness(1.05);
+.nextBtn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(61, 0, 129, 0.5);
+}
+
+.nextBtn:active:not(:disabled),
+.prevBtn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .subModal {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 2147483000;
   display: grid;
   place-items: center;
   padding: 16px;
@@ -426,7 +647,7 @@
 
 .nextBtn,
 .prevBtn {
-  min-width: 8.5rem;
+  min-width: 0;
   justify-content: center;
 }
 
@@ -485,13 +706,68 @@
   --media-secondary-color: #fff;
   --media-control-background: rgba(10, 10, 14, 0.72);
   --media-control-hover-background: rgba(20, 20, 28, 0.9);
+  --media-control-height: 44px;
+  --media-button-icon-width: 28px;
+  --media-button-icon-height: 28px;
+  --media-font-size: 14px;
+  --media-range-track-height: 5px;
+  --media-range-thumb-height: 16px;
+  --media-range-thumb-width: 16px;
 }
 
-.controller video {
+.controller video,
+.video {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center center;
   background: #000;
+  transform-origin: center center;
+}
+
+.centerOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.centerOverlay > * {
+  pointer-events: auto;
+  border-radius: 999px !important;
+  background: rgba(10, 10, 14, 0.55) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  --media-control-background: transparent;
+  --media-control-hover-background: rgba(255, 255, 255, 0.14);
+  --media-control-height: 56px;
+  --media-button-icon-width: 36px;
+  --media-button-icon-height: 36px;
+  --media-button-padding: 12px;
+}
+
+/* Keep player settings visible even when chrome auto-hides a bit less aggressively */
+.controller:not([mediapaused]):not(:hover):not(:focus-within) .playerSettingsBtn {
+  opacity: 0.85;
+}
+
+/* Hide center controls while playing and idle (match chrome auto-hide) */
+.controller:not([mediapaused]):not(:hover):not(:focus-within) .centerOverlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bottomBar {
+  width: 100%;
+}
+
+.centerBar {
+  /* legacy unused */
 }
 
 .offsetInput {
@@ -540,4 +816,191 @@
 .cueOverlay:empty,
 .cueOverlay[hidden] {
   display: none !important;
+}
+
+/* —— Mobile / tablet play layout —— */
+@media (max-width: 900px) {
+  .wrap {
+    gap: 14px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0 auto;
+    padding: 44px 12px 16px;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+  }
+
+  .playerShell {
+    order: -1;
+    flex: 0 0 auto;
+    width: min(100%, 920px);
+    max-width: 100%;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    margin: 0 auto;
+  }
+
+  .controller {
+    width: 100%;
+    height: 100%;
+    margin: 0 auto;
+    border-radius: 12px;
+    --media-control-height: 48px;
+    --media-button-icon-width: 30px;
+    --media-button-icon-height: 30px;
+    --media-font-size: 15px;
+    --media-range-track-height: 6px;
+    --media-range-thumb-height: 18px;
+    --media-range-thumb-width: 18px;
+  }
+
+  .centerOverlay {
+    gap: 16px;
+  }
+
+  .centerOverlay > * {
+    --media-control-height: 60px;
+    --media-button-icon-width: 38px;
+    --media-button-icon-height: 38px;
+  }
+
+  .controller video,
+  .video {
+    object-position: center center;
+  }
+
+  .controller:fullscreen,
+  .controller:-webkit-full-screen {
+    border-radius: 0;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+  }
+
+  .controller:fullscreen video,
+  .controller:-webkit-full-screen video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .banner,
+  .error {
+    width: min(100%, 920px);
+    order: -1;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: min(100%, 920px);
+    margin: 0 auto;
+  }
+
+  .titleRow {
+    width: 100%;
+  }
+
+  .settingsBtnTitle {
+    display: none !important;
+  }
+
+  .playerSettingsBtn {
+    display: inline-flex;
+  }
+
+  .desktopOnly {
+    display: none !important;
+  }
+
+  .titleBlock {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title {
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+  }
+
+  .meta {
+    margin-top: 2px;
+    font-size: 0.8rem;
+  }
+
+  .actions {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .epNav {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .prevBtn,
+  .nextBtn {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    height: 46px;
+    padding: 0 14px;
+    font-size: 13px;
+    border-radius: 999px;
+  }
+
+  .epNav > :only-child {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    padding: 42px 10px 14px;
+    justify-content: center;
+  }
+
+  .playerShell {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+
+  .controller {
+    --media-control-height: 52px;
+    --media-button-icon-width: 32px;
+    --media-button-icon-height: 32px;
+  }
+
+  .centerOverlay > * {
+    --media-control-height: 64px;
+    --media-button-icon-width: 40px;
+    --media-button-icon-height: 40px;
+  }
+
+  .title {
+    font-size: 0.98rem;
+  }
+}
+
+@media (min-width: 901px) {
+  .settingsBtnTitle,
+  .playerSettingsBtn {
+    display: none !important;
+  }
+
+  /* Keep settings modal available if opened from a narrow window resize */
+  .settingsModal {
+    display: grid !important;
+  }
 }

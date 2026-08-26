@@ -7,6 +7,18 @@
   contain-intrinsic-size: auto 320px;
 }
 
+.lazyRow {
+  width: 100%;
+  min-width: 0;
+}
+
+.scrollerWrap {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .scroller {
   display: flex;
   gap: 12px;
@@ -15,16 +27,81 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px var(--page-pad) 12px;
-  overscroll-behavior-x: contain;
+  padding: 8px var(--page-pad) 12px;
   -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  /* Avoid layout thrash while scrolling */
+  will-change: scroll-position;
 }
 
 .scroller::-webkit-scrollbar {
   display: none;
   height: 0;
   width: 0;
+}
+
+.rowArrow {
+  position: absolute;
+  top: 50%;
+  z-index: 5;
+  transform: translateY(-60%);
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(12, 12, 14, 0.72);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transition:
+    opacity 0.2s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.scrollerWrap:hover .rowArrow.rowArrowReady {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rowArrow:hover:not(:disabled) {
+  background: rgba(90, 0, 162, 0.92);
+  transform: translateY(-60%) scale(1.06);
+}
+
+.rowArrow:active:not(:disabled) {
+  transform: translateY(-60%) scale(0.96);
+}
+
+.rowArrow:disabled {
+  cursor: default;
+}
+
+.rowArrow svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rowArrowPrev {
+  left: 10px;
+}
+
+.rowArrowNext {
+  right: 10px;
+}
+
+@media (hover: none) {
+  .rowArrow.rowArrowReady {
+    opacity: 0.9;
+    pointer-events: auto;
+  }
 }

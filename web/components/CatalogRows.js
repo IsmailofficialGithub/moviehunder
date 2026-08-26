@@ -1,9 +1,13 @@
+"use client";
+
 import Hero from "./Hero";
 import TitleCard from "./TitleCard";
 import RowScroller from "./RowScroller";
+import LazyRow from "./LazyRow";
 import styles from "./CatalogRows.module.css";
 
-const MAX_PER_ROW = 18;
+/** Fewer cards = fewer decoded images in memory */
+const MAX_PER_ROW = 12;
 
 export default function CatalogRows({ sections = [], showHero = true }) {
   const usable = sections.filter((s) => s.movies?.length);
@@ -16,7 +20,7 @@ export default function CatalogRows({ sections = [], showHero = true }) {
   const bannerItems =
     banner?.movies?.length
       ? banner.movies
-      : rows[0]?.movies?.slice(0, 8) || [];
+      : rows[0]?.movies?.slice(0, 6) || [];
 
   return (
     <div>
@@ -30,14 +34,16 @@ export default function CatalogRows({ sections = [], showHero = true }) {
             <h2>{section.section}</h2>
             <span>{section.count || section.movies.length} titles</span>
           </div>
-          <RowScroller>
-            {section.movies.slice(0, MAX_PER_ROW).map((item, i) => (
-              <TitleCard
-                key={item.slug || item.id || `${item.name}-${i}`}
-                item={item}
-              />
-            ))}
-          </RowScroller>
+          <LazyRow minHeight={300}>
+            <RowScroller>
+              {section.movies.slice(0, MAX_PER_ROW).map((item, i) => (
+                <TitleCard
+                  key={item.slug || item.id || `${item.name}-${i}`}
+                  item={item}
+                />
+              ))}
+            </RowScroller>
+          </LazyRow>
         </section>
       ))}
     </div>

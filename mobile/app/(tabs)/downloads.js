@@ -724,23 +724,65 @@ export default function DownloadsScreen() {
     };
   }, []);
 
+  // Live "Used" from in-memory progress (updates while downloading).
+  const usedBytes = useMemo(() => {
+    let used = 0;
+    for (const d of list) used += Number(d.bytesWritten || d.sizeHint || 0) || 0;
+    for (const d of songs) used += Number(d.bytesWritten || 0) || 0;
+    return used;
+  }, [list, songs]);
+
+  const fileCount = list.length + songs.length;
+
   const refreshStats = useCallback(async () => {
     const s = await getStorageStats();
-    let musicUsed = 0;
-    for (const d of songs) musicUsed += d.bytesWritten || 0;
-    setStats({
-      used: (s.used || 0) + musicUsed,
+    setStats((prev) => ({
+      used: usedBytes || s.used || 0,
       free: s.free,
-      count: (s.count || 0) + songs.length,
-    });
-  }, [songs]);
+      count: fileCount || s.count || 0,
+      // keep previous free if probe fails
+      ...(s.free ? {} : { free: prev.free || 0 }),
+    }));
+  }, [usedBytes, fileCount]);
+
+  // Keep Used in sync with download progress; refresh free space less often.
+  useEffect(() => {
+    setStats((prev) => ({
+      ...prev,
+      used: usedBytes,
+      count: fileCount,
+    }));
+  }, [usedBytes, fileCount]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       refreshStats().catch(() => {});
-    }, 500);
+    }, 400);
     return () => clearTimeout(t);
   }, [list.length, songs.length, refreshStats]);
+
+  // While anything is actively downloading, refresh free space periodically.
+  const hasActiveDl = useMemo(
+    () =>
+      list.some(
+        (d) =>
+          d.pending ||
+          d.status === "downloading" ||
+          d.status === "queued"
+      ) ||
+      songs.some(
+        (d) => d.status === "downloading" || d.status === "queued"
+      ),
+    [list, songs]
+  );
+
+  useEffect(() => {
+    if (!hasActiveDl) return;
+    const id = setInterval(() => {
+      refreshStats().catch(() => {});
+    }, 2500);
+    return () => clearInterval(id);
+  }, [hasActiveDl, refreshStats]);
 
   const preparingId = list.find((d) => d.pending)?.id;
   useEffect(() => {
@@ -854,14 +896,14 @@ export default function DownloadsScreen() {
 
   const onImportToVault = async (ids) => {
     if (vaultBusy || !ids?.length) return;
+    setVaultImportOpen(false);
     try {
       setVaultBusy(true);
       const { moved, failed } = await moveDownloadsToVault(ids);
-      setVaultImportOpen(false);
       if (failed.length && moved.length) {
         Alert.alert(
           "Partially imported",
-          `${moved.length} added to vault. ${failed.length} skipped (file missing — re-download those first).`
+          `${moved.length} moved to vault. ${failed.length} skipped (file missing — re-download those first).`
         );
       } else if (failed.length) {
         Alert.alert(
@@ -874,7 +916,7 @@ export default function DownloadsScreen() {
           "Added to vault",
           moved.length === 1
             ? "Hidden from Downloads. Only visible here in Movie Safe."
-            : `${moved.length} titles sealed and hidden from Downloads.`
+            : `${moved.length} titles moved into Movie Safe.`
         );
       }
     } catch (err) {
@@ -1116,9 +1158,9 @@ export default function DownloadsScreen() {
           <Text style={styles.storageText}>
             {vaultMode
               ? "Import downloads here · Lock when you leave"
-              : `Used ${formatBytes(stats.used)}${
+              : `Used ${formatBytes(usedBytes || stats.used)}${
                   stats.free ? ` · Free ${formatBytes(stats.free)}` : ""
-                }${stats.count ? ` · ${stats.count} files` : ""}`}
+                }${fileCount || stats.count ? ` · ${fileCount || stats.count} files` : ""}`}
           </Text>
         </View>
         {vaultMode ? (

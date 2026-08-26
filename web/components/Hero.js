@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./Hero.module.css";
 
-const MAX_SLIDES = 10;
+const MAX_SLIDES = 6;
 const AUTO_MS = 5500;
 
 export default function Hero({ items = [] }) {
@@ -56,13 +56,17 @@ export default function Hero({ items = [] }) {
       }}
     >
       {item.poster_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={item.slug || index}
-          src={item.poster_url}
-          alt=""
-          className={styles.image}
-        />
+        <div className={styles.media} key={item.slug || index}>
+          {/* Single image — CSS blur layer uses the same paint, no 2nd decode */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={item.poster_url}
+            alt=""
+            className={styles.image}
+            decoding="async"
+            fetchPriority="high"
+          />
+        </div>
       ) : (
         <div className={styles.imageFallback} />
       )}
@@ -73,10 +77,24 @@ export default function Hero({ items = [] }) {
         <h1>{item.name}</h1>
         <p>{item.badge || "Featured pick"}</p>
         <Link
-          className="play-btn"
+          className={styles.cta}
           href={`/title/${encodeURIComponent(item.slug)}`}
         >
           View details
+          <svg
+            className={styles.ctaIcon}
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden
+          >
+            <path
+              d="M5 12h14M13 6l6 6-6 6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </Link>
       </div>
 
@@ -91,9 +109,20 @@ export default function Hero({ items = [] }) {
               resetTimer();
             }}
           >
-            <span className={styles.arrowIcon} aria-hidden>
-              ‹
-            </span>
+            <svg
+              className={styles.arrowIcon}
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M15 6l-6 6 6 6"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
           <button
             type="button"
@@ -104,9 +133,20 @@ export default function Hero({ items = [] }) {
               resetTimer();
             }}
           >
-            <span className={styles.arrowIcon} aria-hidden>
-              ›
-            </span>
+            <svg
+              className={styles.arrowIcon}
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M9 6l6 6-6 6"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
           <div className={styles.dots} role="tablist" aria-label="Banners">
             {slides.map((s, i) => (
