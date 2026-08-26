@@ -8,7 +8,15 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  return { title: `${decodeURIComponent(slug)}` };
+  const decoded = decodeURIComponent(slug);
+  try {
+    const detail = await getDetail(decoded);
+    const name =
+      detail?.title || detail?.name || detail?.subject_title || decoded;
+    return { title: name };
+  } catch {
+    return { title: decoded };
+  }
 }
 
 export default async function TitlePage({ params }) {

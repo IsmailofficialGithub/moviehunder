@@ -433,7 +433,41 @@ function SeriesPack({
       100
   );
   const remoteSeasons = catalog?.seasons || [];
+  const hasCatalog = !vaultMode && remoteSeasons.length > 0;
+  const [catalogOpen, setCatalogOpen] = useState(true);
   const packEta = formatEta(packEtaSeconds(pack.episodes));
+
+  useEffect(() => {
+    if (hasCatalog) setCatalogOpen(true);
+  }, [hasCatalog, pack.key]);
+
+  const onMorePress = () => {
+    if (catalogBusy) return;
+    if (hasCatalog && catalogOpen) {
+      setCatalogOpen(false);
+      return;
+    }
+    if (hasCatalog && !catalogOpen) {
+      setCatalogOpen(true);
+      return;
+    }
+    onFetchMore?.();
+  };
+
+  const moreLabel = catalogBusy
+    ? "Fetching…"
+    : hasCatalog && catalogOpen
+      ? "Hide more"
+      : hasCatalog && !catalogOpen
+        ? "Show more"
+        : "Download more";
+  const moreIcon = catalogBusy
+    ? "cloud-download-outline"
+    : hasCatalog && catalogOpen
+      ? "chevron-up"
+      : hasCatalog && !catalogOpen
+        ? "chevron-down"
+        : "cloud-download-outline";
 
   return (
     <View style={styles.pack}>
@@ -489,19 +523,17 @@ function SeriesPack({
             <Text style={styles.packToolsLabel}>Episodes</Text>
             <View style={styles.packToolsActions}>
               <Pressable
-                onPress={onFetchMore}
+                onPress={onMorePress}
                 disabled={catalogBusy}
                 hitSlop={8}
                 style={styles.moreBtn}
               >
                 <Ionicons
-                  name="cloud-download-outline"
+                  name={moreIcon}
                   size={14}
                   color={colors.accent}
                 />
-                <Text style={styles.moreBtnText}>
-                  {catalogBusy ? "Fetching…" : "Download more"}
-                </Text>
+                <Text style={styles.moreBtnText}>{moreLabel}</Text>
               </Pressable>
               <Pressable onPress={onDeleteAll} hitSlop={8}>
                 <Text style={styles.deleteAll}>Delete all</Text>
@@ -521,11 +553,16 @@ function SeriesPack({
             <Text style={styles.catalogError}>{catalog.error}</Text>
           ) : null}
 
-          {!vaultMode && remoteSeasons.length ? (
+          {!vaultMode && hasCatalog && catalogOpen ? (
             <View style={styles.seasonCatalog}>
-              <Text style={styles.catalogHint}>
-                From server — tap a season to queue all missing episodes (720p)
-              </Text>
+              <View style={styles.catalogHead}>
+                <Text style={[styles.catalogHint, { flex: 1 }]}>
+                  From server — tap a season to queue all missing episodes (720p)
+                </Text>
+                <Pressable onPress={() => setCatalogOpen(false)} hitSlop={8}>
+                  <Text style={styles.hideMoreText}>Hide</Text>
+                </Pressable>
+              </View>
               {remoteSeasons.map((s) => {
                 const se = s.season;
                 const count = s.episode_count || (s.episodes || []).length || 0;
@@ -1581,6 +1618,16 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 11,
     lineHeight: 15,
+  },
+  catalogHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  hideMoreText: {
+    color: colors.accentLight,
+    fontWeight: "700",
+    fontSize: 12,
   },
   seasonBlock: {
     backgroundColor: colors.panelSoft,

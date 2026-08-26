@@ -36,6 +36,11 @@ import {
 import BtnSpinner from "./BtnSpinner";
 import styles from "./StreamPlayer.module.css";
 import { friendlyError, friendlyPlaybackError } from "../lib/errors";
+import {
+  clearMediaSession,
+  setPageTitle,
+  updateMediaSession,
+} from "../lib/pageMedia";
 
 export default function StreamPlayer({
   subjectId,
@@ -74,6 +79,77 @@ export default function StreamPlayer({
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  const displayTitle = useMemo(() => {
+    const base = cleanSearchTitle(title, detailPath) || title || detailPath || "Player";
+    if (Number(se) > 0 || Number(ep) > 0) return `${base} · S${se}E${ep}`;
+    return base;
+  }, [title, detailPath, se, ep]);
+
+  useEffect(() => {
+    setPageTitle(displayTitle);
+  }, [displayTitle]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!mounted || !video) return;
+
+    let lastPosAt = 0;
+    const syncSession = (forcePos = false) => {
+      const now = Date.now();
+      if (!forcePos && now - lastPosAt < 900) {
+        try {
+          navigator.mediaSession.playbackState =
+            !video.paused && !video.ended ? "playing" : "paused";
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      lastPosAt = now;
+      updateMediaSession({
+        title: displayTitle,
+        artist: "MovieHunter",
+        album: "Now playing",
+        kind: "video",
+        playing: !video.paused && !video.ended,
+        duration: Number.isFinite(video.duration) ? video.duration : undefined,
+        position: video.currentTime || 0,
+        onPlay: () => {
+          video.play().catch(() => {});
+        },
+        onPause: () => {
+          video.pause();
+        },
+        onPrevious: onPrevEpisode || null,
+        onNext: onNextEpisode || null,
+        onSeekTo: (details) => {
+          if (details?.seekTime == null) return;
+          video.currentTime = details.seekTime;
+        },
+      });
+    };
+
+    const onPlayPause = () => syncSession(true);
+    const onTime = () => syncSession(false);
+    syncSession(true);
+    video.addEventListener("play", onPlayPause);
+    video.addEventListener("pause", onPlayPause);
+    video.addEventListener("timeupdate", onTime);
+    video.addEventListener("loadedmetadata", onPlayPause);
+    return () => {
+      video.removeEventListener("play", onPlayPause);
+      video.removeEventListener("pause", onPlayPause);
+      video.removeEventListener("timeupdate", onTime);
+      video.removeEventListener("loadedmetadata", onPlayPause);
+    };
+  }, [mounted, displayTitle, onPrevEpisode, onNextEpisode]);
+
+  useEffect(() => {
+    return () => {
+      clearMediaSession();
+    };
   }, []);
 
   useEffect(() => {
@@ -430,7 +506,7 @@ export default function StreamPlayer({
     <div className={styles.wrap}>
       <header className={styles.toolbar}>
         <div className={styles.titleBlock}>
-          <h1 className={styles.title}>{title || detailPath || "Player"}</h1>
+          <h1 className={styles.title}>{displayTitle}</h1>
           <p className={styles.meta}>
             {Number(se) > 0 || Number(ep) > 0 ? `S${se}E${ep}` : "Movie"}
             {active ? ` · ${active.resolution}` : ""}
