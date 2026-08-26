@@ -91,7 +91,9 @@ export default function Hero({ items = [] }) {
               resetTimer();
             }}
           >
-            ‹
+            <span className={styles.arrowIcon} aria-hidden>
+              ‹
+            </span>
           </button>
           <button
             type="button"
@@ -102,7 +104,9 @@ export default function Hero({ items = [] }) {
               resetTimer();
             }}
           >
-            ›
+            <span className={styles.arrowIcon} aria-hidden>
+              ›
+            </span>
           </button>
           <div className={styles.dots} role="tablist" aria-label="Banners">
             {slides.map((s, i) => (
