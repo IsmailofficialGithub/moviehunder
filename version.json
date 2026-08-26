@@ -1,10 +1,10 @@
 {
-  "latest_version": "0.0.1",
-  "min_supported_version": "0.0.1",
-  "release_notes": "MovieHunter v0.0.1 — first release.",
+  "latest_version": "0.0.2",
+  "min_supported_version": "0.0.2",
+  "release_notes": "Block Porn and 18+ contents",
   "android": {
-    "version_code": 1,
-    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.1/moviehunter-0.0.1.apk",
+    "version_code": 2,
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.2/moviehunter-0.0.2.apk",
     "force": false
   }
 }
