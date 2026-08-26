@@ -63,15 +63,34 @@ export async function getSearchHistory() {
   return [...cache];
 }
 
-/** Push a query to the top of history (deduped). */
+/** Push query words to the top of history (deduped).
+ *  "hello world" → stores "hello", then "world" as separate recent items.
+ */
 export async function addSearchHistory(query) {
-  const q = String(query || "").trim();
-  if (q.length < 2) return getSearchHistory();
+  const words = String(query || "")
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "").trim())
+    .filter((w) => w.length >= 2);
+  // Unique within this query, keep first-seen order
+  const seen = new Set();
+  const unique = [];
+  for (const w of words) {
+    const key = w.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(w);
+  }
+  if (!unique.length) return getSearchHistory();
+
   await hydrate();
-  cache = [q, ...cache.filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(
-    0,
-    MAX_ITEMS
-  );
+  // Prepend last→first so the first word ends up at the top (suggestion 1)
+  for (let i = unique.length - 1; i >= 0; i -= 1) {
+    const w = unique[i];
+    const key = w.toLowerCase();
+    cache = [w, ...cache.filter((x) => x.toLowerCase() !== key)];
+  }
+  cache = cache.slice(0, MAX_ITEMS);
   await persist();
   notify();
   return [...cache];

@@ -16,6 +16,22 @@ export function getAppClientKey() {
   return String(process.env.NEXT_PUBLIC_APP_CLIENT_KEY || "").trim();
 }
 
+/** Public GitHub profile. */
+export function getGithubUrl() {
+  return (
+    process.env.NEXT_PUBLIC_GITHUB_URL?.replace(/\/+$/, "") ||
+    "https://github.com/IsmailofficialGithub"
+  );
+}
+
+/** Remote version.json used for app update / download availability. */
+export function getVersionJsonUrl() {
+  return (
+    process.env.NEXT_PUBLIC_VERSION_JSON_URL ||
+    "https://raw.githubusercontent.com/IsmailofficialGithub/moviehunder/main/version.json"
+  );
+}
+
 /** Headers for API / relay. Browser relies on Origin allowlist; SSR sends key. */
 export function apiClientHeaders(extra = {}) {
   const headers = {

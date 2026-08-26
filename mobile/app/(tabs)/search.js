@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -33,23 +33,59 @@ export default function SearchScreen() {
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const searchTimer = useRef(null);
   const suggestTimer = useRef(null);
   const skipSuggest = useRef(Boolean(initial));
   const lastSavedQuery = useRef("");
+  const searchReq = useRef(0);
 
   useEffect(() => subscribeSearchHistory(setHistory), []);
 
+  /** Run title search API + save word history (only on submit / pick / deep-link). */
+  const runSearch = useCallback(async (raw, { saveHistory = true } = {}) => {
+    const query = String(raw || "").trim();
+    skipSuggest.current = true;
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setQ(query);
+
+    if (query.length < 2) {
+      setMovies([]);
+      setSearched(false);
+      setLoading(false);
+      return;
+    }
+
+    const reqId = ++searchReq.current;
+    setLoading(true);
+    try {
+      const data = await searchTitles(query);
+      if (reqId !== searchReq.current) return;
+      setMovies(data.movies || []);
+      setSearched(true);
+      if (
+        saveHistory &&
+        query.toLowerCase() !== lastSavedQuery.current.toLowerCase()
+      ) {
+        lastSavedQuery.current = query;
+        addSearchHistory(query).catch(() => {});
+      }
+    } catch {
+      if (reqId !== searchReq.current) return;
+      setMovies([]);
+      setSearched(true);
+    } finally {
+      if (reqId === searchReq.current) setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (typeof params.q === "string" && params.q !== q) {
-      skipSuggest.current = true;
-      setShowSuggestions(false);
-      setSuggestions([]);
-      setQ(params.q);
+    if (typeof params.q === "string" && params.q.trim()) {
+      runSearch(params.q);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.q]);
 
+  // Typing → suggest API only (never stores history)
   useEffect(() => {
     clearTimeout(suggestTimer.current);
     const query = q.trim();
@@ -86,59 +122,26 @@ export default function SearchScreen() {
     return () => clearTimeout(suggestTimer.current);
   }, [q]);
 
-  useEffect(() => {
-    clearTimeout(searchTimer.current);
-    const query = q.trim();
-    if (query.length < 2) {
-      setMovies([]);
-      setSearched(false);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    searchTimer.current = setTimeout(async () => {
-      try {
-        const data = await searchTitles(query);
-        setMovies(data.movies || []);
-        if (query !== lastSavedQuery.current) {
-          lastSavedQuery.current = query;
-          addSearchHistory(query).catch(() => {});
-        }
-      } catch {
-        setMovies([]);
-      } finally {
-        setSearched(true);
-        setLoading(false);
-      }
-    }, 350);
-    return () => clearTimeout(searchTimer.current);
-  }, [q]);
-
   const onChangeText = (text) => {
     skipSuggest.current = false;
     setQ(text);
+    setSearched(false);
+    setMovies([]);
   };
 
-  const pickSuggestion = (word) => {
-    skipSuggest.current = true;
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setQ(word);
-    addSearchHistory(word).catch(() => {});
-  };
+  const submitSearch = () => runSearch(q);
 
-  const pickHistory = (word) => {
-    skipSuggest.current = true;
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setQ(word);
-  };
+  const pickSuggestion = (word) => runSearch(word);
+
+  const pickHistory = (word) => runSearch(word);
 
   const clearQuery = () => {
     skipSuggest.current = false;
     setShowSuggestions(false);
     setSuggestions([]);
     setQ("");
+    setMovies([]);
+    setSearched(false);
   };
 
   const showHistory = !q.trim() && !loading && !searched && history.length > 0;
@@ -157,6 +160,7 @@ export default function SearchScreen() {
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
+            onSubmitEditing={submitSearch}
             onFocus={() => {
               if (suggestions.length && !skipSuggest.current) {
                 setShowSuggestions(true);
@@ -168,6 +172,15 @@ export default function SearchScreen() {
               <Ionicons name="close-circle" size={18} color={colors.muted} />
             </Pressable>
           ) : null}
+          <Pressable
+            onPress={submitSearch}
+            hitSlop={8}
+            style={styles.searchBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
+            <Text style={styles.searchBtnText}>Search</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -249,8 +262,10 @@ export default function SearchScreen() {
           ListEmptyComponent={
             !q.trim() && !history.length ? (
               <Text style={styles.hint}>
-                Type to search — suggestions appear as you type
+                Type for suggestions, then tap Search
               </Text>
+            ) : q.trim() && !searched ? (
+              <Text style={styles.hint}>Tap Search to find titles</Text>
             ) : null
           }
           renderItem={({ item }) => (
@@ -278,13 +293,22 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   input: {
     flex: 1,
     color: colors.text,
     fontSize: 16,
     paddingVertical: 0,
+  },
+  searchBtn: {
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+  },
+  searchBtnText: {
+    color: colors.secondary,
+    fontWeight: "800",
+    fontSize: 13,
   },
   suggestBox: {
     marginHorizontal: spacing.md,
@@ -311,19 +335,19 @@ const styles = StyleSheet.create({
   },
   historyLabel: {
     color: colors.muted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   clearHist: {
-    color: colors.accentLight,
+    color: colors.secondary,
     fontSize: 12,
     fontWeight: "700",
   },
   suggestLabel: {
     color: colors.muted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -339,19 +363,14 @@ const styles = StyleSheet.create({
   },
   suggestText: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 14,
     flex: 1,
   },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  hint: {
-    color: colors.muted,
-    textAlign: "center",
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
+    paddingTop: 40,
   },
   grid: {
     paddingHorizontal: spacing.md,
@@ -363,5 +382,13 @@ const styles = StyleSheet.create({
   },
   cell: {
     flex: 1,
+    maxWidth: "33.33%",
+  },
+  hint: {
+    color: colors.muted,
+    textAlign: "center",
+    marginTop: 28,
+    paddingHorizontal: spacing.lg,
+    fontSize: 14,
   },
 });

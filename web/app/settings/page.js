@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Link from "next/link";
 import styles from "./settings.module.css";
 
 export const metadata = {
@@ -9,59 +9,91 @@ export default function SettingsPage() {
   return (
     <main className={`page ${styles.page}`}>
       <header className={styles.head}>
-        <Image
-          src="/brand/logo-full.png"
-          alt="MovieHunter"
-          width={220}
-          height={64}
-          className={styles.logo}
-          priority
-        />
         <h1>Settings</h1>
         <p className={styles.sub}>
-          MovieHunter web — same brand and catalog as the mobile app.
+          Account, playback, and app information for MovieHunter on the web.
         </p>
       </header>
 
-      <section className={styles.card}>
-        <h2>About</h2>
-        <dl className={styles.dl}>
-          <div>
-            <dt>App</dt>
-            <dd>MovieHunter</dd>
+      <section className={styles.group} aria-labelledby="settings-general">
+        <h2 id="settings-general" className={styles.groupTitle}>
+          General
+        </h2>
+        <div className={styles.panel}>
+          <div className={styles.row}>
+            <div className={styles.rowText}>
+              <p className={styles.rowLabel}>App</p>
+              <p className={styles.rowHint}>MovieHunter</p>
+            </div>
+            <span className={styles.rowValue}>Web</span>
           </div>
-          <div>
-            <dt>Platform</dt>
-            <dd>Web</dd>
+          <div className={styles.row}>
+            <div className={styles.rowText}>
+              <p className={styles.rowLabel}>Catalog</p>
+              <p className={styles.rowHint}>
+                Movies, TV series, anime, rankings, and songs
+              </p>
+            </div>
           </div>
-          <div>
-            <dt>Catalog</dt>
-            <dd>Movies, TV, Anime, Ranking, Songs</dd>
+          <div className={styles.row}>
+            <div className={styles.rowText}>
+              <p className={styles.rowLabel}>Search</p>
+              <p className={styles.rowHint}>
+                Use the header search to find titles quickly
+              </p>
+            </div>
+            <Link href="/" className={styles.rowLink}>
+              Home
+            </Link>
           </div>
-        </dl>
-      </section>
-
-      <section className={styles.card}>
-        <h2>Brand</h2>
-        <p className={styles.muted}>
-          Primary <code>#3d0081</code> · Secondary <code>#bd84db</code> · Accent{" "}
-          <code>#5a00a2</code>
-        </p>
-        <div className={styles.swatches}>
-          <span style={{ background: "#3d0081" }} />
-          <span style={{ background: "#bd84db" }} />
-          <span style={{ background: "#5a00a2" }} />
-          <span style={{ background: "#f5c518" }} />
         </div>
       </section>
 
-      <section className={styles.card}>
-        <h2>Tips</h2>
-        <ul className={styles.tips}>
-          <li>Use the header search for titles, or Songs for music.</li>
-          <li>Hover a title row to show left/right arrows and browse more titles.</li>
-          <li>Install the mobile app for downloads and lock-screen music.</li>
-        </ul>
+      <section className={styles.group} aria-labelledby="settings-playback">
+        <h2 id="settings-playback" className={styles.groupTitle}>
+          Playback
+        </h2>
+        <div className={styles.panel}>
+          <div className={styles.row}>
+            <div className={styles.rowText}>
+              <p className={styles.rowLabel}>Quality &amp; display</p>
+              <p className={styles.rowHint}>
+                Choose quality, fit mode, and subtitles in the player settings
+              </p>
+            </div>
+          </div>
+          <div className={styles.row}>
+            <div className={styles.rowText}>
+              <p className={styles.rowLabel}>Browse rows</p>
+              <p className={styles.rowHint}>
+                Hover a row on desktop to scroll with the side arrows
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.group} aria-labelledby="settings-about">
+        <h2 id="settings-about" className={styles.groupTitle}>
+          About
+        </h2>
+        <div className={styles.panel}>
+          <div className={styles.row}>
+            <div className={styles.rowText}>
+              <p className={styles.rowLabel}>Version</p>
+              <p className={styles.rowHint}>Web client</p>
+            </div>
+            <span className={styles.rowValue}>1.0</span>
+          </div>
+          <div className={styles.row}>
+            <div className={styles.rowText}>
+              <p className={styles.rowLabel}>Mobile app</p>
+              <p className={styles.rowHint}>
+                Downloads and lock-screen music on the native app
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   );
