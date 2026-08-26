@@ -72,6 +72,18 @@
   font-weight: 700;
 }
 
+.hindiBadge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  font-size: 11px;
+  color: #fff;
+  background: rgba(90, 0, 162, 0.92);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-weight: 800;
+}
+
 .rank {
   position: absolute;
   right: 8px;

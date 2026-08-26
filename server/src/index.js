@@ -850,10 +850,24 @@ async function handleSearchSuggest(params) {
   }
 }
 
-async function handleSearch(params) {
-  const q = params.get("q");
-  if (!q) return json({ error: "q parameter required" }, 400);
+function isHindiDubTitle(name) {
+  return /\[\s*hindi\s*\]|\(\s*hindi\s*\)|\bhindi\s*dub|\bdubbed\s*(?:in\s+)?hindi\b/i.test(
+    String(name || "")
+  );
+}
 
+/** Normalize title for matching English ↔ Hindi variants. */
+function baseTitleKey(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/\[\s*[^\]]*\]|\(\s*[^)]*\)/g, " ")
+    .replace(/\bhindi\b|\bdubbed\b|\bdub\b|\bofficial\b/gi, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function searchMoviesPages(q) {
   const pages = [
     `${cfg().MIRROR_URL}/web/searchResult?keyword=${encodeURIComponent(q)}`,
     `${cfg().BASE_URL}/web/searchResult?keyword=${encodeURIComponent(q)}`,
@@ -862,12 +876,90 @@ async function handleSearch(params) {
   for (const pageUrl of pages) {
     try {
       const movies = moviesFromNuxt(await fetchNuxtData(pageUrl));
-      if (movies.length) return json({ query: q, count: movies.length, movies });
+      if (movies.length) return movies;
     } catch (err) {
       lastErr = err;
     }
   }
-  return json({ error: lastErr?.message || "Search failed" }, 502);
+  if (lastErr) throw lastErr;
+  return [];
+}
+
+/**
+ * Hindi dubs are separate catalog entries (e.g. "Spider-Man [Hindi]").
+ * Merge them next to the matching English result so a normal search finds them.
+ */
+function mergeWithHindiVariants(primary, hindiHits) {
+  const seen = new Set(primary.map((m) => m.slug).filter(Boolean));
+  const hindi = (hindiHits || []).filter(
+    (m) => m?.slug && isHindiDubTitle(m.name) && !seen.has(m.slug)
+  );
+  if (!hindi.length) return primary;
+
+  const out = [];
+  const used = new Set();
+  for (const m of primary) {
+    out.push(m);
+    const key = baseTitleKey(m.name);
+    if (!key) continue;
+    for (const h of hindi) {
+      if (used.has(h.slug)) continue;
+      const hk = baseTitleKey(h.name);
+      if (!hk) continue;
+      if (hk === key || hk.startsWith(key) || key.startsWith(hk)) {
+        out.push({
+          ...h,
+          badge: h.badge || "Hindi",
+          dub_lang: "hi",
+        });
+        used.add(h.slug);
+        seen.add(h.slug);
+      }
+    }
+  }
+  for (const h of hindi) {
+    if (used.has(h.slug)) continue;
+    out.push({
+      ...h,
+      badge: h.badge || "Hindi",
+      dub_lang: "hi",
+    });
+  }
+  return out;
+}
+
+async function handleSearch(params) {
+  const q = String(params.get("q") || "").trim();
+  if (!q) return json({ error: "q parameter required" }, 400);
+
+  const alreadyHindiQuery = /\bhindi\b|\bdub(bed)?\b/i.test(q);
+
+  try {
+    let primary = [];
+    try {
+      primary = await searchMoviesPages(q);
+    } catch (err) {
+      if (alreadyHindiQuery) throw err;
+      // Fall through to hindi-only attempt below
+      primary = [];
+    }
+
+    let movies = primary;
+    if (!alreadyHindiQuery) {
+      try {
+        const hindiHits = await searchMoviesPages(`${q} hindi`);
+        movies = primary.length
+          ? mergeWithHindiVariants(primary, hindiHits)
+          : hindiHits;
+      } catch {
+        /* keep primary */
+      }
+    }
+
+    return json({ query: q, count: movies.length, movies });
+  } catch (err) {
+    return json({ error: err?.message || "Search failed" }, 502);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════
