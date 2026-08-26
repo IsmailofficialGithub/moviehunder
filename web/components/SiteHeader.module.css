@@ -38,6 +38,10 @@
   object-fit: cover;
 }
 
+.live {
+  flex-shrink: 0;
+}
+
 .playHint {
   margin: 0;
   color: var(--muted);
@@ -312,13 +316,17 @@
 @media (max-width: 960px) {
   .topRow {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
     grid-template-areas:
-      "brand search actions"
-      "nav nav nav";
+      "brand live search actions"
+      "nav nav nav nav";
     align-items: center;
     gap: 8px 8px;
     padding: 8px var(--page-pad) 6px;
+  }
+
+  .live {
+    grid-area: live;
   }
 
   .brand,

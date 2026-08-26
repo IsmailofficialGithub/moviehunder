@@ -1,0 +1,56 @@
+.wrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  white-space: nowrap;
+  user-select: none;
+  line-height: 1;
+}
+
+.icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--secondary);
+  opacity: 0.9;
+  align-self: center;
+}
+
+.num {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+@media (max-width: 960px) {
+  .wrap {
+    gap: 4px;
+  }
+
+  .icon {
+    width: 13px;
+    height: 13px;
+  }
+
+  .num {
+    font-size: 12px;
+  }
+
+  .label {
+    display: none;
+  }
+}
