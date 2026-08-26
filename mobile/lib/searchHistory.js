@@ -72,7 +72,6 @@ export async function addSearchHistory(query) {
     .split(/\s+/)
     .map((w) => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "").trim())
     .filter((w) => w.length >= 2);
-  // Unique within this query, keep first-seen order
   const seen = new Set();
   const unique = [];
   for (const w of words) {
@@ -84,7 +83,6 @@ export async function addSearchHistory(query) {
   if (!unique.length) return getSearchHistory();
 
   await hydrate();
-  // Prepend last→first so the first word ends up at the top (suggestion 1)
   for (let i = unique.length - 1; i >= 0; i -= 1) {
     const w = unique[i];
     const key = w.toLowerCase();

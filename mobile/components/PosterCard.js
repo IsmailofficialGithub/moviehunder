@@ -37,6 +37,13 @@ export default function PosterCard({ item, width = 118, onPress }) {
             </Text>
           </View>
         ) : null}
+        {item?.dub_lang === "hi" ||
+        /hindi/i.test(String(item?.badge || "")) ||
+        /\[\s*hindi\s*\]|\(\s*hindi\s*\)/i.test(String(item?.name || "")) ? (
+          <View style={styles.langBadge}>
+            <Text style={styles.langBadgeText}>Hindi</Text>
+          </View>
+        ) : null}
       </View>
       <Text style={styles.name} numberOfLines={2}>
         {item?.name || "Untitled"}
@@ -93,6 +100,20 @@ const styles = StyleSheet.create({
   },
   dlBadgeText: {
     color: colors.accentInk,
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  langBadge: {
+    position: "absolute",
+    left: 6,
+    bottom: 6,
+    backgroundColor: "rgba(90, 0, 162, 0.92)",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  langBadgeText: {
+    color: "#fff",
     fontSize: 9,
     fontWeight: "800",
   },

@@ -2,9 +2,24 @@ import Link from "next/link";
 import LazyPoster from "./LazyPoster";
 import styles from "./TitleCard.module.css";
 
+function isHindiItem(item) {
+  return (
+    item?.dub_lang === "hi" ||
+    /hindi/i.test(String(item?.badge || "")) ||
+    /\[\s*hindi\s*\]|\(\s*hindi\s*\)/i.test(String(item?.name || ""))
+  );
+}
+
 export default function TitleCard({ item }) {
   const slug = item?.slug || "";
   if (!slug) return null;
+
+  const hindi = isHindiItem(item);
+  const badgeLabel = hindi
+    ? "Hindi"
+    : item.badge
+      ? String(item.badge)
+      : null;
 
   return (
     <Link href={`/title/${encodeURIComponent(slug)}`} className={styles.card}>
@@ -20,7 +35,11 @@ export default function TitleCard({ item }) {
         ) : (
           <div className={styles.fallback}>{item.name || "No poster"}</div>
         )}
-        {item.badge ? <span className={styles.badge}>{item.badge}</span> : null}
+        {badgeLabel ? (
+          <span className={hindi ? styles.hindiBadge : styles.badge}>
+            {badgeLabel}
+          </span>
+        ) : null}
         {item.rank ? <span className={styles.rank}>#{item.rank}</span> : null}
       </div>
       <h3>{item.name || "Untitled"}</h3>
