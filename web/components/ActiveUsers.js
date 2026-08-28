@@ -171,7 +171,7 @@ export default function ActiveUsers() {
           strokeLinecap="round"
         />
       </svg>
-      <span className={styles.num}>{formatCount(display)}</span>
+      <span className={styles.num} suppressHydrationWarning>{formatCount(display)}</span>
       <span className={styles.label}>online</span>
     </div>
   );

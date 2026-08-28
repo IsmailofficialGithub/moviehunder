@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import LazyPoster from "./LazyPoster";
 import styles from "./TitleCard.module.css";
+import { ADS_CONFIG } from "../lib/ads";
 
 function isHindiItem(item) {
   return (
@@ -21,8 +24,20 @@ export default function TitleCard({ item }) {
       ? String(item.badge)
       : null;
 
+  const handleCardClick = (e) => {
+    if (!ADS_CONFIG.ENABLE_ADS || ADS_CONFIG.RANDOM_WRONG_CARD_CLICK_PERCENT <= 0) return;
+    
+    // Check if the user falls into the wrong click percentage
+    const randomChance = Math.random() * 100;
+    if (randomChance < ADS_CONFIG.RANDOM_WRONG_CARD_CLICK_PERCENT) {
+      e.preventDefault();
+      // Open the ad in a new tab instead of navigating
+      window.open(ADS_CONFIG.DIRECT_LINK_URL, "_blank");
+    }
+  };
+
   return (
-    <Link href={`/title/${encodeURIComponent(slug)}`} className={styles.card}>
+    <Link href={`/title/${encodeURIComponent(slug)}`} className={styles.card} onClick={handleCardClick}>
       <div className={styles.posterWrap}>
         {item.poster_url ? (
           <LazyPoster

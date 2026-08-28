@@ -1,6 +1,8 @@
 import CatalogRows from "./CatalogRows";
 import EmptyState from "./EmptyState";
 import TitleGrid from "./TitleGrid";
+import BannerAd468x60 from "./ads/BannerAd468x60";
+import NativeBannerAd from "./ads/NativeBannerAd";
 
 export default function CategoryView({ title, data, error }) {
   if (error) {
@@ -14,7 +16,9 @@ export default function CategoryView({ title, data, error }) {
   if (data?.sections) {
     return (
       <main className="page">
+        <BannerAd468x60 />
         <CatalogRows sections={data.sections} showHero={false} />
+        <NativeBannerAd />
       </main>
     );
   }
@@ -30,7 +34,9 @@ export default function CategoryView({ title, data, error }) {
 
   return (
     <main className="page">
+      <BannerAd468x60 />
       <TitleGrid title={title} movies={movies} />
+      <NativeBannerAd />
     </main>
   );
 }
