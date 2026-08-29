@@ -112,6 +112,13 @@ export function AppUpdateGate({
   if (!info) return null;
 
   const pct = Math.round((progress || 0) * 100);
+  const releaseMetadata = info.releaseMetadata;
+  const changeGroups = [
+    ["Added", releaseMetadata?.added],
+    ["Changed", releaseMetadata?.changed],
+    ["Fixed", releaseMetadata?.fixed],
+    ["Removed", releaseMetadata?.removed],
+  ].filter(([, items]) => items?.length);
 
   return (
     <View
@@ -132,7 +139,9 @@ export function AppUpdateGate({
       <Text style={styles.meta}>
         v{info.currentVersion} → v{info.latestVersion}
       </Text>
-      {info.releaseNotes ? (
+      {releaseMetadata?.summary ? (
+        <Text style={styles.notes}>{releaseMetadata.summary}</Text>
+      ) : info.releaseNotes ? (
         <Text style={styles.notes}>{info.releaseNotes}</Text>
       ) : (
         <Text style={styles.notes}>
@@ -140,6 +149,20 @@ export function AppUpdateGate({
           app.
         </Text>
       )}
+      {changeGroups.length ? (
+        <View style={styles.changes}>
+          {changeGroups.map(([label, items]) => (
+            <View key={label} style={styles.changeGroup}>
+              <Text style={styles.changeTitle}>{label}</Text>
+              {items.map((item) => (
+                <Text key={`${label}-${item}`} style={styles.changeItem}>
+                  • {item}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {busy ? (
         <View style={styles.progressBlock}>
@@ -252,6 +275,26 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 8,
     maxWidth: 340,
+  },
+  changes: {
+    width: "100%",
+    maxWidth: 360,
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  changeGroup: {
+    gap: 2,
+  },
+  changeTitle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  changeItem: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
   },
   progressBlock: {
     width: "100%",

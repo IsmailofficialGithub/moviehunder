@@ -1099,6 +1099,7 @@ async function handleDetail(slug) {
   let seasons = [];
   let topCast = [];
   let userReviews = [];
+  const relatedRaw = [];
 
   for (let i = 0; i < nuxt.length; i++) {
     const resolved = resolve(i);
@@ -1128,9 +1129,88 @@ async function handleDetail(slug) {
     if (Array.isArray(resolved.reviews) && resolved.reviews.length) {
       userReviews = resolved.reviews;
     }
+    for (const value of Object.values(resolved)) {
+      if (!Array.isArray(value)) continue;
+      for (const item of value) {
+        if (
+          item &&
+          typeof item === "object" &&
+          (item.detailPath || item.slug) &&
+          (item.title || item.name)
+        ) {
+          relatedRaw.push(item);
+        }
+      }
+    }
   }
 
   if (!movieDict) return json({ error: "Could not extract movie metadata" }, 404);
+
+  const normalizeRelated = (item) => {
+    const relatedSlug = item.detailPath || item.slug;
+    const relatedName = item.title || item.name;
+    if (!relatedSlug || !relatedName || relatedSlug === slug) return null;
+    const normalized = {
+      name: String(relatedName),
+      poster_url:
+        item.cover?.url ||
+        item.thumbnail ||
+        item.image?.url ||
+        item.poster ||
+        null,
+      slug: String(relatedSlug),
+      badge: item.corner || item.badge || null,
+      year: item.releaseDate || item.year || null,
+      rating: item.imdbRatingValue || item.rating || null,
+      subject_id: item.subjectId || item.subject_id || item.id || null,
+      subject_type: item.subjectType || item.subject_type || null,
+      genre: item.genre || null,
+    };
+    return isBlockedCatalogItem(normalized) ? null : normalized;
+  };
+
+  const relatedSeen = new Set();
+  let related = relatedRaw
+    .map(normalizeRelated)
+    .filter((item) => {
+      if (!item || relatedSeen.has(item.slug)) return false;
+      relatedSeen.add(item.slug);
+      return true;
+    })
+    .slice(0, 18);
+
+  if (!related.length) {
+    try {
+      const catalog = (await fetchHomeData()).flatMap(
+        (section) => section.movies || []
+      );
+      const genreWords = String(movieDict.genre || "")
+        .toLowerCase()
+        .split(/[,/|]/)
+        .map((word) => word.trim())
+        .filter(Boolean);
+      const sameType = catalog.filter(
+        (item) =>
+          item.slug !== slug &&
+          ((movieDict.subjectType &&
+            item.subject_type === movieDict.subjectType) ||
+            genreWords.some((word) =>
+              String(item.genre || "").toLowerCase().includes(word)
+            ))
+      );
+      const fallback = sameType.length ? sameType : catalog;
+      related = fallback
+        .filter((item) => item.slug !== slug)
+        .filter((item) => {
+          if (relatedSeen.has(item.slug)) return false;
+          relatedSeen.add(item.slug);
+          return true;
+        })
+        .slice(0, 18);
+    } catch {
+      /* Related suggestions are optional. */
+    }
+  }
 
   // Collect stream URLs from raw data
   const mp4Urls = nuxt.filter((v) => typeof v === "string" && v.includes(".mp4"));
@@ -1172,6 +1252,7 @@ async function handleDetail(slug) {
       badge: movieDict.corner,
       dubs: movieDict.dubs || [],
       top_cast: topCast,
+      related,
       seasons,
       user_reviews: userReviews
         .map((r) => {

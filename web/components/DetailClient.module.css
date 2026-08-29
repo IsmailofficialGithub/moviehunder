@@ -194,6 +194,23 @@
   border-color: var(--accent-border) !important;
 }
 
+.episodesToggle {
+  display: block;
+  margin: 12px auto 0;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: var(--accent-muted);
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.episodesToggle:hover {
+  background: var(--panel-soft);
+}
+
 .castRow {
   display: flex;
   gap: 14px;
@@ -205,6 +222,34 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.relatedHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.relatedHead .blockTitle {
+  margin-bottom: 12px;
+}
+
+.relatedToggle {
+  border: 0;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.relatedGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 14px;
+  min-width: 0;
 }
 
 .castRow::-webkit-scrollbar {

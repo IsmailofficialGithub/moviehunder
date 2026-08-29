@@ -13,11 +13,18 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import DetailHeader from "../../components/DetailHeader";
 import DownloadSheet from "../../components/DownloadSheet";
 import EmptyState from "../../components/EmptyState";
+import ProgressBorder from "../../components/ProgressBorder";
+import PosterCard from "../../components/PosterCard";
 import TitleSkeleton from "../../components/TitleSkeleton";
 import { getDetail, getEpisodes } from "../../lib/api";
 import { prefetchStreams } from "../../lib/streamCache";
 import { getCachedTitle, setCachedTitle } from "../../lib/titleCache";
 import { colors, radii, spacing } from "../../lib/theme";
+import {
+  progressPercent,
+  subscribeWatchProgress,
+  watchProgressKey,
+} from "../../lib/watchProgress";
 
 function formatDuration(sec) {
   const n = Number(sec);
@@ -41,6 +48,8 @@ function usableSeasons(episodes) {
   );
 }
 
+const EPISODE_PREVIEW_COUNT = 12;
+
 export default function TitleScreen() {
   const { slug: raw } = useLocalSearchParams();
   const slug = decodeURIComponent(String(raw || ""));
@@ -55,6 +64,11 @@ export default function TitleScreen() {
     () => usableSeasons(cached?.episodes)[0]?.season ?? null
   );
   const [dlSheet, setDlSheet] = useState(null);
+  const [watchEntries, setWatchEntries] = useState([]);
+  const [episodesExpanded, setEpisodesExpanded] = useState(false);
+  const [relatedExpanded, setRelatedExpanded] = useState(false);
+
+  useEffect(() => subscribeWatchProgress(setWatchEntries), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +125,28 @@ export default function TitleScreen() {
       seasons.find((s) => String(s.season) === String(season)) || seasons[0],
     [seasons, season]
   );
+  const episodeList = activeSeason?.episodes || [];
+  const visibleEpisodes = episodesExpanded
+    ? episodeList
+    : episodeList.slice(0, EPISODE_PREVIEW_COUNT);
+  const hasMoreEpisodes = episodeList.length > EPISODE_PREVIEW_COUNT;
+  const related = Array.isArray(meta.related) ? meta.related.slice(0, 18) : [];
+  const visibleRelated = relatedExpanded ? related : related.slice(0, 6);
   const subjectId = meta.id || episodes?.subject_id;
+  const watchMap = useMemo(
+    () => new Map(watchEntries.map((entry) => [entry.key, entry])),
+    [watchEntries]
+  );
+  const watchEntryFor = (se = "0", ep = "0") =>
+    watchMap.get(
+      watchProgressKey({
+        subjectId,
+        se,
+        ep,
+      })
+    ) || null;
+  const movieWatch = watchEntryFor("0", "0");
+  const movieWatchPct = progressPercent(movieWatch);
   const castPeople = useMemo(() => {
     const list = Array.isArray(meta.top_cast) ? meta.top_cast : [];
     return list
@@ -180,8 +215,12 @@ export default function TitleScreen() {
   const closeDlSheet = () => setDlSheet(null);
 
   const onDownloadStarted = () => {
+    const targetTab = isSeries ? "series" : "movies";
     closeDlSheet();
-    router.navigate("/downloads");
+    router.navigate({
+      pathname: "/(tabs)/downloads",
+      params: { tab: targetTab },
+    });
   };
 
   const openPlay = (se = "0", ep = "0") => {
@@ -203,6 +242,8 @@ export default function TitleScreen() {
         se: String(se ?? 0),
         ep: String(ep ?? 0),
         title: meta.title || slug,
+        poster: meta.poster || "",
+        kind: isSeries ? "series" : "movie",
         autoplay: "1",
       },
     });
@@ -307,6 +348,26 @@ export default function TitleScreen() {
             </View>
           </View>
 
+          {!isSeries && movieWatchPct > 0 ? (
+            <View style={styles.watchSummary}>
+              <View style={styles.watchSummaryHead}>
+                <Text style={styles.watchSummaryTitle}>Continue watching</Text>
+                <Text style={styles.watchSummaryPct}>{movieWatchPct}%</Text>
+              </View>
+              <View style={styles.watchTrack}>
+                <View
+                  style={[styles.watchFill, { width: `${movieWatchPct}%` }]}
+                />
+              </View>
+              <Text style={styles.watchSummaryText}>
+                Watched {formatDuration(movieWatch?.position) || "a little"}
+                {movieWatch?.duration
+                  ? ` of ${formatDuration(movieWatch.duration)}`
+                  : ""}
+              </Text>
+            </View>
+          ) : null}
+
           {genres.length ? (
             <View style={styles.chips}>
               {genres.map((g) => (
@@ -319,12 +380,17 @@ export default function TitleScreen() {
 
           {isSeries ? (
             <View style={styles.epsBlock}>
-              <Text style={styles.blockTitle}>Episodes</Text>
+              <Text style={styles.blockTitle}>
+                Episodes · {visibleEpisodes.length}/{episodeList.length}
+              </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {seasons.map((s) => (
                   <Pressable
                     key={`season-${s.season}`}
-                    onPress={() => setSeason(s.season)}
+                    onPress={() => {
+                      setSeason(s.season);
+                      setEpisodesExpanded(false);
+                    }}
                     style={[
                       styles.chip,
                       String(s.season) === String(activeSeason?.season) &&
@@ -344,28 +410,51 @@ export default function TitleScreen() {
                 ))}
               </ScrollView>
               <View style={styles.epGrid}>
-                {(activeSeason?.episodes || []).map((ep) => (
-                  <View key={`${ep.se}-${ep.ep}`} style={styles.epCell}>
-                    <Pressable
-                      style={styles.epBtn}
-                      onPress={() => openPlay(ep.se, ep.ep)}
-                    >
-                      <Text style={styles.epText}>Ep {ep.ep}</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.epDl}
-                      onPress={() => openDownload(ep.se, ep.ep)}
-                      hitSlop={4}
-                    >
-                      <Ionicons
-                        name="download-outline"
-                        size={14}
-                        color={colors.accent}
-                      />
-                    </Pressable>
-                  </View>
+                {visibleEpisodes.map((ep) => (
+                  <ProgressBorder
+                    key={`${ep.se}-${ep.ep}`}
+                    percent={progressPercent(watchEntryFor(ep.se, ep.ep))}
+                    style={styles.epProgressBorder}
+                  >
+                    <View style={styles.epCell}>
+                      <Pressable
+                        style={styles.epBtn}
+                        onPress={() => openPlay(ep.se, ep.ep)}
+                      >
+                        <Text style={styles.epText}>Ep {ep.ep}</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.epDl}
+                        onPress={() => openDownload(ep.se, ep.ep)}
+                        hitSlop={4}
+                      >
+                        <Ionicons
+                          name="download-outline"
+                          size={14}
+                          color={colors.accent}
+                        />
+                      </Pressable>
+                    </View>
+                  </ProgressBorder>
                 ))}
               </View>
+              {hasMoreEpisodes ? (
+                <Pressable
+                  style={styles.episodesToggle}
+                  onPress={() => setEpisodesExpanded((value) => !value)}
+                >
+                  <Text style={styles.episodesToggleText}>
+                    {episodesExpanded
+                      ? "Show fewer episodes"
+                      : `Show all ${episodeList.length} episodes`}
+                  </Text>
+                  <Ionicons
+                    name={episodesExpanded ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={colors.accent}
+                  />
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
 
@@ -411,6 +500,40 @@ export default function TitleScreen() {
                       </Text>
                     ) : null}
                   </View>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {related.length ? (
+            <View style={styles.block}>
+              <View style={styles.relatedHead}>
+                <Text style={styles.blockTitle}>Related</Text>
+                {related.length > 6 ? (
+                  <Pressable
+                    onPress={() => setRelatedExpanded((value) => !value)}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.relatedToggle}>
+                      {relatedExpanded ? "Show less" : "Show more"}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.relatedRow}
+              >
+                {visibleRelated.map((item) => (
+                  <PosterCard
+                    key={item.slug}
+                    item={{
+                      ...item,
+                      poster_url: item.poster_url || item.poster,
+                    }}
+                    width={104}
+                  />
                 ))}
               </ScrollView>
             </View>
@@ -533,6 +656,43 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "800",
   },
+  watchSummary: {
+    backgroundColor: colors.panel,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 12,
+    gap: 6,
+  },
+  watchSummaryHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  watchSummaryTitle: {
+    color: colors.text,
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  watchSummaryPct: {
+    color: colors.accent,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+  watchTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.panelSoft,
+    overflow: "hidden",
+  },
+  watchFill: {
+    height: "100%",
+    backgroundColor: colors.accent,
+  },
+  watchSummaryText: {
+    color: colors.muted,
+    fontSize: 11,
+  },
   chips: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -593,6 +753,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
+  relatedHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  relatedRow: {
+    gap: 10,
+    paddingRight: spacing.md,
+  },
+  relatedToggle: {
+    color: colors.accent,
+    fontWeight: "800",
+    fontSize: 12,
+  },
   epsBlock: {
     gap: spacing.sm,
   },
@@ -626,10 +800,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.panel,
-    borderColor: colors.line,
-    borderWidth: 1,
     borderRadius: 8,
     overflow: "hidden",
+  },
+  epProgressBorder: {
+    borderRadius: 9,
   },
   epBtn: {
     paddingHorizontal: 12,
@@ -647,5 +822,19 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "600",
     fontSize: 13,
+  },
+  episodesToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: radii.md,
+    backgroundColor: colors.panelSoft,
+  },
+  episodesToggleText: {
+    color: colors.accent,
+    fontWeight: "800",
+    fontSize: 12,
   },
 });

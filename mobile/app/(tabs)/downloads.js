@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import EmptyState from "../../components/EmptyState";
 import DownloadSheet from "../../components/DownloadSheet";
+import ProgressBorder from "../../components/ProgressBorder";
 import VaultModal, {
   resolveVaultModalMode,
 } from "../../components/VaultModal";
@@ -57,6 +58,11 @@ import {
   subscribeVault,
 } from "../../lib/vault";
 import { colors, radii, spacing } from "../../lib/theme";
+import {
+  progressPercent,
+  subscribeWatchProgress,
+  watchProgressKey,
+} from "../../lib/watchProgress";
 
 function isSeriesItem(d) {
   return d.kind === "series" || Number(d.se) > 0 || Number(d.ep) > 0;
@@ -111,6 +117,7 @@ function QualityBadge({ item }) {
 
 function EpisodeRow({
   item,
+  watchMap,
   onPlay,
   onPause,
   onResume,
@@ -118,6 +125,15 @@ function EpisodeRow({
   onRestoreFromVault,
   vaultMode,
 }) {
+  const watchPct = progressPercent(
+    watchMap?.get(
+      watchProgressKey({
+        subjectId: item.subjectId,
+        se: item.se,
+        ep: item.ep,
+      })
+    )
+  );
   const pct = Math.round(progressOf(item) * 100);
   const written = formatBytes(item.bytesWritten || 0);
   const total = formatBytes(item.totalBytes || item.sizeHint || 0);
@@ -141,9 +157,9 @@ function EpisodeRow({
   return (
     <View style={styles.epRow}>
       <View style={styles.epLeft}>
-        <Text style={styles.epTitle}>
-          S{item.se}E{item.ep}
-        </Text>
+        <ProgressBorder percent={watchPct} style={styles.watchBadgeBorder}>
+          <Text style={styles.epTitle}>S{item.se}E{item.ep}</Text>
+        </ProgressBorder>
         <View style={styles.epMetaRow}>
           <QualityBadge item={item} />
           <StatusDot status={item.status} pending={item.pending} />
@@ -172,6 +188,9 @@ function EpisodeRow({
                 .filter(Boolean)
                 .join(" · ")}
         </Text>
+        {watchPct > 0 ? (
+          <Text style={styles.watchedText}>{watchPct}% watched</Text>
+        ) : null}
         {partial && !active ? (
           <Text style={styles.partialHint}>Partial — may stop early</Text>
         ) : null}
@@ -211,6 +230,7 @@ function EpisodeRow({
 
 function MovieCard({
   item,
+  watchMap,
   onPlay,
   onPause,
   onResume,
@@ -218,6 +238,15 @@ function MovieCard({
   onRestoreFromVault,
   vaultMode,
 }) {
+  const watchPct = progressPercent(
+    watchMap?.get(
+      watchProgressKey({
+        subjectId: item.subjectId,
+        se: item.se,
+        ep: item.ep,
+      })
+    )
+  );
   const pct = Math.round(progressOf(item) * 100);
   const written = formatBytes(item.bytesWritten || 0);
   const total = formatBytes(item.totalBytes || item.sizeHint || 0);
@@ -240,18 +269,20 @@ function MovieCard({
   return (
     <View style={styles.pack}>
       <View style={styles.packHead}>
-        {item.poster ? (
-          <Image
-            source={{ uri: item.poster }}
-            style={styles.poster}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-          />
-        ) : (
-          <View style={[styles.poster, styles.posterEmpty]}>
-            <Ionicons name="film-outline" size={22} color={colors.muted} />
-          </View>
-        )}
+        <ProgressBorder percent={watchPct} style={styles.posterProgress}>
+          {item.poster ? (
+            <Image
+              source={{ uri: item.poster }}
+              style={styles.poster}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
+          ) : (
+            <View style={[styles.poster, styles.posterEmpty]}>
+              <Ionicons name="film-outline" size={22} color={colors.muted} />
+            </View>
+          )}
+        </ProgressBorder>
         <View style={styles.packCopy}>
           <Text style={styles.packTitle} numberOfLines={2}>
             {item.title}
@@ -274,6 +305,9 @@ function MovieCard({
                   .filter(Boolean)
                   .join(" · ")}
           </Text>
+          {watchPct > 0 ? (
+            <Text style={styles.watchedText}>{watchPct}% watched</Text>
+          ) : null}
           {(item.status === "downloading" ||
             item.status === "paused" ||
             item.pending ||
@@ -398,6 +432,7 @@ function SongCard({ item, onPlay, onPause, onResume, onDelete }) {
 
 function SeriesPack({
   pack,
+  watchMap,
   expanded,
   onToggle,
   onPlay,
@@ -658,6 +693,7 @@ function SeriesPack({
             <EpisodeRow
               key={item.id}
               item={item}
+              watchMap={watchMap}
               onPlay={onPlay}
               onPause={onPause}
               onResume={onResume}
@@ -674,11 +710,14 @@ function SeriesPack({
 
 export default function DownloadsScreen() {
   const router = useRouter();
-  const { expand: expandParam } = useLocalSearchParams();
+  const { expand: expandParam, tab: tabParam } = useLocalSearchParams();
   const expandKey = expandParam ? decodeURIComponent(String(expandParam)) : "";
+  const requestedTab =
+    tabParam === "series" || tabParam === "songs" ? tabParam : "movies";
   const [list, setList] = useState([]);
   const [songs, setSongs] = useState([]);
-  const [tab, setTab] = useState("movies");
+  const [watchEntries, setWatchEntries] = useState([]);
+  const [tab, setTab] = useState(requestedTab);
   const [stats, setStats] = useState({ used: 0, free: 0, count: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState({});
@@ -694,6 +733,10 @@ export default function DownloadsScreen() {
   const storageTaps = useRef({ count: 0, at: 0 });
 
   useEffect(() => subscribeVault(setVaultUnlocked), []);
+  useEffect(() => subscribeWatchProgress(setWatchEntries), []);
+  useEffect(() => {
+    setTab(requestedTab);
+  }, [requestedTab]);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -733,6 +776,10 @@ export default function DownloadsScreen() {
   }, [list, songs]);
 
   const fileCount = list.length + songs.length;
+  const watchMap = useMemo(
+    () => new Map(watchEntries.map((entry) => [entry.key, entry])),
+    [watchEntries]
+  );
 
   const refreshStats = useCallback(async () => {
     const s = await getStorageStats();
@@ -941,6 +988,8 @@ export default function DownloadsScreen() {
           isSeriesItem(item)
             ? `${item.title} · S${item.se}E${item.ep}`
             : item.title,
+        poster: item.poster || "",
+        kind: isSeriesItem(item) ? "series" : "movie",
         autoplay: "1",
         downloadId: encodeURIComponent(item.id),
       },
@@ -1323,6 +1372,7 @@ export default function DownloadsScreen() {
                 <MovieCard
                   key={item.id}
                   item={item}
+                  watchMap={watchMap}
                   onPlay={onPlay}
                   onPause={onPause}
                   onResume={onResume}
@@ -1337,6 +1387,7 @@ export default function DownloadsScreen() {
                 <SeriesPack
                   key={pack.key}
                   pack={pack}
+                  watchMap={watchMap}
                   expanded={!!expanded[pack.key]}
                   onToggle={() => togglePack(pack.key)}
                   onPlay={onPlay}
@@ -1547,6 +1598,9 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: radii.sm,
     backgroundColor: colors.panelSoft,
+  },
+  posterProgress: {
+    borderRadius: radii.sm,
   },
   posterEmpty: {
     alignItems: "center",
@@ -1767,6 +1821,15 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "800",
     fontSize: 14,
+  },
+  watchBadgeBorder: {
+    alignSelf: "flex-start",
+    borderRadius: 5,
+  },
+  watchedText: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: "700",
   },
   epSize: {
     color: colors.muted,

@@ -19,6 +19,7 @@ import HotShortsSection from "../../components/HotShortsSection";
 import LazyHList from "../../components/LazyHList";
 import Screen from "../../components/Screen";
 import WideTitleCard from "../../components/WideTitleCard";
+import WatchHistorySection from "../../components/WatchHistorySection";
 import {
   getAnimation,
   getHome,
@@ -377,6 +378,8 @@ export default function HomeScreen() {
               {bannerItems.length ? (
                 <BannerCarousel items={bannerItems} />
               ) : null}
+
+              {category === "trending" ? <WatchHistorySection /> : null}
 
               {featuredRow ? (
                 <View style={styles.wideBlock}>

@@ -1,0 +1,27 @@
+{
+  "releases": {
+    "0.0.3": {
+      "summary": "A faster, clearer way to browse, watch, and continue titles across mobile and web.",
+      "added": [
+        "Watch progress on movie details and episode borders",
+        "Local watch history with the latest 30 videos grouped by date",
+        "Related title suggestions with Show more and Show less",
+        "Compact long-season episode lists",
+        "Hold the player for temporary 2x playback",
+        "Player volume and screen brightness swipe gestures"
+      ],
+      "changed": [
+        "Catalog and search results now return to title Details without losing search results",
+        "Recent searches keep the complete query, including multi-word searches",
+        "Downloads show both download progress and watched progress",
+        "Playback speed keeps the selected rate and restores it after a temporary 2x hold"
+      ],
+      "fixed": [
+        "Completed episodes now remain visibly marked as 100% watched",
+        "Video audio pitch stays natural when playback speed changes",
+        "Series and movie detail layouts no longer become unwieldy with many episodes"
+      ],
+      "removed": []
+    }
+  }
+}

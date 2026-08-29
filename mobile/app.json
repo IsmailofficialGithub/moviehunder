@@ -49,6 +49,7 @@
         "WAKE_LOCK",
         "POST_NOTIFICATIONS",
         "REQUEST_INSTALL_PACKAGES",
+        "WRITE_SETTINGS",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",

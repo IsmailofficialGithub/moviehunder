@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import BtnSpinner from "./BtnSpinner";
+import TitleCard from "./TitleCard";
 import styles from "./DetailClient.module.css";
 
 function defaultEpisode(seasons) {
@@ -28,6 +29,7 @@ function castName(person) {
 }
 
 const REVIEW_PREVIEW = 140;
+const EPISODE_PREVIEW_COUNT = 12;
 const SPAM_RE =
   /(?:whatsapp|telegram|t\.me\/|wa\.me\/|spell|vashikaran|astrolog|black magic|lottery|earn money|click here|china apps?|contact (?:me|us)|call (?:me|now)|\+\d{8,}|\d{10,})/i;
 
@@ -46,19 +48,30 @@ export default function DetailClient({ slug, detail, episodes }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const meta = detail?.metadata || {};
-  const seasons = episodes?.seasons || [];
+  const seasons = useMemo(() => episodes?.seasons || [], [episodes?.seasons]);
   const subjectId = meta.id || episodes?.subject_id;
   const isSeries = seasons.some((s) => (s.episodes || []).length > 0);
   const defaults = defaultEpisode(seasons);
 
   const [selectedSe, setSelectedSe] = useState(defaults.se);
   const [selectedEp, setSelectedEp] = useState(defaults.ep);
+  const [episodesExpanded, setEpisodesExpanded] = useState(false);
+  const [relatedExpanded, setRelatedExpanded] = useState(false);
 
   const activeSeason = useMemo(
     () =>
       seasons.find((s) => String(s.season) === String(selectedSe)) || seasons[0],
     [seasons, selectedSe]
   );
+  const episodeList = activeSeason?.episodes || [];
+  const visibleEpisodes = episodesExpanded
+    ? episodeList
+    : episodeList.slice(0, EPISODE_PREVIEW_COUNT);
+  const related = useMemo(
+    () => (Array.isArray(meta.related) ? meta.related : []).slice(0, 18),
+    [meta.related]
+  );
+  const visibleRelated = relatedExpanded ? related : related.slice(0, 6);
 
   const genres = useMemo(
     () =>
@@ -202,7 +215,9 @@ export default function DetailClient({ slug, detail, episodes }) {
 
       {isSeries ? (
         <section className={styles.block}>
-          <h2 className={styles.blockTitle}>Episodes</h2>
+          <h2 className={styles.blockTitle}>
+            Episodes · {visibleEpisodes.length}/{episodeList.length}
+          </h2>
           <div className={styles.seasonBar}>
             <label htmlFor="season-select">Season</label>
             <select
@@ -214,6 +229,7 @@ export default function DetailClient({ slug, detail, episodes }) {
                 const season =
                   seasons.find((s) => String(s.season) === se) || seasons[0];
                 setSelectedEp(String(season?.episodes?.[0]?.ep || 1));
+                setEpisodesExpanded(false);
               }}
             >
               {seasons.map((s) => (
@@ -225,7 +241,7 @@ export default function DetailClient({ slug, detail, episodes }) {
             </select>
           </div>
           <div className={styles.episodes}>
-            {(activeSeason?.episodes || []).slice(0, 100).map((ep) => {
+            {visibleEpisodes.map((ep) => {
               const active =
                 String(ep.se) === String(selectedSe) &&
                 String(ep.ep) === String(selectedEp);
@@ -248,6 +264,17 @@ export default function DetailClient({ slug, detail, episodes }) {
               );
             })}
           </div>
+          {episodeList.length > EPISODE_PREVIEW_COUNT ? (
+            <button
+              type="button"
+              className={styles.episodesToggle}
+              onClick={() => setEpisodesExpanded((value) => !value)}
+            >
+              {episodesExpanded
+                ? "Show fewer episodes"
+                : `Show all ${episodeList.length} episodes`}
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -277,6 +304,28 @@ export default function DetailClient({ slug, detail, episodes }) {
                   <p className={styles.castRole}>{person.role}</p>
                 ) : null}
               </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {related.length ? (
+        <section className={styles.block}>
+          <div className={styles.relatedHead}>
+            <h2 className={styles.blockTitle}>Related</h2>
+            {related.length > 6 ? (
+              <button
+                type="button"
+                className={styles.relatedToggle}
+                onClick={() => setRelatedExpanded((value) => !value)}
+              >
+                {relatedExpanded ? "Show less" : "Show more"}
+              </button>
+            ) : null}
+          </div>
+          <div className={styles.relatedGrid}>
+            {visibleRelated.map((item) => (
+              <TitleCard key={item.slug} item={item} />
             ))}
           </div>
         </section>

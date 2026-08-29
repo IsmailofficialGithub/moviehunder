@@ -48,6 +48,7 @@ const VERSION_PATHS = [
   path.join(REPO_ROOT, "web", "public", "version.json"),
   path.join(MOBILE_ROOT, "version.example.json"),
 ];
+const RELEASE_METADATA_PATH = path.join(REPO_ROOT, "release-metadata.json");
 
 function parseArgs(argv) {
   const out = {
@@ -202,6 +203,38 @@ function readJson(filePath) {
 function writeJson(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+function readReleaseMetadata(version) {
+  if (!fs.existsSync(RELEASE_METADATA_PATH)) return null;
+  try {
+    const data = readJson(RELEASE_METADATA_PATH);
+    const key = String(version || "").replace(/^v/i, "");
+    const metadata = data?.releases?.[key];
+    return metadata && typeof metadata === "object" ? metadata : null;
+  } catch {
+    return null;
+  }
+}
+
+function notesFromMetadata(metadata) {
+  if (!metadata) return "";
+  const labels = [
+    ["Added", metadata.added],
+    ["Changed", metadata.changed],
+    ["Fixed", metadata.fixed],
+    ["Removed", metadata.removed],
+  ];
+  return [
+    metadata.summary ? String(metadata.summary) : "",
+    ...labels.flatMap(([label, values]) =>
+      Array.isArray(values) && values.length
+        ? [`\n${label}`, ...values.map((value) => `- ${value}`)]
+        : []
+    ),
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function bumpSemverPatch(version) {
@@ -503,11 +536,20 @@ function findLocalArtifact(platform, version) {
   return files[0] ? path.join(dir, files[0].f) : "";
 }
 
-function writeVersionFiles({ version, versionCode, apkUrl, ipaUrl, notes, force }) {
+function writeVersionFiles({
+  version,
+  versionCode,
+  apkUrl,
+  ipaUrl,
+  notes,
+  metadata,
+  force,
+}) {
   const payload = {
     latest_version: version,
     min_supported_version: version,
     release_notes: notes || `MovieHunter v${version}`,
+    release_metadata: metadata || {},
     android: {
       version_code: versionCode,
       apk_url: apkUrl || "",
@@ -643,9 +685,8 @@ async function main() {
     log(`Using existing app.json version ${version} (code ${versionCode})`);
   }
 
-  const notes =
-    opts.notes ||
-    `MovieHunter v${version}`;
+  const metadata = readReleaseMetadata(version);
+  const notes = opts.notes || notesFromMetadata(metadata) || `MovieHunter v${version}`;
 
   const platforms =
     opts.platform === "all" ? ["android", "ios"] : [opts.platform];
@@ -671,6 +712,7 @@ async function main() {
     apkUrl,
     ipaUrl,
     notes,
+    metadata,
     force: opts.forceUpdate,
   });
 

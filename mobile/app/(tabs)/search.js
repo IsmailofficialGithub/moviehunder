@@ -28,11 +28,18 @@ import {
   removeSearchHistory,
   subscribeSearchHistory,
 } from "../../lib/searchHistory";
+import {
+  getCachedSearch,
+  getLastSearchQuery,
+  setCachedSearch,
+  setLastSearchQuery,
+} from "../../lib/searchCache";
 import { colors, radii, spacing } from "../../lib/theme";
 
 export default function SearchScreen() {
   const params = useLocalSearchParams();
-  const initial = typeof params.q === "string" ? params.q : "";
+  const initial =
+    typeof params.q === "string" ? params.q : getLastSearchQuery();
   const [q, setQ] = useState(initial);
   const [movies, setMovies] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -74,6 +81,16 @@ export default function SearchScreen() {
       return;
     }
 
+    const cached = getCachedSearch(query);
+    if (cached) {
+      setLastSearchQuery(query);
+      setMovies(cached);
+      setSearched(true);
+      setBlocked(false);
+      setLoading(false);
+      return;
+    }
+
     const reqId = ++searchReq.current;
     setLoading(true);
     setBlocked(false);
@@ -95,6 +112,8 @@ export default function SearchScreen() {
         return;
       }
       setMovies(safeMovies);
+      setCachedSearch(query, safeMovies);
+      setLastSearchQuery(query);
       setSearched(true);
       if (
         saveHistory &&
@@ -187,6 +206,7 @@ export default function SearchScreen() {
     setShowSuggestions(false);
     setSuggestions([]);
     setQ("");
+    setLastSearchQuery("");
     setMovies([]);
     setSearched(false);
     setBlocked(false);

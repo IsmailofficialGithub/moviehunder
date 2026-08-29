@@ -47,6 +47,21 @@ export function getLocalVersionCode() {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeReleaseMetadata(value) {
+  if (!value || typeof value !== "object") return null;
+  const list = (name) =>
+    Array.isArray(value[name])
+      ? value[name].map((item) => String(item)).filter(Boolean)
+      : [];
+  return {
+    summary: String(value.summary || "").trim(),
+    added: list("added"),
+    changed: list("changed"),
+    fixed: list("fixed"),
+    removed: list("removed"),
+  };
+}
+
 /** Compare semver-like strings. -1 if a<b, 0 equal, 1 if a>b */
 export function compareSemver(a, b) {
   const pa = String(a || "0")
@@ -76,6 +91,7 @@ export function compareSemver(a, b) {
  * @property {string} currentVersion
  * @property {number} currentVersionCode
  * @property {string} [releaseNotes]
+ * @property {object} [releaseMetadata]
  * @property {string} [apkUrl]
  * @property {string} [releasesUrl]
  * @property {boolean} canInstallApk
@@ -105,6 +121,9 @@ export async function checkForAppUpdate() {
       data.min_supported_version || data.minSupportedVersion || latestVersion
     ).replace(/^v/i, "");
     const releaseNotes = String(data.release_notes || data.releaseNotes || "");
+    const releaseMetadata = normalizeReleaseMetadata(
+      data.release_metadata || data.releaseMetadata
+    );
     const android = data.android || {};
     const remoteCode = Number(android.version_code ?? android.versionCode) || 0;
     const apkUrl = String(
@@ -136,6 +155,7 @@ export async function checkForAppUpdate() {
       currentVersion,
       currentVersionCode,
       releaseNotes,
+      releaseMetadata,
       apkUrl,
       releasesUrl,
       canInstallApk:

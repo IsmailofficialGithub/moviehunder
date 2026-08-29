@@ -19,6 +19,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer } from "expo-video/build/VideoPlayer";
 import { VideoView } from "expo-video/build/VideoView";
+import * as Brightness from "expo-brightness";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
@@ -57,6 +58,7 @@ const SEEK_STEP = 10;
 const AUTO_MAX = 720;
 const PRELOAD_BUFFER_SEC = 2;
 const PRELOAD_TIMEOUT_MS = 18000;
+const SIDE_GESTURE_PX = 280;
 
 const DISPLAY_MODES = [
   {
@@ -134,6 +136,8 @@ export default function PlayScreen() {
   const se = String(params.se ?? "0");
   const ep = String(params.ep ?? "0");
   const title = String(params.title || "Now playing");
+  const poster = String(params.poster || "");
+  const kind = String(params.kind || (Number(se) > 0 || Number(ep) > 0 ? "series" : "movie"));
   const wantsAutoplay = params.autoplay !== "0";
   const downloadIdRaw = String(params.downloadId || "");
   let downloadId = "";
@@ -157,6 +161,7 @@ export default function PlayScreen() {
   const [settingsTab, setSettingsTab] = useState("quality"); // quality | screen | rotate
   const [displayMode, setDisplayMode] = useState("fit");
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [volume, setVolume] = useState(1);
   const [videoPan, setVideoPan] = useState({ x: 0, y: 0 });
   const [chipHint, setChipHint] = useState("");
   const [orientMode, setOrientMode] = useState("sensor"); // portrait | landscape | sensor
@@ -189,6 +194,23 @@ export default function PlayScreen() {
   const preloadPollRef = useRef(null);
   const preloadedRef = useRef(false);
   const videoPanStart = useRef({ x: 0, y: 0 });
+  const playbackRateRef = useRef(1);
+  const volumeRef = useRef(1);
+  const brightnessRef = useRef(0.5);
+  const brightnessReadyRef = useRef(false);
+  const sideGestureStart = useRef({
+    side: "",
+    y: 0,
+    volume: 1,
+    brightness: 0.5,
+  });
+  const sideGestureMoved = useRef(false);
+  const holdSpeedRef = useRef({
+    active: false,
+    triggered: false,
+    wasPlaying: false,
+    previousRate: 1,
+  });
   const resumeOfferRef = useRef(null);
   const lastProgressSaveRef = useRef(0);
   const progressKeyRef = useRef("");
@@ -205,6 +227,8 @@ export default function PlayScreen() {
   );
   progressKeyRef.current = progressKey;
   resumeOfferRef.current = resumeOffer;
+  playbackRateRef.current = playbackRate;
+  volumeRef.current = volume;
 
   const active = sources[qualityIndex] || null;
 
@@ -226,11 +250,33 @@ export default function PlayScreen() {
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
     p.timeUpdateEventInterval = 0.5;
+    p.preservesPitch = true;
+    p.volume = 1;
   });
 
   const { isPlaying } = useEvent(player, "playingChange", {
     isPlaying: player.playing,
   });
+
+  useEffect(() => {
+    try {
+      const currentVolume = Number(player.volume);
+      if (Number.isFinite(currentVolume)) {
+        volumeRef.current = Math.max(0, Math.min(1, currentVolume));
+        setVolume(volumeRef.current);
+      }
+    } catch {
+      /* use the default volume */
+    }
+    Brightness.getBrightnessAsync()
+      .then((value) => {
+        if (Number.isFinite(value)) {
+          brightnessRef.current = Math.max(0, Math.min(1, value));
+          brightnessReadyRef.current = true;
+        }
+      })
+      .catch(() => {});
+  }, [player]);
 
   const clearPreloadTimers = useCallback(() => {
     clearTimeout(preloadTimerRef.current);
@@ -376,6 +422,12 @@ export default function PlayScreen() {
             position: t,
             duration: d,
             title,
+            subjectId,
+            detailPath,
+            se,
+            ep,
+            poster,
+            kind,
           }).catch(() => {});
         }
       } catch {
@@ -422,9 +474,17 @@ export default function PlayScreen() {
         const d = player.duration || 0;
         const key = progressKeyRef.current;
         if (key && t > 5) {
-          saveWatchProgress(key, { position: t, duration: d, title }).catch(
-            () => {}
-          );
+          saveWatchProgress(key, {
+            position: t,
+            duration: d,
+            title,
+            subjectId,
+            detailPath,
+            se,
+            ep,
+            poster,
+            kind,
+          }).catch(() => {});
         }
       } catch {
         /* ignore */
@@ -704,6 +764,9 @@ export default function PlayScreen() {
           player.replace(playUri, true);
         }
         if (cancelled) return;
+        player.preservesPitch = true;
+        player.playbackRate = playbackRateRef.current;
+        player.volume = volumeRef.current;
 
         if (isOffline) {
           try {
@@ -950,9 +1013,122 @@ export default function PlayScreen() {
       /* ignore */
     }
     setPlaybackRate(next);
+    playbackRateRef.current = next;
     flashChipHint(formatSpeed(next));
     showControls();
   }, [playbackRate, player, flashChipHint, showControls]);
+
+  const beginHoldSpeed = useCallback(() => {
+    if (locked || holdSpeedRef.current.active) return;
+    let wasPlaying = false;
+    try {
+      wasPlaying = Boolean(player.playing);
+      player.preservesPitch = true;
+      player.playbackRate = 2;
+      if (!wasPlaying) player.play();
+    } catch {
+      return;
+    }
+    holdSpeedRef.current = {
+      active: true,
+      triggered: true,
+      wasPlaying,
+      previousRate: playbackRateRef.current,
+    };
+    flashChipHint("2x while held");
+    showControls();
+  }, [locked, player, flashChipHint, showControls]);
+
+  const endHoldSpeed = useCallback(() => {
+    const hold = holdSpeedRef.current;
+    if (!hold.active) return;
+    try {
+      player.playbackRate = hold.previousRate;
+      player.preservesPitch = true;
+      if (!hold.wasPlaying) player.pause();
+    } catch {
+      /* ignore */
+    }
+    holdSpeedRef.current = {
+      ...hold,
+      active: false,
+    };
+    flashChipHint(formatSpeed(hold.previousRate));
+  }, [player, flashChipHint]);
+
+  const startSideGesture = useCallback(
+    (side, pageY) => {
+      sideGestureStart.current = {
+        side,
+        y: pageY,
+        volume: volumeRef.current,
+        brightness: brightnessRef.current,
+      };
+      sideGestureMoved.current = false;
+      showControls();
+    },
+    [showControls]
+  );
+
+  const updateSideGesture = useCallback(
+    (gestureState) => {
+      const start = sideGestureStart.current;
+      if (!start.side) return;
+      const dy = gestureState.dy || 0;
+      if (Math.abs(dy) < 8) return;
+      sideGestureMoved.current = true;
+      const next = Math.max(
+        0,
+        Math.min(1, (start[start.side] || 0) + -dy / SIDE_GESTURE_PX)
+      );
+      if (start.side === "volume") {
+        volumeRef.current = next;
+        try {
+          player.volume = next;
+        } catch {
+          /* ignore */
+        }
+        setVolume(next);
+        flashChipHint(`Volume ${Math.round(next * 100)}%`);
+        return;
+      }
+      brightnessRef.current = next;
+      Brightness.setBrightnessAsync(next).catch(() => {});
+      flashChipHint(`Brightness ${Math.round(next * 100)}%`);
+    },
+    [player, flashChipHint]
+  );
+
+  const sideResponders = useMemo(() => {
+    const create = (side) =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          !locked &&
+          Math.abs(gestureState.dy) > 10 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+          !locked &&
+          Math.abs(gestureState.dy) > 10 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        onPanResponderGrant: (event) =>
+          startSideGesture(side, event.nativeEvent.pageY),
+        onPanResponderMove: (_, gestureState) =>
+          updateSideGesture(gestureState),
+        onPanResponderRelease: () => {
+          sideGestureStart.current.side = "";
+          if (sideGestureMoved.current) showControls();
+        },
+        onPanResponderTerminate: () => {
+          sideGestureStart.current.side = "";
+        },
+        onPanResponderTerminationRequest: () => false,
+      });
+    return {
+      left: create("volume"),
+      right: create("brightness"),
+    };
+  }, [locked, startSideGesture, updateSideGesture, showControls]);
 
   const displayActive =
     DISPLAY_MODES.find((m) => m.id === displayMode) || DISPLAY_MODES[0];
@@ -1223,14 +1399,39 @@ export default function PlayScreen() {
                 pointerEvents="box-none"
                 {...(canPanVideo ? videoPanResponder.panHandlers : {})}
               >
-                <Pressable
-                  style={styles.tapHalf}
-                  onPress={() => onTapSide("left")}
-                />
-                <Pressable
-                  style={styles.tapHalf}
-                  onPress={() => onTapSide("right")}
-                />
+                {[
+                  ["left", sideResponders.left],
+                  ["right", sideResponders.right],
+                ].map(([side, responder]) => (
+                  <View
+                    key={side}
+                    style={styles.tapHalf}
+                    {...responder.panHandlers}
+                  >
+                    <Pressable
+                      style={styles.tapPressable}
+                      delayLongPress={350}
+                      onPressIn={() => {
+                        sideGestureMoved.current = false;
+                        if (
+                          !holdSpeedRef.current.active &&
+                          holdSpeedRef.current.triggered
+                        ) {
+                          holdSpeedRef.current.triggered = false;
+                        }
+                      }}
+                      onLongPress={beginHoldSpeed}
+                      onPressOut={endHoldSpeed}
+                      onPress={() => {
+                        if (holdSpeedRef.current.triggered) {
+                          holdSpeedRef.current.triggered = false;
+                          return;
+                        }
+                        if (!sideGestureMoved.current) onTapSide(side);
+                      }}
+                    />
+                  </View>
+                ))}
               </View>
             ) : null}
 
@@ -1676,6 +1877,9 @@ const styles = StyleSheet.create({
   tapHalf: {
     flex: 1,
     height: "100%",
+  },
+  tapPressable: {
+    flex: 1,
   },
   topBar: {
     position: "absolute",
