@@ -100,7 +100,7 @@ export default function HistoryScreen() {
           </View>
           {entries.length ? (
             <Pressable onPress={confirmClearAll} style={styles.clearButton}>
-              <Ionicons name="trash-outline" size={15} color={colors.danger} />
+              <Ionicons name="trash-bin-outline" size={16} color={colors.danger} />
               <Text style={styles.clearText}>Clear all</Text>
             </Pressable>
           ) : null}
