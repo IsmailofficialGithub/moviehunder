@@ -8,7 +8,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import ProgressBorder from "../components/ProgressBorder";
 import Screen from "../components/Screen";
@@ -27,7 +26,6 @@ import { colors, radii, spacing } from "../lib/theme";
 const GROUPS = ["Today", "Yesterday", "Last 3 days", "Last 7 days"];
 
 export default function HistoryScreen() {
-  const router = useRouter();
   const [entries, setEntries] = useState([]);
   const [viewMode, setViewMode] = useState("grid");
 
@@ -68,12 +66,8 @@ export default function HistoryScreen() {
   return (
     <Screen edges={["top", "left", "right", "bottom"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.back}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </Pressable>
         <View style={styles.headerCopy}>
           <Text style={styles.title}>Watch history</Text>
-          <Text style={styles.subtitle}>Your latest 30 videos and episodes</Text>
         </View>
         <View style={styles.toolbarActions}>
           <View style={styles.viewToggle}>
@@ -230,12 +224,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
-  back: {
-    padding: 3,
-  },
   headerCopy: {
     flex: 1,
-    gap: 2,
   },
   title: {
     color: colors.text,
@@ -276,10 +266,6 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 11,
     fontWeight: "700",
-  },
-  subtitle: {
-    color: colors.muted,
-    fontSize: 11,
   },
   content: {
     padding: spacing.md,
