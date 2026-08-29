@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import ProgressBorder from "../components/ProgressBorder";
 import Screen from "../components/Screen";
@@ -26,6 +27,7 @@ import { colors, radii, spacing } from "../lib/theme";
 const GROUPS = ["Today", "Yesterday", "Last 3 days", "Last 7 days"];
 
 export default function HistoryScreen() {
+  const router = useRouter();
   const [entries, setEntries] = useState([]);
   const [viewMode, setViewMode] = useState("grid");
 
@@ -65,8 +67,14 @@ export default function HistoryScreen() {
 
   return (
     <Screen edges={["top", "left", "right", "bottom"]}>
-      <View style={styles.toolbar}>
-        <Text style={styles.subtitle}>Your latest 30 videos and episodes</Text>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.back}>
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
+        </Pressable>
+        <View style={styles.headerCopy}>
+          <Text style={styles.title}>Watch history</Text>
+          <Text style={styles.subtitle}>Your latest 30 videos and episodes</Text>
+        </View>
         <View style={styles.toolbarActions}>
           <View style={styles.viewToggle}>
             <Pressable
@@ -212,7 +220,7 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  toolbar: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -221,6 +229,18 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
+  },
+  back: {
+    padding: 3,
+  },
+  headerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  title: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "800",
   },
   toolbarActions: {
     flexDirection: "row",
@@ -260,7 +280,6 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.muted,
     fontSize: 11,
-    flex: 1,
   },
   content: {
     padding: spacing.md,
