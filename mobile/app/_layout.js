@@ -127,6 +127,10 @@ export default function RootLayout() {
                 }}
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="history"
+                  options={{ title: "Watch history" }}
+                />
                 <Stack.Screen name="title/[slug]" options={{ headerShown: false }} />
                 <Stack.Screen name="shorts/[slug]" options={{ headerShown: false }} />
                 <Stack.Screen

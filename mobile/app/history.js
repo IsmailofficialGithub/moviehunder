@@ -8,7 +8,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import ProgressBorder from "../components/ProgressBorder";
 import Screen from "../components/Screen";
@@ -27,8 +26,8 @@ import { colors, radii, spacing } from "../lib/theme";
 const GROUPS = ["Today", "Yesterday", "Last 3 days", "Last 7 days"];
 
 export default function HistoryScreen() {
-  const router = useRouter();
   const [entries, setEntries] = useState([]);
+  const [viewMode, setViewMode] = useState("grid");
 
   useEffect(() => {
     const refresh = () =>
@@ -66,20 +65,46 @@ export default function HistoryScreen() {
 
   return (
     <Screen edges={["top", "left", "right", "bottom"]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.back}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </Pressable>
-        <View style={styles.headerCopy}>
-          <Text style={styles.title}>Watch history</Text>
-          <Text style={styles.subtitle}>Your latest 30 videos and episodes</Text>
+      <View style={styles.toolbar}>
+        <Text style={styles.subtitle}>Your latest 30 videos and episodes</Text>
+        <View style={styles.toolbarActions}>
+          <View style={styles.viewToggle}>
+            <Pressable
+              onPress={() => setViewMode("grid")}
+              style={[
+                styles.viewButton,
+                viewMode === "grid" && styles.viewButtonActive,
+              ]}
+              accessibilityLabel="Box view"
+            >
+              <Ionicons
+                name="grid-outline"
+                size={17}
+                color={viewMode === "grid" ? colors.accentLight : colors.muted}
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => setViewMode("list")}
+              style={[
+                styles.viewButton,
+                viewMode === "list" && styles.viewButtonActive,
+              ]}
+              accessibilityLabel="Inline view"
+            >
+              <Ionicons
+                name="list-outline"
+                size={18}
+                color={viewMode === "list" ? colors.accentLight : colors.muted}
+              />
+            </Pressable>
+          </View>
+          {entries.length ? (
+            <Pressable onPress={confirmClearAll} style={styles.clearButton}>
+              <Ionicons name="trash-outline" size={15} color={colors.danger} />
+              <Text style={styles.clearText}>Clear all</Text>
+            </Pressable>
+          ) : null}
         </View>
-        {entries.length ? (
-          <Pressable onPress={confirmClearAll} hitSlop={8} style={styles.clear}>
-            <Ionicons name="trash-outline" size={18} color={colors.danger} />
-            <Text style={styles.clearText}>Clear</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       {grouped.length ? (
@@ -87,7 +112,7 @@ export default function HistoryScreen() {
           {grouped.map((group) => (
             <View key={group.label} style={styles.group}>
               <Text style={styles.groupTitle}>{group.label}</Text>
-              <View style={styles.grid}>
+              <View style={viewMode === "grid" ? styles.grid : styles.list}>
                 {group.entries.map((entry) => {
                   const percent = progressPercent(entry);
                   const episode =
@@ -95,22 +120,43 @@ export default function HistoryScreen() {
                       ? `S${entry.se}E${entry.ep}`
                       : "";
                   return (
-                    <View key={entry.key} style={styles.card}>
+                    <View
+                      key={entry.key}
+                      style={[
+                        styles.card,
+                        viewMode === "list" && styles.cardList,
+                      ]}
+                    >
                       <Pressable
                         onPress={() => openCatalogTitle(entry.detailPath)}
-                        style={styles.cardPressable}
+                        style={[
+                          styles.cardPressable,
+                          viewMode === "list" && styles.cardPressableList,
+                        ]}
                       >
                         <ProgressBorder
                           percent={percent}
-                          style={styles.posterBorder}
+                          style={[
+                            styles.posterBorder,
+                            viewMode === "list" && styles.posterBorderList,
+                          ]}
                         >
                           {entry.poster ? (
                             <Image
                               source={{ uri: entry.poster }}
-                              style={styles.poster}
+                              style={[
+                                styles.poster,
+                                viewMode === "list" && styles.posterList,
+                              ]}
                             />
                           ) : (
-                            <View style={[styles.poster, styles.posterEmpty]}>
+                            <View
+                              style={[
+                                styles.poster,
+                                styles.posterEmpty,
+                                viewMode === "list" && styles.posterList,
+                              ]}
+                            >
                               <Ionicons
                                 name="film-outline"
                                 size={24}
@@ -119,19 +165,21 @@ export default function HistoryScreen() {
                             </View>
                           )}
                         </ProgressBorder>
-                        <Text style={styles.name} numberOfLines={2}>
-                          {entry.title}
-                        </Text>
-                        <Text style={styles.meta} numberOfLines={1}>
-                          {[episode, `${percent}% watched`]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </Text>
-                        {entry.position ? (
-                          <Text style={styles.resume} numberOfLines={1}>
-                            Resume at {formatResumeTime(entry.position)}
+                        <View style={viewMode === "list" ? styles.cardInfo : null}>
+                          <Text style={styles.name} numberOfLines={2}>
+                            {entry.title}
                           </Text>
-                        ) : null}
+                          <Text style={styles.meta} numberOfLines={1}>
+                            {[episode, `${percent}% watched`]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </Text>
+                          {entry.position ? (
+                            <Text style={styles.resume} numberOfLines={1}>
+                              Resume at {formatResumeTime(entry.position)}
+                            </Text>
+                          ) : null}
+                        </View>
                       </Pressable>
                       <Pressable
                         onPress={() =>
@@ -168,7 +216,7 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
+  toolbar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -178,31 +226,45 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
-  back: {
-    padding: 3,
+  toolbarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  headerCopy: {
-    flex: 1,
+  viewToggle: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 8,
+    overflow: "hidden",
   },
-  title: {
-    color: colors.text,
-    fontSize: 21,
-    fontWeight: "800",
+  viewButton: {
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+  },
+  viewButtonActive: {
+    backgroundColor: colors.accentMuted,
+  },
+  clearButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderColor: "rgba(248, 113, 113, 0.35)",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: "rgba(248, 113, 113, 0.08)",
+  },
+  clearText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "700",
   },
   subtitle: {
     color: colors.muted,
     fontSize: 11,
-    marginTop: 2,
-  },
-  clear: {
-    alignItems: "center",
-    gap: 2,
-    padding: 4,
-  },
-  clearText: {
-    color: colors.danger,
-    fontSize: 10,
-    fontWeight: "700",
+    flex: 1,
   },
   content: {
     padding: spacing.md,
@@ -221,12 +283,32 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.md,
   },
+  list: {
+    gap: spacing.sm,
+  },
   card: {
     width: "47%",
     position: "relative",
   },
+  cardList: {
+    width: "100%",
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.md,
+    padding: 10,
+  },
   cardPressable: {
     paddingBottom: 4,
+  },
+  cardPressableList: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingRight: 24,
+  },
+  cardInfo: {
+    flex: 1,
   },
   posterBorder: {
     borderRadius: 9,
@@ -236,6 +318,14 @@ const styles = StyleSheet.create({
     aspectRatio: 0.7,
     borderRadius: 8,
     backgroundColor: colors.panel,
+  },
+  posterList: {
+    width: 72,
+    height: 100,
+    aspectRatio: undefined,
+  },
+  posterBorderList: {
+    flexShrink: 0,
   },
   posterEmpty: {
     alignItems: "center",
