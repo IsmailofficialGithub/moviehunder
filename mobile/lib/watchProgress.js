@@ -178,6 +178,14 @@ export async function clearWatchProgress(key) {
   }
 }
 
+export async function clearAllWatchProgress() {
+  await hydrate();
+  if (!Object.keys(cache).length) return;
+  cache = {};
+  schedulePersist();
+  emit();
+}
+
 export function formatResumeTime(seconds) {
   const t = Math.max(0, Math.floor(Number(seconds) || 0));
   const h = Math.floor(t / 3600);

@@ -9,6 +9,7 @@ export const HOME_CATEGORIES = [
   { id: "tv", label: "TV" },
   { id: "animation", label: "Anime" },
   { id: "ranking", label: "Top" },
+  { id: "history", label: "History" },
 ];
 
 export default function CategoryBar({ activeId, onChange }) {

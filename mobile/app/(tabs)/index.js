@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import BannerCarousel from "../../components/BannerCarousel";
 import CatalogSection from "../../components/CatalogSection";
 import CategoryBar from "../../components/CategoryBar";
@@ -19,7 +19,6 @@ import HotShortsSection from "../../components/HotShortsSection";
 import LazyHList from "../../components/LazyHList";
 import Screen from "../../components/Screen";
 import WideTitleCard from "../../components/WideTitleCard";
-import WatchHistorySection from "../../components/WatchHistorySection";
 import {
   getAnimation,
   getHome,
@@ -106,6 +105,7 @@ function orderHomeRows(sections) {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [cacheReady, setCacheReady] = useState(false);
   const [category, setCategory] = useState("trending");
   const [sections, setSections] = useState([]);
@@ -266,6 +266,10 @@ export default function HomeScreen() {
 
   const onCategoryChange = useCallback(
     (id) => {
+      if (id === "history") {
+        router.push("/history");
+        return;
+      }
       if (id === category) return;
       saveTabScroll(scrollKey, scrollYRef.current);
       scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -285,7 +289,7 @@ export default function HomeScreen() {
         setError("");
       }
     },
-    [applySections, category, scrollKey]
+    [applySections, category, router, scrollKey]
   );
 
   const { trending: featuredRow, ordered: otherRows } = useMemo(
@@ -378,8 +382,6 @@ export default function HomeScreen() {
               {bannerItems.length ? (
                 <BannerCarousel items={bannerItems} />
               ) : null}
-
-              {category === "trending" ? <WatchHistorySection /> : null}
 
               {featuredRow ? (
                 <View style={styles.wideBlock}>
