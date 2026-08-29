@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -13,7 +12,6 @@ import ProgressBorder from "../components/ProgressBorder";
 import Screen from "../components/Screen";
 import { openCatalogTitle } from "../lib/catalogNav";
 import {
-  clearAllWatchProgress,
   clearWatchProgress,
   formatResumeTime,
   getWatchHistory,
@@ -48,64 +46,44 @@ export default function HistoryScreen() {
     );
   }, [entries]);
 
-  const confirmClearAll = () => {
-    Alert.alert(
-      "Clear watch history?",
-      "This removes all saved watch progress from this device.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear all",
-          style: "destructive",
-          onPress: () => clearAllWatchProgress().catch(() => {}),
-        },
-      ]
-    );
-  };
-
   return (
     <Screen edges={["top", "left", "right", "bottom"]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
           <Text style={styles.title}>Watch history</Text>
         </View>
-        <View style={styles.toolbarActions}>
-          <View style={styles.viewToggle}>
-            <Pressable
-              onPress={() => setViewMode("grid")}
-              style={[
-                styles.viewButton,
-                viewMode === "grid" && styles.viewButtonActive,
-              ]}
-              accessibilityLabel="Box view"
-            >
-              <Ionicons
-                name="grid-outline"
-                size={17}
-                color={viewMode === "grid" ? colors.accentLight : colors.muted}
-              />
-            </Pressable>
-            <Pressable
-              onPress={() => setViewMode("list")}
-              style={[
-                styles.viewButton,
-                viewMode === "list" && styles.viewButtonActive,
-              ]}
-              accessibilityLabel="Inline view"
-            >
-              <Ionicons
-                name="list-outline"
-                size={18}
-                color={viewMode === "list" ? colors.accentLight : colors.muted}
-              />
-            </Pressable>
-          </View>
-          {entries.length ? (
-            <Pressable onPress={confirmClearAll} style={styles.clearButton}>
-              <Ionicons name="trash-bin-outline" size={16} color={colors.danger} />
-              <Text style={styles.clearText}>Clear all</Text>
-            </Pressable>
-          ) : null}
+      </View>
+      <View style={styles.viewToolbar}>
+        <Text style={styles.viewLabel}>View</Text>
+        <View style={styles.viewToggle}>
+          <Pressable
+            onPress={() => setViewMode("grid")}
+            style={[
+              styles.viewButton,
+              viewMode === "grid" && styles.viewButtonActive,
+            ]}
+            accessibilityLabel="Box view"
+          >
+            <Ionicons
+              name="grid-outline"
+              size={17}
+              color={viewMode === "grid" ? colors.accentLight : colors.muted}
+            />
+          </Pressable>
+          <Pressable
+            onPress={() => setViewMode("list")}
+            style={[
+              styles.viewButton,
+              viewMode === "list" && styles.viewButtonActive,
+            ]}
+            accessibilityLabel="Inline view"
+          >
+            <Ionicons
+              name="list-outline"
+              size={18}
+              color={viewMode === "list" ? colors.accentLight : colors.muted}
+            />
+          </Pressable>
         </View>
       </View>
 
@@ -232,10 +210,17 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
   },
-  toolbarActions: {
+  viewToolbar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  viewLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
   },
   viewToggle: {
     flexDirection: "row",
@@ -250,22 +235,6 @@ const styles = StyleSheet.create({
   },
   viewButtonActive: {
     backgroundColor: colors.accentMuted,
-  },
-  clearButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderColor: "rgba(248, 113, 113, 0.35)",
-    borderRadius: 8,
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-    backgroundColor: "rgba(248, 113, 113, 0.08)",
-  },
-  clearText: {
-    color: colors.danger,
-    fontSize: 11,
-    fontWeight: "700",
   },
   content: {
     padding: spacing.md,
