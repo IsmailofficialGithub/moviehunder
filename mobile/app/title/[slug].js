@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -22,6 +22,7 @@ import { getCachedTitle, setCachedTitle } from "../../lib/titleCache";
 import { colors, radii, spacing } from "../../lib/theme";
 import {
   progressPercent,
+  getAllWatchProgress,
   subscribeWatchProgress,
   watchProgressKey,
 } from "../../lib/watchProgress";
@@ -70,6 +71,19 @@ export default function TitleScreen() {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   useEffect(() => subscribeWatchProgress(setWatchEntries), []);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      getAllWatchProgress()
+        .then((entries) => {
+          if (active) setWatchEntries(entries);
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -138,14 +152,23 @@ export default function TitleScreen() {
     () => new Map(watchEntries.map((entry) => [entry.key, entry])),
     [watchEntries]
   );
-  const watchEntryFor = (se = "0", ep = "0") =>
-    watchMap.get(
-      watchProgressKey({
-        subjectId,
-        se,
-        ep,
-      })
-    ) || null;
+  const watchEntryFor = (se = "0", ep = "0") => {
+    const key = watchProgressKey({
+      subjectId,
+      se,
+      ep,
+    });
+    return (
+      watchMap.get(key) ||
+      watchEntries.find(
+        (entry) =>
+          entry.detailPath === slug &&
+          String(entry.se ?? "0") === String(se ?? "0") &&
+          String(entry.ep ?? "0") === String(ep ?? "0")
+      ) ||
+      null
+    );
+  };
   const movieWatch = watchEntryFor("0", "0");
   const movieWatchPct = progressPercent(movieWatch);
   const castPeople = useMemo(() => {
