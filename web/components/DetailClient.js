@@ -57,6 +57,7 @@ export default function DetailClient({ slug, detail, episodes }) {
   const [selectedEp, setSelectedEp] = useState(defaults.ep);
   const [episodesExpanded, setEpisodesExpanded] = useState(false);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   const activeSeason = useMemo(
     () =>
@@ -72,6 +73,9 @@ export default function DetailClient({ slug, detail, episodes }) {
     [meta.related]
   );
   const visibleRelated = relatedExpanded ? related : related.slice(0, 6);
+  const description = meta.description || "No description available.";
+  const descriptionNeedsToggle =
+    description.length > 220 || description.split(/\s+/).length > 36;
 
   const genres = useMemo(
     () =>
@@ -280,9 +284,22 @@ export default function DetailClient({ slug, detail, episodes }) {
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>Overview</h2>
-        <p className={styles.desc}>
-          {meta.description || "No description available."}
+        <p className={`${styles.desc} ${
+          descriptionNeedsToggle && !descriptionExpanded
+            ? styles.descCollapsed
+            : ""
+        }`}>
+          {description}
         </p>
+        {descriptionNeedsToggle ? (
+          <button
+            type="button"
+            className={styles.descriptionToggle}
+            onClick={() => setDescriptionExpanded((value) => !value)}
+          >
+            {descriptionExpanded ? "Show less" : "Show more"}
+          </button>
+        ) : null}
       </section>
 
       {castPeople.length ? (

@@ -134,6 +134,23 @@
   font-size: 14px;
 }
 
+.descCollapsed {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.descriptionToggle {
+  border: 0;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 8px 0 0;
+}
+
 .seasonBar {
   display: flex;
   align-items: center;

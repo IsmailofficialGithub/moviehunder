@@ -67,6 +67,7 @@ export default function TitleScreen() {
   const [watchEntries, setWatchEntries] = useState([]);
   const [episodesExpanded, setEpisodesExpanded] = useState(false);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   useEffect(() => subscribeWatchProgress(setWatchEntries), []);
 
@@ -175,6 +176,9 @@ export default function TitleScreen() {
     .map((g) => g.trim())
     .filter(Boolean);
   const durationLabel = formatDuration(meta.duration);
+  const description = meta.description || "No description available.";
+  const descriptionNeedsToggle =
+    description.length > 220 || description.split(/\s+/).length > 36;
   const metaBits = [
     meta.release_date,
     durationLabel,
@@ -460,9 +464,24 @@ export default function TitleScreen() {
 
           <View style={styles.block}>
             <Text style={styles.blockTitle}>Overview</Text>
-            <Text style={styles.desc}>
-              {meta.description || "No description available."}
+            <Text style={styles.desc} numberOfLines={descriptionExpanded ? undefined : 3}>
+              {description}
             </Text>
+            {descriptionNeedsToggle ? (
+              <Pressable
+                style={styles.descriptionToggle}
+                onPress={() => setDescriptionExpanded((value) => !value)}
+              >
+                <Text style={styles.descriptionToggleText}>
+                  {descriptionExpanded ? "Show less" : "Show more"}
+                </Text>
+                <Ionicons
+                  name={descriptionExpanded ? "chevron-up" : "chevron-down"}
+                  size={15}
+                  color={colors.accent}
+                />
+              </Pressable>
+            ) : null}
           </View>
 
           {castPeople.length ? (
@@ -721,6 +740,18 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
     lineHeight: 21,
+  },
+  descriptionToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    marginTop: 8,
+  },
+  descriptionToggleText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "800",
   },
   castRow: {
     gap: 12,
