@@ -19,7 +19,8 @@
       "fixed": [
         "Completed episodes now remain visibly marked as 100% watched",
         "Video audio pitch stays natural when playback speed changes",
-        "Series and movie detail layouts no longer become unwieldy with many episodes"
+        "Series and movie detail layouts no longer become unwieldy with many episodes",
+        "Long update descriptions now scroll while the update buttons stay visible"
       ],
       "removed": []
     }

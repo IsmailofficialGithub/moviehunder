@@ -5,6 +5,8 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  ScrollView,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -109,9 +111,17 @@ export function AppUpdateGate({
   onLater,
 }) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   if (!info) return null;
 
   const pct = Math.round((progress || 0) * 100);
+  const softMaxHeight = Math.max(
+    220,
+    Math.min(
+      windowHeight * 0.92,
+      windowHeight - insets.top - insets.bottom - 16
+    )
+  );
   const releaseMetadata = info.releaseMetadata;
   const changeGroups = [
     ["Added", releaseMetadata?.added],
@@ -126,6 +136,7 @@ export function AppUpdateGate({
         styles.forceWrap,
         force ? styles.forceFull : styles.softSheet,
         { paddingBottom: insets.bottom + 16, paddingTop: force ? insets.top + 24 : 16 },
+        !force && { maxHeight: softMaxHeight },
       ]}
     >
       <Ionicons
@@ -139,30 +150,36 @@ export function AppUpdateGate({
       <Text style={styles.meta}>
         v{info.currentVersion} → v{info.latestVersion}
       </Text>
-      {releaseMetadata?.summary ? (
-        <Text style={styles.notes}>{releaseMetadata.summary}</Text>
-      ) : info.releaseNotes ? (
-        <Text style={styles.notes}>{info.releaseNotes}</Text>
-      ) : (
-        <Text style={styles.notes}>
-          A newer version of MovieHunter is ready. Install it to keep using the
-          app.
-        </Text>
-      )}
-      {changeGroups.length ? (
-        <View style={styles.changes}>
-          {changeGroups.map(([label, items]) => (
-            <View key={label} style={styles.changeGroup}>
-              <Text style={styles.changeTitle}>{label}</Text>
-              {items.map((item) => (
-                <Text key={`${label}-${item}`} style={styles.changeItem}>
-                  • {item}
-                </Text>
-              ))}
-            </View>
-          ))}
-        </View>
-      ) : null}
+      <ScrollView
+        style={styles.detailsScroll}
+        contentContainerStyle={styles.detailsContent}
+        showsVerticalScrollIndicator
+      >
+        {releaseMetadata?.summary ? (
+          <Text style={styles.notes}>{releaseMetadata.summary}</Text>
+        ) : info.releaseNotes ? (
+          <Text style={styles.notes}>{info.releaseNotes}</Text>
+        ) : (
+          <Text style={styles.notes}>
+            A newer version of MovieHunter is ready. Install it to keep using
+            the app.
+          </Text>
+        )}
+        {changeGroups.length ? (
+          <View style={styles.changes}>
+            {changeGroups.map(([label, items]) => (
+              <View key={label} style={styles.changeGroup}>
+                <Text style={styles.changeTitle}>{label}</Text>
+                {items.map((item) => (
+                  <Text key={`${label}-${item}`} style={styles.changeItem}>
+                    • {item}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </ScrollView>
 
       {busy ? (
         <View style={styles.progressBlock}>
@@ -244,6 +261,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   softSheet: {
+    width: "100%",
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     borderWidth: 1,
@@ -255,6 +273,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  detailsScroll: {
+    alignSelf: "stretch",
+    flexShrink: 1,
+    minHeight: 0,
+    marginVertical: 4,
+  },
+  detailsContent: {
+    alignItems: "center",
+    paddingBottom: 4,
   },
   title: {
     color: colors.text,
