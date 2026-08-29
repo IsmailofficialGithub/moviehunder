@@ -186,14 +186,10 @@ export default function HistoryScreen() {
                           clearWatchProgress(entry.key).catch(() => {})
                         }
                         hitSlop={8}
-                        style={styles.delete}
+                        style={styles.removeButton}
                         accessibilityLabel={`Remove ${entry.title} from history`}
                       >
-                        <Ionicons
-                          name="close-circle"
-                          size={19}
-                          color={colors.muted}
-                        />
+                        <Text style={styles.removeText}>Remove</Text>
                       </Pressable>
                     </View>
                   );
@@ -352,12 +348,21 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
   },
-  delete: {
+  removeButton: {
     position: "absolute",
     top: 5,
     right: 5,
-    backgroundColor: colors.bg,
-    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    backgroundColor: colors.panelSoft,
+  },
+  removeText: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "700",
   },
   empty: {
     flex: 1,
