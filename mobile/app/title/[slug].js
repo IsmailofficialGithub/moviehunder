@@ -69,6 +69,7 @@ export default function TitleScreen() {
   const [episodesExpanded, setEpisodesExpanded] = useState(false);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState(null);
 
   useEffect(() => subscribeWatchProgress(setWatchEntries), []);
   useFocusEffect(
@@ -242,12 +243,8 @@ export default function TitleScreen() {
   const closeDlSheet = () => setDlSheet(null);
 
   const onDownloadStarted = () => {
-    const targetTab = isSeries ? "series" : "movies";
     closeDlSheet();
-    router.navigate({
-      pathname: "/(tabs)/downloads",
-      params: { tab: targetTab },
-    });
+    setDownloadNotice({ tab: isSeries ? "series" : "movies" });
   };
 
   const openPlay = (se = "0", ep = "0") => {
@@ -299,6 +296,35 @@ export default function TitleScreen() {
   return (
     <View style={styles.page}>
       <DetailHeader title={loading ? "Details" : headerTitle} />
+      {downloadNotice ? (
+        <View style={styles.downloadNotice}>
+          <Ionicons
+            name="checkmark-circle-outline"
+            size={17}
+            color={colors.accentLight}
+          />
+          <Text style={styles.downloadNoticeText}>Download started</Text>
+          <Pressable
+            onPress={() => {
+              const tab = downloadNotice.tab;
+              setDownloadNotice(null);
+              router.navigate({
+                pathname: "/(tabs)/downloads",
+                params: { tab },
+              });
+            }}
+          >
+            <Text style={styles.downloadNoticeLink}>Open Downloads</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setDownloadNotice(null)}
+            hitSlop={8}
+            accessibilityLabel="Dismiss download message"
+          >
+            <Ionicons name="close" size={16} color={colors.muted} />
+          </Pressable>
+        </View>
+      ) : null}
       {loading ? (
         <TitleSkeleton />
       ) : error ? (
@@ -604,6 +630,30 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  downloadNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    backgroundColor: colors.accentMuted,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+  },
+  downloadNoticeText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  downloadNoticeLink: {
+    color: colors.accentLight,
+    fontSize: 12,
+    fontWeight: "800",
   },
   center: {
     flex: 1,
