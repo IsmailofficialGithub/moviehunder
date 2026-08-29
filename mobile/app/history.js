@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import DetailHeader from "../components/DetailHeader";
 import ProgressBorder from "../components/ProgressBorder";
 import Screen from "../components/Screen";
 import { openCatalogTitle } from "../lib/catalogNav";
@@ -47,12 +48,8 @@ export default function HistoryScreen() {
   }, [entries]);
 
   return (
-    <Screen edges={["top", "left", "right", "bottom"]}>
-      <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.title}>Watch history</Text>
-        </View>
-      </View>
+    <Screen edges={["left", "right", "bottom"]}>
+      <DetailHeader title="Watch history" />
       <View style={styles.viewToolbar}>
         <Text style={styles.viewLabel}>View</Text>
         <View style={styles.viewToggle}>
@@ -192,24 +189,6 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-  },
-  headerCopy: {
-    flex: 1,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-  },
   viewToolbar: {
     flexDirection: "row",
     alignItems: "center",
