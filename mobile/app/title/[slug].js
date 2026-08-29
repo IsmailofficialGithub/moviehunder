@@ -513,12 +513,10 @@ export default function TitleScreen() {
                           onPress={() => openPlay(ep.se, ep.ep)}
                         >
                           <Text style={styles.epText}>Ep {ep.ep}</Text>
-                          {watchPct > 0 ? (
-                            <Text style={styles.epWatch}>{watchPct}% watched</Text>
-                          ) : null}
-                          {download ? (
-                            <Text style={styles.epDownload}>
-                              {downloadPct}% downloaded
+                          {watchPct > 0 || download ? (
+                            <Text style={styles.epProgressLabel} numberOfLines={1}>
+                              {watchPct > 0 ? `${watchPct}%` : "—"}
+                              {download ? ` / DL ${downloadPct}%` : ""}
                             </Text>
                           ) : null}
                         </Pressable>
@@ -959,19 +957,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panel,
     borderRadius: 8,
     overflow: "hidden",
+    height: 50,
   },
   epProgressBorder: {
     borderRadius: 9,
   },
   epBtn: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 0,
     minWidth: 52,
+    minHeight: 50,
     alignItems: "center",
+    justifyContent: "center",
   },
   epDl: {
     paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingVertical: 0,
+    minHeight: 50,
+    justifyContent: "center",
     borderLeftWidth: 1,
     borderLeftColor: colors.line,
   },
@@ -980,17 +983,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 13,
   },
-  epWatch: {
-    color: colors.accentLight,
-    fontSize: 9,
-    fontWeight: "700",
-    marginTop: 2,
-  },
-  epDownload: {
+  epProgressLabel: {
     color: colors.muted,
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "600",
     marginTop: 1,
+    maxWidth: 78,
   },
   episodesToggle: {
     flexDirection: "row",
