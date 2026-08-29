@@ -1,7 +1,7 @@
 {
   "latest_version": "0.0.3",
   "min_supported_version": "0.0.3",
-  "release_notes": "A faster, clearer way to browse, watch, and continue titles across mobile and web.\n\nAdded\n- Watch progress on movie details and episode borders\n- Local watch history with the latest 30 videos grouped by date\n- Related title suggestions with Show more and Show less\n- Compact long-season episode lists\n- Hold the player for temporary 2x playback\n- Player volume and screen brightness swipe gestures\n\nChanged\n- Catalog and search results now return to title Details without losing search results\n- Recent searches keep the complete query, including multi-word searches\n- Downloads show both download progress and watched progress\n- Playback speed keeps the selected rate and restores it after a temporary 2x hold\n\nFixed\n- Completed episodes now remain visibly marked as 100% watched\n- Video audio pitch stays natural when playback speed changes\n- Series and movie detail layouts no longer become unwieldy with many episodes",
+  "release_notes": "A faster, clearer way to browse, watch, and continue titles across mobile and web.\n\nAdded\n- Watch progress on movie details and episode borders\n- Local watch history with the latest 30 videos grouped by date\n- Related title suggestions with Show more and Show less\n- Compact long-season episode lists\n- Hold the player for temporary 2x playback\n- Player volume and screen brightness swipe gestures\n\nChanged\n- Catalog and search results now return to title Details without losing search results\n- Recent searches keep the complete query, including multi-word searches\n- Downloads show both download progress and watched progress\n- Playback speed keeps the selected rate and restores it after a temporary 2x hold\n\nFixed\n- Completed episodes now remain visibly marked as 100% watched\n- Video audio pitch stays natural when playback speed changes\n- Series and movie detail layouts no longer become unwieldy with many episodes\n- Long update descriptions now scroll while the update buttons stay visible",
   "release_metadata": {
     "summary": "A faster, clearer way to browse, watch, and continue titles across mobile and web.",
     "added": [
@@ -21,7 +21,8 @@
     "fixed": [
       "Completed episodes now remain visibly marked as 100% watched",
       "Video audio pitch stays natural when playback speed changes",
-      "Series and movie detail layouts no longer become unwieldy with many episodes"
+      "Series and movie detail layouts no longer become unwieldy with many episodes",
+      "Long update descriptions now scroll while the update buttons stay visible"
     ],
     "removed": []
   },
