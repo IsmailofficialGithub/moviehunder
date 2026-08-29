@@ -138,6 +138,7 @@ export default function PlayScreen() {
   const title = String(params.title || "Now playing");
   const poster = String(params.poster || "");
   const kind = String(params.kind || (Number(se) > 0 || Number(ep) > 0 ? "series" : "movie"));
+  const durationHint = Number(params.duration) || 0;
   const wantsAutoplay = params.autoplay !== "0";
   const downloadIdRaw = String(params.downloadId || "");
   let downloadId = "";
@@ -214,6 +215,7 @@ export default function PlayScreen() {
   const resumeOfferRef = useRef(null);
   const lastProgressSaveRef = useRef(0);
   const progressKeyRef = useRef("");
+  const durationRef = useRef(durationHint);
 
   const progressKey = useMemo(
     () =>
@@ -408,7 +410,8 @@ export default function PlayScreen() {
       if (scrubbingRef.current) return;
       try {
         const t = player.currentTime || 0;
-        const d = player.duration || 0;
+        const d = player.duration || durationRef.current || durationHint;
+        durationRef.current = d;
         setCurrentTime(t);
         setDuration(d);
         const now = Date.now();
@@ -471,7 +474,7 @@ export default function PlayScreen() {
     return () => {
       try {
         const t = player.currentTime || 0;
-        const d = player.duration || 0;
+        const d = player.duration || durationRef.current || durationHint;
         const key = progressKeyRef.current;
         if (key && t > 5) {
           saveWatchProgress(key, {

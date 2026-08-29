@@ -17,6 +17,11 @@ import ProgressBorder from "../../components/ProgressBorder";
 import PosterCard from "../../components/PosterCard";
 import TitleSkeleton from "../../components/TitleSkeleton";
 import { getDetail, getEpisodes } from "../../lib/api";
+import {
+  hydrateDownloads,
+  progressOf as downloadProgressOf,
+  subscribeDownloads,
+} from "../../lib/downloads";
 import { prefetchStreams } from "../../lib/streamCache";
 import { getCachedTitle, setCachedTitle } from "../../lib/titleCache";
 import { colors, radii, spacing } from "../../lib/theme";
@@ -70,8 +75,13 @@ export default function TitleScreen() {
   const [relatedExpanded, setRelatedExpanded] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState(null);
+  const [downloadItems, setDownloadItems] = useState([]);
 
   useEffect(() => subscribeWatchProgress(setWatchEntries), []);
+  useEffect(() => {
+    hydrateDownloads().catch(() => {});
+    return subscribeDownloads(setDownloadItems);
+  }, []);
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -170,8 +180,21 @@ export default function TitleScreen() {
       null
     );
   };
+  const downloadFor = (se = "0", ep = "0") =>
+    downloadItems.find(
+      (item) =>
+        String(item.subjectId || "") === String(subjectId || "") &&
+        String(item.detailPath || "") === String(slug) &&
+        String(item.se ?? "0") === String(se ?? "0") &&
+        String(item.ep ?? "0") === String(ep ?? "0")
+    ) || null;
   const movieWatch = watchEntryFor("0", "0");
-  const movieWatchPct = progressPercent(movieWatch);
+  const movieWatchDisplay = movieWatch
+    ? { ...movieWatch, duration: movieWatch.duration || meta.duration }
+    : null;
+  const movieWatchPct = progressPercent(movieWatchDisplay);
+  const movieDownload = downloadFor("0", "0");
+  const movieDownloadPct = Math.round(downloadProgressOf(movieDownload) * 100);
   const castPeople = useMemo(() => {
     const list = Array.isArray(meta.top_cast) ? meta.top_cast : [];
     return list
@@ -268,6 +291,7 @@ export default function TitleScreen() {
         title: meta.title || slug,
         poster: meta.poster || "",
         kind: isSeries ? "series" : "movie",
+        duration: String(meta.duration || ""),
         autoplay: "1",
       },
     });
@@ -413,12 +437,20 @@ export default function TitleScreen() {
                 />
               </View>
               <Text style={styles.watchSummaryText}>
-                Watched {formatDuration(movieWatch?.position) || "a little"}
-                {movieWatch?.duration
-                  ? ` of ${formatDuration(movieWatch.duration)}`
+                Watched {formatDuration(movieWatchDisplay?.position) || "a little"}
+                {movieWatchDisplay?.duration
+                  ? ` of ${formatDuration(movieWatchDisplay.duration)}`
                   : ""}
               </Text>
             </View>
+          ) : null}
+          {!isSeries && movieDownload ? (
+            <Text style={styles.downloadProgressText}>
+              Download {movieDownloadPct}% ·{" "}
+              {movieDownload.status === "completed"
+                ? "ready"
+                : movieDownload.status || "in progress"}
+            </Text>
           ) : null}
 
           {genres.length ? (
@@ -463,33 +495,48 @@ export default function TitleScreen() {
                 ))}
               </ScrollView>
               <View style={styles.epGrid}>
-                {visibleEpisodes.map((ep) => (
-                  <ProgressBorder
-                    key={`${ep.se}-${ep.ep}`}
-                    percent={progressPercent(watchEntryFor(ep.se, ep.ep))}
-                    style={styles.epProgressBorder}
-                  >
-                    <View style={styles.epCell}>
-                      <Pressable
-                        style={styles.epBtn}
-                        onPress={() => openPlay(ep.se, ep.ep)}
-                      >
-                        <Text style={styles.epText}>Ep {ep.ep}</Text>
-                      </Pressable>
-                      <Pressable
-                        style={styles.epDl}
-                        onPress={() => openDownload(ep.se, ep.ep)}
-                        hitSlop={4}
-                      >
-                        <Ionicons
-                          name="download-outline"
-                          size={14}
-                          color={colors.accent}
-                        />
-                      </Pressable>
-                    </View>
-                  </ProgressBorder>
-                ))}
+                {visibleEpisodes.map((ep) => {
+                  const watchPct = progressPercent(
+                    watchEntryFor(ep.se, ep.ep)
+                  );
+                  const download = downloadFor(ep.se, ep.ep);
+                  const downloadPct = Math.round(downloadProgressOf(download) * 100);
+                  return (
+                    <ProgressBorder
+                      key={`${ep.se}-${ep.ep}`}
+                      percent={watchPct}
+                      style={styles.epProgressBorder}
+                    >
+                      <View style={styles.epCell}>
+                        <Pressable
+                          style={styles.epBtn}
+                          onPress={() => openPlay(ep.se, ep.ep)}
+                        >
+                          <Text style={styles.epText}>Ep {ep.ep}</Text>
+                          {watchPct > 0 ? (
+                            <Text style={styles.epWatch}>{watchPct}% watched</Text>
+                          ) : null}
+                          {download ? (
+                            <Text style={styles.epDownload}>
+                              {downloadPct}% downloaded
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                        <Pressable
+                          style={styles.epDl}
+                          onPress={() => openDownload(ep.se, ep.ep)}
+                          hitSlop={4}
+                        >
+                          <Ionicons
+                            name="download-outline"
+                            size={14}
+                            color={colors.accent}
+                          />
+                        </Pressable>
+                      </View>
+                    </ProgressBorder>
+                  );
+                })}
               </View>
               {hasMoreEpisodes ? (
                 <Pressable
@@ -785,6 +832,12 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 11,
   },
+  downloadProgressText: {
+    color: colors.accentLight,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: -spacing.xs,
+  },
   chips: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -926,6 +979,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "600",
     fontSize: 13,
+  },
+  epWatch: {
+    color: colors.accentLight,
+    fontSize: 9,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  epDownload: {
+    color: colors.muted,
+    fontSize: 9,
+    fontWeight: "600",
+    marginTop: 1,
   },
   episodesToggle: {
     flexDirection: "row",
