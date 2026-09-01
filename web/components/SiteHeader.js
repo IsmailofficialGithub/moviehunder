@@ -57,7 +57,7 @@ export default function SiteHeader() {
       return;
     }
     // Blocked queries: never fetch / show suggestions
-    const bypass = query.startsWith("@open");
+    const bypass = /^@open/i.test(query);
     if (!bypass && isSafeSearchBlocked(query)) {
       setSuggestions([]);
       setOpen(false);
@@ -69,7 +69,7 @@ export default function SiteHeader() {
       abortRef.current = ac;
       try {
         const data = await searchSuggest(query, { signal: ac.signal });
-        if (data?.blocked || (!bypass && isSafeSearchBlocked(query))) {
+        if ((data?.blocked && !bypass) || (!bypass && isSafeSearchBlocked(query))) {
           setSuggestions([]);
           setOpen(false);
           return;
@@ -105,7 +105,7 @@ export default function SiteHeader() {
     // Always route to /search — page + client gate show meme for blocked terms
     // Skip startTransition for blocked terms so autoplay keeps the user gesture
     const href = `/search?q=${encodeURIComponent(query)}`;
-    const bypass = query.startsWith("@open");
+    const bypass = /^@open/i.test(query);
     if (!bypass && isSafeSearchBlocked(query)) {
       router.push(href);
       return;
@@ -260,7 +260,9 @@ export default function SiteHeader() {
                 <li key={word}>
                   <button
                     type="button"
-                    onClick={() => goSearch(word)}
+                    onClick={() =>
+                      goSearch(/^@open/i.test(q) ? `@open ${word}` : word)
+                    }
                     disabled={pending}
                   >
                     <svg

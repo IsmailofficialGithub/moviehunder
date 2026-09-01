@@ -19,16 +19,16 @@ export default function SearchResultsClient({
   serverBlocked = false,
 }) {
   const q = String(query || "").trim();
-  const bypass = q.startsWith("@open");
+  const bypass = /^@open/i.test(q);
   const blocked =
-    serverBlocked ||
-    (!bypass &&
-      (isSafeSearchBlocked(q) ||
-        shouldBlockEmptyAdultSearch(
-          q,
-          movies,
-          filterSafeCatalogItems(movies)
-        )));
+    !bypass &&
+    (serverBlocked ||
+      isSafeSearchBlocked(q) ||
+      shouldBlockEmptyAdultSearch(
+        q,
+        movies,
+        filterSafeCatalogItems(movies)
+      ));
 
   if (blocked) {
     return <SafeSearchMeme key={`meme-${q}`} />;

@@ -33,8 +33,8 @@ export default async function SearchPage({ searchParams }) {
     );
   }
 
-  const bypass = rawQ.startsWith("@open");
-  const q = bypass ? rawQ.slice(5) : rawQ;
+  const bypass = /^@open/i.test(rawQ);
+  const q = bypass ? rawQ.replace(/^@open\s*/i, "").trim() : rawQ;
 
   if (!bypass) {
     const safe = checkSafeSearch(rawQ);
@@ -49,7 +49,7 @@ export default async function SearchPage({ searchParams }) {
 
   try {
     const data = await searchTitles(rawQ);
-    if (data?.blocked) {
+    if (data?.blocked && !bypass) {
       return (
         <main className="page">
           <SearchResultsClient query={rawQ} movies={[]} serverBlocked />
@@ -57,12 +57,14 @@ export default async function SearchPage({ searchParams }) {
       );
     }
 
-    let movies = data.movies || [];
+    let movies = data?.movies || [];
     const alreadyHindiQuery = /\bhindi\b|\bdub(bed)?\b/i.test(q);
 
     if (!alreadyHindiQuery && !alreadyHasHindiResults(movies)) {
       try {
-        const hindiData = await searchTitles(bypass ? `@open${q} hindi` : `${q} hindi`);
+        const hindiData = await searchTitles(
+          bypass ? (q ? `@open ${q} hindi` : "@open hindi") : `${q} hindi`
+        );
         if (!hindiData?.blocked) {
           movies = movies.length
             ? mergeWithHindiVariants(movies, hindiData.movies || [])
