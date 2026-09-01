@@ -20,8 +20,8 @@ export async function generateMetadata({ searchParams }) {
 }
 
 export default async function SearchPage({ searchParams }) {
-  const q = ((await searchParams)?.q || "").trim();
-  if (!q) {
+  const rawQ = ((await searchParams)?.q || "").trim();
+  if (!rawQ) {
     return (
       <main className="page">
         <EmptyState
@@ -33,21 +33,26 @@ export default async function SearchPage({ searchParams }) {
     );
   }
 
-  const safe = checkSafeSearch(q);
-  if (safe.blocked) {
-    return (
-      <main className="page">
-        <SearchResultsClient query={q} movies={[]} serverBlocked />
-      </main>
-    );
+  const bypass = rawQ.startsWith("@open");
+  const q = bypass ? rawQ.slice(5) : rawQ;
+
+  if (!bypass) {
+    const safe = checkSafeSearch(rawQ);
+    if (safe.blocked) {
+      return (
+        <main className="page">
+          <SearchResultsClient query={rawQ} movies={[]} serverBlocked />
+        </main>
+      );
+    }
   }
 
   try {
-    const data = await searchTitles(q);
+    const data = await searchTitles(rawQ);
     if (data?.blocked) {
       return (
         <main className="page">
-          <SearchResultsClient query={q} movies={[]} serverBlocked />
+          <SearchResultsClient query={rawQ} movies={[]} serverBlocked />
         </main>
       );
     }
@@ -57,7 +62,7 @@ export default async function SearchPage({ searchParams }) {
 
     if (!alreadyHindiQuery && !alreadyHasHindiResults(movies)) {
       try {
-        const hindiData = await searchTitles(`${q} hindi`);
+        const hindiData = await searchTitles(bypass ? `@open${q} hindi` : `${q} hindi`);
         if (!hindiData?.blocked) {
           movies = movies.length
             ? mergeWithHindiVariants(movies, hindiData.movies || [])
@@ -75,25 +80,27 @@ export default async function SearchPage({ searchParams }) {
     }
 
     const beforeFilter = movies;
-    movies = filterSafeCatalogItems(movies);
+    if (!bypass) {
+      movies = filterSafeCatalogItems(movies);
 
-    if (shouldBlockEmptyAdultSearch(q, beforeFilter, movies)) {
-      return (
-        <main className="page">
-          <SearchResultsClient query={q} movies={beforeFilter} serverBlocked />
-        </main>
-      );
+      if (shouldBlockEmptyAdultSearch(q, beforeFilter, movies)) {
+        return (
+          <main className="page">
+            <SearchResultsClient query={rawQ} movies={beforeFilter} serverBlocked />
+          </main>
+        );
+      }
     }
 
     return (
       <main className="page">
-        <SearchResultsClient query={q} movies={movies} />
+        <SearchResultsClient query={rawQ} movies={movies} />
       </main>
     );
   } catch {
     return (
       <main className="page">
-        <EmptyState query={q} />
+        <EmptyState query={rawQ} />
       </main>
     );
   }

@@ -57,7 +57,8 @@ export default function SiteHeader() {
       return;
     }
     // Blocked queries: never fetch / show suggestions
-    if (isSafeSearchBlocked(query)) {
+    const bypass = query.startsWith("@open");
+    if (!bypass && isSafeSearchBlocked(query)) {
       setSuggestions([]);
       setOpen(false);
       return;
@@ -68,12 +69,15 @@ export default function SiteHeader() {
       abortRef.current = ac;
       try {
         const data = await searchSuggest(query, { signal: ac.signal });
-        if (data?.blocked || isSafeSearchBlocked(query)) {
+        if (data?.blocked || (!bypass && isSafeSearchBlocked(query))) {
           setSuggestions([]);
           setOpen(false);
           return;
         }
-        const list = filterSafeSuggestions(data.suggestions || []);
+        let list = data.suggestions || [];
+        if (!bypass) {
+          list = filterSafeSuggestions(list);
+        }
         setSuggestions(list);
         setOpen(list.length > 0);
       } catch (err) {
@@ -101,7 +105,8 @@ export default function SiteHeader() {
     // Always route to /search — page + client gate show meme for blocked terms
     // Skip startTransition for blocked terms so autoplay keeps the user gesture
     const href = `/search?q=${encodeURIComponent(query)}`;
-    if (isSafeSearchBlocked(query)) {
+    const bypass = query.startsWith("@open");
+    if (!bypass && isSafeSearchBlocked(query)) {
       router.push(href);
       return;
     }

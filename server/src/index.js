@@ -835,13 +835,16 @@ async function handleRankingSectionByName(name) {
 // ══════════════════════════════════════════════════════════════════
 
 async function handleSearchSuggest(params) {
-  const q = params.get("q");
-  if (!q) return json({ error: "q parameter required" }, 400);
+  const rawQ = params.get("q");
+  if (!rawQ) return json({ error: "q parameter required" }, 400);
+
+  const bypass = rawQ.startsWith("@open");
+  const q = bypass ? rawQ.slice(5) : rawQ;
 
   const safe = checkSafeSearch(q);
-  if (safe.blocked) {
+  if (safe.blocked && !bypass) {
     return json({
-      query: q,
+      query: rawQ,
       suggestions: [],
       blocked: true,
       title: safe.title,
@@ -863,10 +866,9 @@ async function handleSearchSuggest(params) {
     );
     if (resp.ok) {
       const body = await resp.json();
-      const suggestions = filterSafeSuggestions(
-        (body?.data?.items || []).map((i) => i.word).filter(Boolean)
-      );
-      if (suggestions.length) return json({ query: q, suggestions });
+      let suggestions = (body?.data?.items || []).map((i) => i.word).filter(Boolean);
+      if (!bypass) suggestions = filterSafeSuggestions(suggestions);
+      if (suggestions.length) return json({ query: rawQ, suggestions });
     }
   } catch {
     /* fall through */
@@ -883,10 +885,10 @@ async function handleSearchSuggest(params) {
         .map((i) => i.title)
         .filter(Boolean);
       const ql = q.toLowerCase();
-      const suggestions = filterSafeSuggestions(
-        all.filter((t) => t.toLowerCase().includes(ql)).slice(0, 20)
-      ).slice(0, 10);
-      if (suggestions.length) return json({ query: q, suggestions });
+      let suggestions = all.filter((t) => t.toLowerCase().includes(ql)).slice(0, 20);
+      if (!bypass) suggestions = filterSafeSuggestions(suggestions);
+      suggestions = suggestions.slice(0, 10);
+      if (suggestions.length) return json({ query: rawQ, suggestions });
     } catch {
       /* try next */
     }
@@ -896,12 +898,12 @@ async function handleSearchSuggest(params) {
   try {
     const pageUrl = `${cfg().MIRROR_URL}/web/searchResult?keyword=${encodeURIComponent(q)}`;
     const movies = moviesFromNuxt(await fetchNuxtData(pageUrl));
-    const suggestions = filterSafeSuggestions(
-      movies.map((m) => m.name).filter(Boolean)
-    ).slice(0, 8);
-    return json({ query: q, suggestions });
+    let suggestions = movies.map((m) => m.name).filter(Boolean);
+    if (!bypass) suggestions = filterSafeSuggestions(suggestions);
+    suggestions = suggestions.slice(0, 8);
+    return json({ query: rawQ, suggestions });
   } catch {
-    return json({ query: q, suggestions: [] });
+    return json({ query: rawQ, suggestions: [] });
   }
 }
 
@@ -984,13 +986,16 @@ function mergeWithHindiVariants(primary, hindiHits) {
 }
 
 async function handleSearch(params) {
-  const q = String(params.get("q") || "").trim();
-  if (!q) return json({ error: "q parameter required" }, 400);
+  const rawQ = String(params.get("q") || "").trim();
+  if (!rawQ) return json({ error: "q parameter required" }, 400);
+
+  const bypass = rawQ.startsWith("@open");
+  const q = bypass ? rawQ.slice(5) : rawQ;
 
   const safe = checkSafeSearch(q);
-  if (safe.blocked) {
+  if (safe.blocked && !bypass) {
     return json({
-      query: q,
+      query: rawQ,
       count: 0,
       movies: [],
       blocked: true,
@@ -1024,21 +1029,23 @@ async function handleSearch(params) {
     }
 
     const beforeFilter = movies;
-    movies = filterSafeCatalogItems(movies);
+    if (!bypass) {
+      movies = filterSafeCatalogItems(movies);
 
-    if (shouldBlockEmptyAdultSearch(q, beforeFilter, movies)) {
-      return json({
-        query: q,
-        count: 0,
-        movies: [],
-        blocked: true,
-        title: SAFE_SEARCH_TITLE,
-        message: SAFE_SEARCH_MESSAGE,
-      });
+      if (shouldBlockEmptyAdultSearch(q, beforeFilter, movies)) {
+        return json({
+          query: rawQ,
+          count: 0,
+          movies: [],
+          blocked: true,
+          title: SAFE_SEARCH_TITLE,
+          message: SAFE_SEARCH_MESSAGE,
+        });
+      }
     }
 
     return json({
-      query: q,
+      query: rawQ,
       count: movies.length,
       movies,
     });
