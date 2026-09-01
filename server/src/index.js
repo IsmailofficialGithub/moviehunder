@@ -1016,6 +1016,26 @@ async function handleSearch(params) {
       primary = [];
     }
 
+    // Fallback 1: If no results, strip special characters like & and -
+    if (!primary.length) {
+      const cleaned = q.replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+      if (cleaned && cleaned !== q) {
+        try {
+          primary = await searchMoviesPages(cleaned);
+        } catch {}
+      }
+    }
+
+    // Fallback 2: If still no results and title has " - ", try the main title prefix (e.g. "Artist - Title")
+    if (!primary.length && q.includes("-")) {
+      const mainPart = q.split("-")[0].trim();
+      if (mainPart && mainPart.length >= 2 && mainPart !== q) {
+        try {
+          primary = await searchMoviesPages(mainPart);
+        } catch {}
+      }
+    }
+
     let movies = primary;
     if (!alreadyHindiQuery) {
       try {

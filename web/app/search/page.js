@@ -58,6 +58,19 @@ export default async function SearchPage({ searchParams }) {
     }
 
     let movies = data?.movies || [];
+
+    // Fallback: if exact long title (e.g. "Performer - Specific Scene") returns empty, search by main performer/title
+    if (!movies.length && bypass && q.includes("-")) {
+      const mainPart = q.split("-")[0].trim();
+      if (mainPart && mainPart.length >= 2 && mainPart !== q) {
+        try {
+          const fallbackData = await searchTitles(`@open ${mainPart}`);
+          if (fallbackData?.movies?.length) {
+            movies = fallbackData.movies;
+          }
+        } catch {}
+      }
+    }
     const alreadyHindiQuery = /\bhindi\b|\bdub(bed)?\b/i.test(q);
 
     if (!alreadyHindiQuery && !alreadyHasHindiResults(movies)) {
