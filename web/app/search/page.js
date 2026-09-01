@@ -94,15 +94,21 @@ export default async function SearchPage({ searchParams }) {
       }
     }
 
+    const displayQ = q || rawQ;
     return (
       <main className="page">
-        <SearchResultsClient query={rawQ} movies={movies} />
+        <SearchResultsClient
+          query={displayQ}
+          movies={movies}
+          bypass={bypass}
+        />
       </main>
     );
-  } catch {
+  } catch (err) {
+    console.error("[search] Search failed for", rawQ, err);
     return (
       <main className="page">
-        <EmptyState query={rawQ} />
+        <EmptyState query={q || rawQ} />
       </main>
     );
   }

@@ -17,11 +17,12 @@ export default function SearchResultsClient({
   query,
   movies = [],
   serverBlocked = false,
+  bypass = false,
 }) {
   const q = String(query || "").trim();
-  const bypass = /^@open/i.test(q);
+  const isBypass = bypass || /^@open/i.test(q);
   const blocked =
-    !bypass &&
+    !isBypass &&
     (serverBlocked ||
       isSafeSearchBlocked(q) ||
       shouldBlockEmptyAdultSearch(
@@ -34,7 +35,7 @@ export default function SearchResultsClient({
     return <SafeSearchMeme key={`meme-${q}`} />;
   }
 
-  const safeMovies = bypass ? movies : filterSafeCatalogItems(movies);
+  const safeMovies = isBypass ? movies : filterSafeCatalogItems(movies);
   if (!safeMovies.length) {
     return <EmptyState query={q} />;
   }
