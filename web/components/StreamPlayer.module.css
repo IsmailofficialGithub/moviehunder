@@ -248,12 +248,13 @@
 }
 
 .subToggle {
-  background: #1b1b22;
-  color: #f3f3f7;
-  border: 1px solid #2e2e38;
-  border-radius: 8px;
-  height: 40px;
-  padding: 0 14px;
+  background: rgba(27, 27, 34, 0.65);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  height: 42px;
+  padding: 0 16px;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   max-width: min(280px, 70vw);
@@ -262,12 +263,15 @@
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
 }
 
 .subToggle:hover,
 .subToggleOn {
-  border-color: #f6c443;
-  color: #f6c443;
+  background: rgba(35, 35, 45, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .epNav {
@@ -281,27 +285,22 @@
 .prevBtn {
   height: 42px;
   padding: 0 16px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 13px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
   letter-spacing: 0.01em;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.15s ease,
-    filter 0.15s ease,
-    box-shadow 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .nextBtn svg,
 .prevBtn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
@@ -313,17 +312,16 @@
 }
 
 .prevBtn {
-  background: rgba(255, 255, 255, 0.06);
-  color: #f3f3f7;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(27, 27, 34, 0.65);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .prevBtn:hover:not(:disabled) {
-  border-color: var(--accent-border);
-  color: var(--secondary);
-  background: var(--accent-muted);
+  background: rgba(35, 35, 45, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .nextBtn:hover:not(:disabled) {
@@ -689,8 +687,8 @@
 .playerShell {
   position: relative;
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  max-width: calc((100vh - 190px) * 16 / 9);
+  aspect-ratio: 16 / 9;
   margin: 0 auto;
 }
 

@@ -600,7 +600,6 @@ export default function StreamPlayer({
         <div className={styles.actions}>
           <div className={styles.desktopOnly}>
             <CustomSelect
-              label="Quality"
               value={qualityIndex}
               onChange={(val) => onQualityChange({ target: { value: val } })}
               options={sources.map((s, i) => ({
@@ -614,7 +613,6 @@ export default function StreamPlayer({
 
           <div className={styles.desktopOnly}>
             <CustomSelect
-              label="Display"
               value={displayMode}
               onChange={setDisplayMode}
               options={DISPLAY_MODES.map((m) => ({
