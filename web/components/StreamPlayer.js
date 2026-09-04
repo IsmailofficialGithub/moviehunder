@@ -36,7 +36,7 @@ import {
 } from "../lib/subtitles";
 import BtnSpinner from "./BtnSpinner";
 import CustomSelect from "./CustomSelect";
-import { Settings, Subtitles, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { Settings, Subtitles, SkipBack, SkipForward, SlidersHorizontal } from "lucide-react";
 import styles from "./StreamPlayer.module.css";
 import { friendlyError, friendlyPlaybackError } from "../lib/errors";
 import {
@@ -168,6 +168,7 @@ export default function StreamPlayer({
     let lastPosAt = 0;
     const syncSession = (forcePos = false) => {
       const now = Date.now();
+
       if (!forcePos && now - lastPosAt < 900) {
         try {
           navigator.mediaSession.playbackState =
@@ -178,6 +179,12 @@ export default function StreamPlayer({
         return;
       }
       lastPosAt = now;
+
+      if (video.currentTime > 5 && !video.ended) {
+        try {
+          localStorage.setItem(`history_${subjectId}_${se}_${ep}`, video.currentTime.toString());
+        } catch {}
+      }
       updateMediaSession({
         title: displayTitle,
         artist: "MovieHunter",
@@ -300,7 +307,17 @@ export default function StreamPlayer({
     if (!mounted) return;
     const video = videoRef.current;
     if (!video || !src) return;
-    const resume = resumeAtRef.current;
+    let resume = resumeAtRef.current;
+    
+    if (resume === 0) {
+      try {
+        const saved = localStorage.getItem(`history_${subjectId}_${se}_${ep}`);
+        if (saved && !isNaN(Number(saved))) {
+          resume = Number(saved);
+        }
+      } catch {}
+    }
+
     video.src = src;
     video.load();
     const onReady = () => {
@@ -989,6 +1006,7 @@ export default function StreamPlayer({
               <SlidersHorizontal size={20} />
             </button>
             <div className={styles.centerOverlay}>
+              <div className={styles.bufferingLoader} />
               {prevEpisode && onPrevEpisode ? (
                 <button
                   type="button"
@@ -997,7 +1015,7 @@ export default function StreamPlayer({
                   disabled={busy}
                   aria-label="Previous episode"
                 >
-                  <ChevronLeft size={36} strokeWidth={2} />
+                  <SkipBack size={32} fill="currentColor" strokeWidth={2} />
                 </button>
               ) : null}
               <MediaPlayButton />
@@ -1009,11 +1027,10 @@ export default function StreamPlayer({
                   disabled={busy}
                   aria-label="Next episode"
                 >
-                  <ChevronRight size={36} strokeWidth={2} />
+                  <SkipForward size={32} fill="currentColor" strokeWidth={2} />
                 </button>
               ) : null}
             </div>
-            <MediaLoadingIndicator slot="centered-chrome" />
             <MediaErrorDialog />
             <div className={styles.controlsWrapper}>
               <MediaControlBar className={styles.timelineBar}>
