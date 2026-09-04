@@ -737,6 +737,8 @@
   width: 100%;
   height: 24px;
   background: transparent;
+  margin-bottom: 8px;
+  --media-control-height: 24px;
 }
 
 .bottomBar {
