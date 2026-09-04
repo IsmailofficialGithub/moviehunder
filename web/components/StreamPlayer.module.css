@@ -745,7 +745,9 @@
   background: transparent;
   display: flex;
   align-items: center;
-  margin-top: 0px;
+  margin-top: 4px; /* Give a tiny bit of breathing room */
+  position: relative;
+  z-index: 2; /* Ensure buttons stay clickable above timeline's expanded hit area */
 }
 
 .bottomIconBtn {
