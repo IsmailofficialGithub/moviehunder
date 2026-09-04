@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@radix-ui/react-select": "^2.3.7",
     "jszip": "^3.10.1",
+    "lucide-react": "^1.41.0",
     "media-chrome": "^4.19.2",
     "next": "15.5.23",
     "react": "19.1.0",

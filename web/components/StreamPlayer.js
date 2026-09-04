@@ -35,6 +35,8 @@ import {
   shortSubtitleLabel,
 } from "../lib/subtitles";
 import BtnSpinner from "./BtnSpinner";
+import CustomSelect from "./CustomSelect";
+import { Settings, Subtitles, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import styles from "./StreamPlayer.module.css";
 import { friendlyError, friendlyPlaybackError } from "../lib/errors";
 import {
@@ -591,57 +593,37 @@ export default function StreamPlayer({
             aria-expanded={settingsOpen}
             onClick={() => setSettingsOpen(true)}
           >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <path
-                d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.6 7.6 0 0 0-1.7-1L15 4h-4l-.5 2.1a7.6 7.6 0 0 0-1.7 1l-2.3-.7-2 3.4 2 1.2a7.8 7.8 0 0 0 0 2l-2 1.2 2 3.4 2.3-.7a7.6 7.6 0 0 0 1.7 1L11 20h4l.5-2.1a7.6 7.6 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <SlidersHorizontal size={20} />
           </button>
         </div>
 
         <div className={styles.actions}>
-          <label className={`${styles.selectLabel} ${styles.desktopOnly}`}>
-            Quality
-            <select
-              className={styles.select}
+          <div className={styles.desktopOnly}>
+            <CustomSelect
+              label="Quality"
               value={qualityIndex}
-              onChange={onQualityChange}
+              onChange={(val) => onQualityChange({ target: { value: val } })}
+              options={sources.map((s, i) => ({
+                value: i,
+                label: s.resolution,
+                subLabel: formatBytes(s.size_bytes),
+              }))}
               disabled={!sources.length}
-            >
-              {sources.map((s, i) => {
-                const size = formatBytes(s.size_bytes);
-                return (
-                  <option key={s.id || s.url} value={i}>
-                    {s.resolution}
-                    {size ? ` · ${size}` : ""}
-                  </option>
-                );
-              })}
-            </select>
-          </label>
+            />
+          </div>
 
-          <label className={`${styles.selectLabel} ${styles.desktopOnly}`}>
-            Display
-            <select
-              className={styles.select}
+          <div className={styles.desktopOnly}>
+            <CustomSelect
+              label="Display"
               value={displayMode}
-              onChange={(e) => setDisplayMode(e.target.value)}
-            >
-              {DISPLAY_MODES.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={setDisplayMode}
+              options={DISPLAY_MODES.map((m) => ({
+                value: m.id,
+                label: m.label,
+                subLabel: m.hint,
+              }))}
+            />
+          </div>
 
           <button
             type="button"
@@ -650,6 +632,7 @@ export default function StreamPlayer({
             }`}
             onClick={() => setSubPanelOpen((v) => !v)}
           >
+            <Subtitles size={18} strokeWidth={2} style={{ marginRight: 6 }} />
             {subButtonLabel}
           </button>
 
@@ -667,15 +650,7 @@ export default function StreamPlayer({
                     <BtnSpinner />
                   ) : (
                     <>
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                        <path
-                          d="M15 6l-6 6 6 6"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <ChevronLeft size={18} strokeWidth={2.5} />
                       Prev episode
                     </>
                   )}
@@ -694,15 +669,7 @@ export default function StreamPlayer({
                   ) : (
                     <>
                       Next episode
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                        <path
-                          d="M9 6l6 6-6 6"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <ChevronRight size={18} strokeWidth={2.5} />
                     </>
                   )}
                 </button>
@@ -1100,35 +1067,27 @@ export default function StreamPlayer({
               aria-expanded={settingsOpen}
               onClick={() => setSettingsOpen(true)}
             >
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-                <path
-                  d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.6 7.6 0 0 0-1.7-1L15 4h-4l-.5 2.1a7.6 7.6 0 0 0-1.7 1l-2.3-.7-2 3.4 2 1.2a7.8 7.8 0 0 0 0 2l-2 1.2 2 3.4 2.3-.7a7.6 7.6 0 0 0 1.7 1L11 20h4l.5-2.1a7.6 7.6 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <SlidersHorizontal size={20} />
             </button>
             <div className={styles.centerOverlay}>
-              <MediaSeekBackwardButton seekOffset={10} />
               <MediaPlayButton />
-              <MediaSeekForwardButton seekOffset={10} />
             </div>
             <MediaLoadingIndicator slot="centered-chrome" />
             <MediaErrorDialog />
-            <MediaControlBar className={styles.bottomBar}>
-              <MediaTimeRange />
-              <MediaTimeDisplay showDuration />
-              <MediaMuteButton />
-              <MediaVolumeRange />
-              <MediaPlaybackRateButton rates={[0.5, 0.75, 1, 1.25, 1.5, 2]} />
-              <MediaFullscreenButton />
-            </MediaControlBar>
+            <div className={styles.controlsWrapper}>
+              <MediaControlBar className={styles.timelineBar}>
+                <MediaTimeRange />
+              </MediaControlBar>
+              <MediaControlBar className={styles.bottomBar}>
+                <MediaPlayButton />
+                <MediaMuteButton />
+                <MediaVolumeRange />
+                <MediaTimeDisplay showDuration />
+                <span className={styles.spacer} />
+                <MediaPlaybackRateButton rates={[0.5, 0.75, 1, 1.25, 1.5, 2]} />
+                <MediaFullscreenButton />
+              </MediaControlBar>
+            </div>
           </MediaController>
         ) : (
           <div className={styles.controller} aria-hidden />
