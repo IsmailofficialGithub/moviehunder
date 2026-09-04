@@ -596,85 +596,6 @@ export default function StreamPlayer({
             <SlidersHorizontal size={20} />
           </button>
         </div>
-
-        <div className={styles.actions}>
-          <div className={styles.desktopOnly}>
-            <CustomSelect
-              value={qualityIndex}
-              onChange={(val) => onQualityChange({ target: { value: val } })}
-              options={sources.map((s, i) => ({
-                value: i,
-                label: s.resolution,
-                subLabel: formatBytes(s.size_bytes),
-              }))}
-              disabled={!sources.length}
-            />
-          </div>
-
-          <div className={styles.desktopOnly}>
-            <CustomSelect
-              value={displayMode}
-              onChange={setDisplayMode}
-              options={DISPLAY_MODES.map((m) => ({
-                value: m.id,
-                label: m.label,
-                subLabel: m.hint,
-              }))}
-            />
-          </div>
-
-          <button
-            type="button"
-            className={`${styles.subToggle} ${styles.desktopOnly} ${
-              subPanelOpen ? styles.subToggleOn : ""
-            }`}
-            onClick={() => setSubPanelOpen((v) => !v)}
-          >
-            <Subtitles size={18} strokeWidth={2} style={{ marginRight: 6 }} />
-            {subButtonLabel}
-          </button>
-
-          {prevEpisode || nextEpisode ? (
-            <div className={styles.epNav}>
-              {prevEpisode && onPrevEpisode ? (
-                <button
-                  type="button"
-                  className={styles.prevBtn}
-                  onClick={goPrev}
-                  disabled={busy}
-                  aria-busy={navBusy === "prev" || undefined}
-                >
-                  {navBusy === "prev" ? (
-                    <BtnSpinner />
-                  ) : (
-                    <>
-                      <ChevronLeft size={18} strokeWidth={2.5} />
-                      Prev episode
-                    </>
-                  )}
-                </button>
-              ) : null}
-              {nextEpisode && onNextEpisode ? (
-                <button
-                  type="button"
-                  className={styles.nextBtn}
-                  onClick={goNext}
-                  disabled={busy}
-                  aria-busy={navBusy === "next" || undefined}
-                >
-                  {navBusy === "next" ? (
-                    <BtnSpinner />
-                  ) : (
-                    <>
-                      Next episode
-                      <ChevronRight size={18} strokeWidth={2.5} />
-                    </>
-                  )}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
       </header>
 
       {settingsOpen ? (
@@ -1068,7 +989,29 @@ export default function StreamPlayer({
               <SlidersHorizontal size={20} />
             </button>
             <div className={styles.centerOverlay}>
+              {prevEpisode && onPrevEpisode ? (
+                <button
+                  type="button"
+                  className={styles.centerNavBtn}
+                  onClick={goPrev}
+                  disabled={busy}
+                  aria-label="Previous episode"
+                >
+                  <ChevronLeft size={36} strokeWidth={2} />
+                </button>
+              ) : null}
               <MediaPlayButton />
+              {nextEpisode && onNextEpisode ? (
+                <button
+                  type="button"
+                  className={styles.centerNavBtn}
+                  onClick={goNext}
+                  disabled={busy}
+                  aria-label="Next episode"
+                >
+                  <ChevronRight size={36} strokeWidth={2} />
+                </button>
+              ) : null}
             </div>
             <MediaLoadingIndicator slot="centered-chrome" />
             <MediaErrorDialog />

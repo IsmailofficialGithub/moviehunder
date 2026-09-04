@@ -221,14 +221,6 @@
   font-size: 0.85rem;
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-  min-width: 0;
-}
-
 .selectLabel {
   display: grid;
   gap: 4px;
@@ -247,92 +239,11 @@
   min-width: 120px;
 }
 
-.subToggle {
-  background: rgba(27, 27, 34, 0.65);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  height: 42px;
-  padding: 0 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  max-width: min(280px, 70vw);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
-}
-
-.subToggle:hover,
-.subToggleOn {
-  background: rgba(35, 35, 45, 0.85);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
 .epNav {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: stretch;
-}
-
-.nextBtn,
-.prevBtn {
-  height: 42px;
-  padding: 0 16px;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-}
-
-.nextBtn svg,
-.prevBtn svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.nextBtn {
-  border: 0;
-  background: linear-gradient(135deg, var(--accent), var(--primary));
-  color: #fff;
-  box-shadow: 0 8px 22px rgba(61, 0, 129, 0.4);
-}
-
-.prevBtn {
-  background: rgba(27, 27, 34, 0.65);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.prevBtn:hover:not(:disabled) {
-  background: rgba(35, 35, 45, 0.85);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.nextBtn:hover:not(:disabled) {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 12px 28px rgba(61, 0, 129, 0.5);
-}
-
-.nextBtn:active:not(:disabled),
-.prevBtn:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 .subModal {
@@ -643,14 +554,6 @@
   font-size: 0.9rem;
 }
 
-.nextBtn,
-.prevBtn {
-  min-width: 0;
-  justify-content: center;
-}
-
-.nextBtn:disabled,
-.prevBtn:disabled,
 .chipPrimary:disabled,
 .retry:disabled {
   opacity: 0.55;
@@ -736,12 +639,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 48px;
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
 
-.centerOverlay > * {
+.centerOverlay > *,
+.centerNavBtn {
   pointer-events: auto;
   border-radius: 999px !important;
   background: rgba(10, 10, 14, 0.55) !important;
