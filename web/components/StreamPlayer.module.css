@@ -707,7 +707,7 @@
 }
 
 /* Hide center controls while playing and idle (match chrome auto-hide) */
-.controller:not([mediapaused]):not(:hover):not(:focus-within) .centerOverlay {
+.controller[userinactive] .centerOverlay {
   opacity: 0;
   pointer-events: none;
 }
@@ -720,16 +720,17 @@
   z-index: 10;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
-  padding: 24px 16px 12px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.6) 50%, transparent 100%);
+  padding: 16px 12px 8px;
   box-sizing: border-box;
   opacity: 1;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-.controller:not([mediapaused]):not(:hover):not(:focus-within) .controlsWrapper {
+.controller[userinactive] .controlsWrapper {
   opacity: 0;
   pointer-events: none;
+  transform: translateY(12px);
 }
 
 .timelineBar {
@@ -744,7 +745,40 @@
   background: transparent;
   display: flex;
   align-items: center;
-  margin-top: 4px;
+  margin-top: 0px;
+}
+
+.bottomIconBtn {
+  background: transparent;
+  color: #fff;
+  border: 0;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, transform 0.2s;
+  height: 44px;
+}
+
+.bottomIconBtn:hover {
+  color: var(--secondary);
+  transform: scale(1.1);
+}
+
+.centerPlayBtnLoader {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: rgba(10, 10, 14, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 24px;
+  pointer-events: none;
 }
 
 .spacer {

@@ -973,7 +973,7 @@ export default function StreamPlayer({
 
       <div className={styles.playerShell}>
         {mounted ? (
-          <MediaController className={styles.controller}>
+          <MediaController className={styles.controller} autohide="5">
             <video
               ref={videoRef}
               slot="media"
@@ -1018,7 +1018,13 @@ export default function StreamPlayer({
                   <SkipBack size={32} fill="currentColor" strokeWidth={2} />
                 </button>
               ) : null}
-              <MediaPlayButton />
+              {busy ? (
+                <div className={styles.centerPlayBtnLoader}>
+                  <BtnSpinner />
+                </div>
+              ) : (
+                <MediaPlayButton />
+              )}
               {nextEpisode && onNextEpisode ? (
                 <button
                   type="button"
@@ -1042,6 +1048,22 @@ export default function StreamPlayer({
                 <MediaVolumeRange />
                 <MediaTimeDisplay showDuration />
                 <span className={styles.spacer} />
+                <button
+                  type="button"
+                  className={styles.bottomIconBtn}
+                  onClick={() => setSubPanelOpen(true)}
+                  title="Subtitles"
+                >
+                  <Subtitles size={20} strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  className={styles.bottomIconBtn}
+                  onClick={() => setSettingsOpen(true)}
+                  title="Settings"
+                >
+                  <Settings size={20} strokeWidth={2} />
+                </button>
                 <MediaPlaybackRateButton rates={[0.5, 0.75, 1, 1.25, 1.5, 2]} />
                 <MediaFullscreenButton />
               </MediaControlBar>
