@@ -660,17 +660,28 @@ export default function StreamPlayer({
               <span>Display</span>
               <div className={styles.displayGrid}>
                 {DISPLAY_MODES.map((m) => (
-                  <button
+                  <div
                     key={m.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     className={`${styles.displayChip} ${
                       displayMode === m.id ? styles.displayChipOn : ""
                     }`}
-                    onClick={() => setDisplayMode(m.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDisplayMode(m.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDisplayMode(m.id);
+                      }
+                    }}
                   >
                     <strong>{m.label}</strong>
                     <span>{m.hint}</span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1051,7 +1062,12 @@ export default function StreamPlayer({
                 <button
                   type="button"
                   className={styles.bottomIconBtn}
-                  onClick={() => setSubPanelOpen(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSubPanelOpen(true);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
                   title="Subtitles"
                 >
                   <Subtitles size={20} strokeWidth={2} />
@@ -1059,7 +1075,12 @@ export default function StreamPlayer({
                 <button
                   type="button"
                   className={styles.bottomIconBtn}
-                  onClick={() => setSettingsOpen(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSettingsOpen(true);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
                   title="Settings"
                 >
                   <Settings size={20} strokeWidth={2} />
