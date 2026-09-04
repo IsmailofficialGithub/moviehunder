@@ -1,7 +1,7 @@
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -689,8 +689,9 @@
 .playerShell {
   position: relative;
   width: 100%;
-  flex: 1;
-  min-height: 200px;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 160px);
+  margin: 0 auto;
 }
 
 .controller {
@@ -713,6 +714,7 @@
   --media-range-track-height: 5px;
   --media-range-thumb-height: 16px;
   --media-range-thumb-width: 16px;
+  --media-tooltip-display: none;
 }
 
 .controller video,
