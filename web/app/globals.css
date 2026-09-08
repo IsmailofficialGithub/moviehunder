@@ -208,4 +208,12 @@ select {
   .page {
     padding-bottom: 88px;
   }
+
+  .row-head {
+    padding-bottom: 8px;
+  }
+
+  .row-head h2 {
+    font-size: 1rem;
+  }
 }

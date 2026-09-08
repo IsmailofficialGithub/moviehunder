@@ -43,7 +43,10 @@ export default function LazyPoster({
     <div
       ref={ref}
       className={`${styles.shell} ${className || ""}`}
-      style={{ width, height }}
+      style={{
+        width: typeof width === "number" ? `${width}px` : width,
+        height: typeof height === "number" ? `${height}px` : height,
+      }}
     >
       {active && src ? (
         // eslint-disable-next-line @next/next/no-img-element

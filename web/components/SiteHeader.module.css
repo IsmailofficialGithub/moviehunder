@@ -316,17 +316,17 @@
 @media (max-width: 960px) {
   .topRow {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      "brand live search actions"
-      "nav nav nav nav";
+      "brand search actions"
+      "nav nav nav";
     align-items: center;
     gap: 8px 8px;
     padding: 8px var(--page-pad) 6px;
   }
 
   .live {
-    grid-area: live;
+    display: none;
   }
 
   .brand,
@@ -357,7 +357,7 @@
   }
 
   .searchBar input {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .searchSubmit {
@@ -383,7 +383,7 @@
     height: 18px;
   }
 
-  /* Compact “Get app” chip — clearer than a lone glyph */
+  /* Compact "Get app" chip — clearer than a lone glyph */
   .downloadBtn {
     width: auto;
     min-width: 34px;
@@ -436,7 +436,7 @@
   .nav a {
     flex-shrink: 0;
     font-size: 12px;
-    padding: 6px 9px;
+    padding: 6px 10px;
   }
 
   .playHint {

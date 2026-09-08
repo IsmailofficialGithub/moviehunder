@@ -15,13 +15,15 @@
   position: relative;
   border-radius: 12px;
   overflow: hidden;
+  width: 100%;
+  aspect-ratio: 2 / 3;
 }
 
 .card img,
 .card .poster,
 .fallback {
-  width: 148px;
-  height: 220px;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   border-radius: 12px;
   background: var(--panel);
@@ -98,14 +100,23 @@
 
 @media (max-width: 640px) {
   .card {
-    flex: 0 0 120px;
-    width: 120px;
+    flex: 0 0 130px;
+    width: 130px;
   }
 
-  .card img,
-  .card .poster,
-  .fallback {
-    width: 120px;
-    height: 178px;
+  .card h3 {
+    font-size: 12px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .meta {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
+

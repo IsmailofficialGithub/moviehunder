@@ -43,8 +43,6 @@ export default function TitleCard({ item }) {
           <LazyPoster
             src={item.poster_url}
             alt={item.name || ""}
-            width={148}
-            height={220}
             className={styles.poster}
           />
         ) : (
