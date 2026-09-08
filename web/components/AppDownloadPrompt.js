@@ -147,33 +147,77 @@ export default function AppDownloadPrompt() {
         {!loading && !error && info && platform !== "desktop" ? (
           info.available && info.downloadUrl ? (
             <>
-              <p className={styles.sub}>
+              <p className={styles.versionLabel}>
                 {info.version
-                  ? `Version ${info.version} is available for ${platformTitle(platform)}.`
-                  : `A release is available for ${platformTitle(platform)}.`}
-                {info.notes ? ` ${info.notes}` : ""}
+                  ? `Version ${info.version} · ${platformTitle(platform)}`
+                  : `Release · ${platformTitle(platform)}`}
               </p>
-              <button
-                type="button"
-                className={styles.primary}
-                onClick={() => startDownload(info.downloadUrl)}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden
-                  className={styles.btnIcon}
+
+              {info.metadata ? (
+                <div className={styles.notesScroll}>
+                  {info.metadata.summary ? (
+                    <p className={styles.notesSummary}>{info.metadata.summary}</p>
+                  ) : null}
+                  {info.metadata.added?.length > 0 ? (
+                    <div className={styles.notesSection}>
+                      <span className={styles.notesBadge} data-type="added">Added</span>
+                      <ul className={styles.notesList}>
+                        {info.metadata.added.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {info.metadata.changed?.length > 0 ? (
+                    <div className={styles.notesSection}>
+                      <span className={styles.notesBadge} data-type="changed">Changed</span>
+                      <ul className={styles.notesList}>
+                        {info.metadata.changed.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {info.metadata.fixed?.length > 0 ? (
+                    <div className={styles.notesSection}>
+                      <span className={styles.notesBadge} data-type="fixed">Fixed</span>
+                      <ul className={styles.notesList}>
+                        {info.metadata.fixed.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : info.notes ? (
+                <div className={styles.notesScroll}>
+                  <p className={styles.notesSummary}>{info.notes}</p>
+                </div>
+              ) : null}
+
+              <div className={styles.stickyActions}>
+                <button
+                  type="button"
+                  className={styles.primary}
+                  onClick={() => startDownload(info.downloadUrl)}
                 >
-                  <path
-                    d="M12 3v12m0 0l-4-4m4 4l4-4M5 19h14"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                Download
-              </button>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden
+                    className={styles.btnIcon}
+                  >
+                    <path
+                      d="M12 3v12m0 0l-4-4m4 4l4-4M5 19h14"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Download
+                </button>
+              </div>
             </>
           ) : (
             <p className={styles.unavailable}>
@@ -225,15 +269,9 @@ export default function AppDownloadPrompt() {
           </>
         ) : null}
 
-        {auto ? (
-          <button type="button" className={styles.later} onClick={dismiss}>
-            Continue in browser
-          </button>
-        ) : (
-          <button type="button" className={styles.later} onClick={dismiss}>
-            Close
-          </button>
-        )}
+        <button type="button" className={styles.later} onClick={dismiss}>
+          {auto ? "Continue in browser" : "Close"}
+        </button>
       </div>
     </div>
   );

@@ -19,12 +19,16 @@
 .sheet {
   position: relative;
   width: min(100%, 400px);
+  max-height: min(90dvh, 680px);
   background: linear-gradient(165deg, #1a1224 0%, #0c0c0e 55%);
   border: 1px solid rgba(189, 132, 219, 0.28);
   border-radius: 20px;
   padding: 28px 22px 20px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .close {
@@ -183,3 +187,95 @@
     opacity: 1;
   }
 }
+
+.versionLabel {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.notesScroll {
+  flex: 1;
+  overflow-y: auto;
+  text-align: left;
+  padding: 4px 2px 8px;
+  margin-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.notesScroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.notesScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.notesScroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+}
+
+.notesSummary {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.notesSection {
+  margin-bottom: 10px;
+}
+
+.notesBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.notesBadge[data-type="added"] {
+  background: rgba(52, 211, 153, 0.14);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.notesBadge[data-type="changed"] {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+.notesBadge[data-type="fixed"] {
+  background: rgba(96, 165, 250, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+}
+
+.notesList {
+  margin: 0;
+  padding-left: 16px;
+  list-style: disc;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.notesList li {
+  margin-bottom: 3px;
+}
+
+.stickyActions {
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 2px;
+}
+

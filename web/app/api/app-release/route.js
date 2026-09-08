@@ -81,6 +81,7 @@ export async function GET(request) {
     const data = await loadVersionJson();
     const version = String(data.latest_version || data.version || "").trim();
     const notes = String(data.release_notes || data.releaseNotes || "").trim();
+    const metadata = data.release_metadata || null;
     const androidUrl = String(
       data.android?.apk_url || data.android?.apkUrl || data.apk_url || ""
     ).trim();
@@ -101,6 +102,7 @@ export async function GET(request) {
         downloadUrl: available ? androidUrl : null,
         version,
         notes,
+        metadata,
         label: "Android APK",
       });
     }
@@ -113,6 +115,7 @@ export async function GET(request) {
         downloadUrl: available ? iosUrl : null,
         version,
         notes,
+        metadata,
         label: "iPhone / iPad",
       });
     }
