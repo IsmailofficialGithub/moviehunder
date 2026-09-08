@@ -14,7 +14,7 @@ export default function Support() {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>Support</h1>
-      <span className={styles.lastUpdated}>We're here to help!</span>
+      <span className={styles.lastUpdated}>We&apos;re here to help!</span>
 
       <div className={styles.section}>
         <h2>Contact Support</h2>
@@ -59,7 +59,7 @@ export default function Support() {
       <div className={styles.section}>
         <h2>Frequently Asked Questions</h2>
         <ul>
-          <li><strong>How do I reset my password?</strong> You can reset your password from the login screen by tapping 'Forgot Password'.</li>
+          <li><strong>How do I reset my password?</strong> You can reset your password from the login screen by tapping &apos;Forgot Password&apos;.</li>
           <li><strong>Why does the app need microphone access?</strong> The microphone is used for voice search capabilities within the app. You can disable this in your device settings.</li>
           <li><strong>How do I report a bug?</strong> Please use the contact form above and provide as much detail as possible, including your device model.</li>
         </ul>

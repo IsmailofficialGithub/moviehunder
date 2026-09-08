@@ -31,7 +31,7 @@ export default function PrivacyPolicy() {
             <strong>Device Information:</strong> Information about your mobile device, such as its hardware model, operating system version, unique device identifiers, and mobile network information.
           </li>
           <li>
-            <strong>Audio and Media:</strong> Our application may request access to your device's microphone and media to enable certain audio/video recording and playback features. We only access this with your explicit permission.
+            <strong>Audio and Media:</strong> Our application may request access to your device&apos;s microphone and media to enable certain audio/video recording and playback features. We only access this with your explicit permission.
           </li>
           <li>
             <strong>Usage Data:</strong> We may collect data regarding your activity on the App, such as features you use and media you view.

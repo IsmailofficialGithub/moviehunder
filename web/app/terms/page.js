@@ -29,14 +29,14 @@ export default function TermsOfService() {
           <li>Use the materials for any commercial purpose, or for any public display (commercial or non-commercial);</li>
           <li>Attempt to decompile or reverse engineer any software contained in MovieHunter;</li>
           <li>Remove any copyright or other proprietary notations from the materials; or</li>
-          <li>Transfer the materials to another person or "mirror" the materials on any other server.</li>
+          <li>Transfer the materials to another person or &quot;mirror&quot; the materials on any other server.</li>
         </ul>
       </div>
 
       <div className={styles.section}>
         <h2>3. Disclaimer</h2>
         <p>
-          The materials within MovieHunter are provided on an 'as is' basis. MovieHunter makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
+          The materials within MovieHunter are provided on an &apos;as is&apos; basis. MovieHunter makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
         </p>
       </div>
 
