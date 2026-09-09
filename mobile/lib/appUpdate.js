@@ -171,7 +171,7 @@ export async function openInstallPermissionSettings() {
   const pkg =
     Constants.expoConfig?.android?.package ||
     Constants.easConfig?.projectId ||
-    "com.moviehunter.app";
+    "com.moviehunder.app";
   try {
     await IntentLauncher.startActivityAsync(
       "android.settings.MANAGE_UNKNOWN_APP_SOURCES",
