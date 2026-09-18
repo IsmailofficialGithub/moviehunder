@@ -226,7 +226,7 @@ function moviesFromNuxt(nuxt) {
       genre: v.genre || null,
     });
   }
-  return filterSafeCatalogItems(movies);
+  return movies;
 }
 
 // ══════════════════════════════════════════════════════════════════
