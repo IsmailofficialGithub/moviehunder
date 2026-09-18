@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import styles from "./LazyPoster.module.css";
 
-/**
- * Loads poster bytes only when near the viewport (incl. horizontal).
- * Stays loaded once shown to avoid flicker; pair with LazyRow so
- * off-screen sections unmount and free memory.
- */
+// Native off-thread lazy loading with smooth image load fade-in.
+// Uses browser native loading="lazy" & decoding="async" to eliminate JS state thrashing on scroll.
 export default function LazyPoster({
   src,
   alt = "",
@@ -15,52 +12,32 @@ export default function LazyPoster({
   height,
   className,
 }) {
-  const ref = useRef(null);
-  const [active, setActive] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !src || active) return;
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          setActive(true);
-          io.disconnect();
-        }
-      },
-      {
-        root: null,
-        rootMargin: "80px 160px",
-        threshold: 0.01,
-      }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [src, active]);
+  if (!src) {
+    return <div className={`${styles.shell} ${className || ""}`} />;
+  }
 
   return (
     <div
-      ref={ref}
       className={`${styles.shell} ${className || ""}`}
       style={{
         width: typeof width === "number" ? `${width}px` : width,
         height: typeof height === "number" ? `${height}px` : height,
       }}
     >
-      {active && src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt={alt}
-          width={width}
-          height={height}
-          decoding="async"
-          draggable={false}
-        />
-      ) : (
-        <div className={styles.placeholder} aria-hidden />
-      )}
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        onLoad={() => setLoaded(true)}
+        className={`${styles.img} ${loaded ? styles.loaded : ""}`}
+      />
     </div>
   );
 }

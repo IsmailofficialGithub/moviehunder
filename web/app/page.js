@@ -4,7 +4,7 @@ import { getHome } from "../lib/api";
 import BannerAd468x60 from "../components/ads/BannerAd468x60";
 import NativeBannerAd from "../components/ads/NativeBannerAd";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function HomePage() {
   try {

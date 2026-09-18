@@ -5,40 +5,20 @@
   background: var(--panel);
   width: 100%;
   height: 100%;
+  contain: strict;
 }
 
-.shell img {
+.img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
   border-radius: 12px;
+  opacity: 0;
+  transition: opacity 0.25s ease-out;
+  will-change: opacity;
 }
 
-.placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    110deg,
-    var(--panel) 0%,
-    var(--panel-soft) 45%,
-    var(--panel) 90%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .placeholder {
-    animation: none;
-  }
+.img.loaded {
+  opacity: 1;
 }

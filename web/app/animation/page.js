@@ -2,7 +2,7 @@ import CategoryView from "../../components/CategoryView";
 import { getAnimation } from "../../lib/api";
 import { friendlyPageError } from "../../lib/errors";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 export const metadata = { title: "Animation · Flick" };
 
 export default async function AnimationPage() {

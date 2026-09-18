@@ -1,12 +1,15 @@
 import { getApiBase, apiClientHeaders } from "./config";
 
-async function api(path, { signal } = {}) {
+async function api(path, { signal, next, cache } = {}) {
   const base = getApiBase();
-  const res = await fetch(`${base}${path.startsWith("/") ? path : `/${path}`}`, {
+  const options = {
     signal,
-    cache: "no-store",
     headers: apiClientHeaders(),
-  });
+  };
+  if (next) options.next = next;
+  if (cache) options.cache = cache;
+
+  const res = await fetch(`${base}${path.startsWith("/") ? path : `/${path}`}`, options);
   const contentType = res.headers.get("content-type") || "";
   if (!res.ok) {
     if (contentType.includes("application/json")) {
@@ -18,24 +21,25 @@ async function api(path, { signal } = {}) {
   return res.json();
 }
 
+// Enable 300-second (5 min) revalidation for catalog endpoints
 export function getHome() {
-  return api("/home");
+  return api("/home", { next: { revalidate: 300 } });
 }
 
 export function getMovies() {
-  return api("/movies");
+  return api("/movies", { next: { revalidate: 300 } });
 }
 
 export function getTvSeries() {
-  return api("/tv-series");
+  return api("/tv-series", { next: { revalidate: 300 } });
 }
 
 export function getAnimation() {
-  return api("/animation");
+  return api("/animation", { next: { revalidate: 300 } });
 }
 
 export function getRanking() {
-  return api("/ranking");
+  return api("/ranking", { next: { revalidate: 300 } });
 }
 
 export function searchTitles(q) {

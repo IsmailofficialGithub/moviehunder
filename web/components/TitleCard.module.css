@@ -3,8 +3,8 @@
   width: 148px;
   display: block;
   color: inherit;
-  /* Keep cards stable while the row scrolls */
   backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .card:hover h3 {
@@ -17,6 +17,7 @@
   overflow: hidden;
   width: 100%;
   aspect-ratio: 2 / 3;
+  transform: translateZ(0);
 }
 
 .card img,
@@ -27,7 +28,7 @@
   object-fit: cover;
   border-radius: 12px;
   background: var(--panel);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
   transition: box-shadow 0.2s ease, filter 0.2s ease;
   display: block;
 }
@@ -35,9 +36,8 @@
 .card:hover img,
 .card:hover .poster,
 .card:hover .fallback {
-  /* No translate — that caused jiggling during row scroll */
   filter: brightness(1.06);
-  box-shadow: 0 14px 32px rgba(61, 0, 129, 0.4);
+  box-shadow: 0 12px 28px rgba(61, 0, 129, 0.4);
 }
 
 .fallback {
@@ -119,4 +119,3 @@
     text-overflow: ellipsis;
   }
 }
-
