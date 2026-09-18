@@ -838,8 +838,8 @@ async function handleSearchSuggest(params) {
   const rawQ = params.get("q");
   if (!rawQ) return json({ error: "q parameter required" }, 400);
 
-  const bypass = /^@open/i.test(rawQ);
-  let q = bypass ? rawQ.replace(/^@open\S*\s*/i, "").trim() : rawQ;
+  const bypass = /^@open788269/i.test(rawQ);
+  let q = bypass ? rawQ.replace(/^@open788269\s*/i, "").trim() : rawQ;
   if (bypass && !q) q = "18";
 
   const safe = checkSafeSearch(q);
@@ -990,8 +990,8 @@ async function handleSearch(params) {
   const rawQ = String(params.get("q") || "").trim();
   if (!rawQ) return json({ error: "q parameter required" }, 400);
 
-  const bypass = /^@open/i.test(rawQ);
-  let q = bypass ? rawQ.replace(/^@open\S*\s*/i, "").trim() : rawQ;
+  const bypass = /^@open788269/i.test(rawQ);
+  let q = bypass ? rawQ.replace(/^@open788269\s*/i, "").trim() : rawQ;
   if (bypass && !q) q = "18";
 
   const safe = checkSafeSearch(q);

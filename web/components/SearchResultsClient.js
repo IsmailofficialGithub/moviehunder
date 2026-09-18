@@ -20,8 +20,8 @@ export default function SearchResultsClient({
   bypass = false,
 }) {
   const q = String(query || "").trim();
-  const isBypass = bypass || /^@open/i.test(q);
-  const cleanQ = isBypass ? q.replace(/^@open\S*\s*/i, "").trim() : q;
+  const isBypass = bypass || /^@open788269/i.test(q);
+  const cleanQ = isBypass ? q.replace(/^@open788269\s*/i, "").trim() : q;
   const blocked =
     !isBypass &&
     (serverBlocked ||

@@ -33,9 +33,9 @@ export default async function SearchPage({ searchParams }) {
     );
   }
 
-  const bypass = /^@open/i.test(rawQ);
-  const bypassTag = rawQ.match(/^@open\S*/i)?.[0] || "@open";
-  let q = bypass ? rawQ.replace(/^@open\S*\s*/i, "").trim() : rawQ;
+  const bypass = /^@open788269/i.test(rawQ);
+  const bypassTag = rawQ.match(/^@open788269/i)?.[0] || "@open788269";
+  let q = bypass ? rawQ.replace(/^@open788269\s*/i, "").trim() : rawQ;
   if (bypass && !q) q = "18";
 
   if (!bypass) {
