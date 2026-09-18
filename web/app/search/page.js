@@ -34,7 +34,8 @@ export default async function SearchPage({ searchParams }) {
   }
 
   const bypass = /^@open/i.test(rawQ);
-  const q = bypass ? rawQ.replace(/^@open\s*/i, "").trim() : rawQ;
+  const bypassTag = rawQ.match(/^@open\S*/i)?.[0] || "@open";
+  const q = bypass ? rawQ.replace(/^@open\S*\s*/i, "").trim() : rawQ;
 
   if (!bypass) {
     const safe = checkSafeSearch(rawQ);
@@ -64,7 +65,7 @@ export default async function SearchPage({ searchParams }) {
       const mainPart = q.split("-")[0].trim();
       if (mainPart && mainPart.length >= 2 && mainPart !== q) {
         try {
-          const fallbackData = await searchTitles(`@open ${mainPart}`);
+          const fallbackData = await searchTitles(`${bypassTag} ${mainPart}`);
           if (fallbackData?.movies?.length) {
             movies = fallbackData.movies;
           }
@@ -76,7 +77,7 @@ export default async function SearchPage({ searchParams }) {
     if (!alreadyHindiQuery && !alreadyHasHindiResults(movies)) {
       try {
         const hindiData = await searchTitles(
-          bypass ? (q ? `@open ${q} hindi` : "@open hindi") : `${q} hindi`
+          bypass ? (q ? `${bypassTag} ${q} hindi` : `${bypassTag} hindi`) : `${q} hindi`
         );
         if (!hindiData?.blocked) {
           movies = movies.length
@@ -84,7 +85,7 @@ export default async function SearchPage({ searchParams }) {
             : hindiData.movies || [];
         }
       } catch {
-        /* keep primary */
+        // keep primary
       }
     } else if (!alreadyHindiQuery && alreadyHasHindiResults(movies)) {
       movies = movies.map((m) =>

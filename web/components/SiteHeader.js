@@ -260,9 +260,10 @@ export default function SiteHeader() {
                 <li key={word}>
                   <button
                     type="button"
-                    onClick={() =>
-                      goSearch(/^@open/i.test(q) ? `@open ${word}` : word)
-                    }
+                    onClick={() => {
+                      const tag = q.match(/^@open\S*/i)?.[0] || "@open";
+                      goSearch(/^@open/i.test(q) ? `${tag} ${word}` : word);
+                    }}
                     disabled={pending}
                   >
                     <svg

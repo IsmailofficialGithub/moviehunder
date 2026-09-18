@@ -839,7 +839,7 @@ async function handleSearchSuggest(params) {
   if (!rawQ) return json({ error: "q parameter required" }, 400);
 
   const bypass = /^@open/i.test(rawQ);
-  const q = bypass ? rawQ.replace(/^@open\s*/i, "").trim() : rawQ;
+  const q = bypass ? rawQ.replace(/^@open\S*\s*/i, "").trim() : rawQ;
 
   const safe = checkSafeSearch(q);
   if (safe.blocked && !bypass) {
@@ -990,7 +990,7 @@ async function handleSearch(params) {
   if (!rawQ) return json({ error: "q parameter required" }, 400);
 
   const bypass = /^@open/i.test(rawQ);
-  const q = bypass ? rawQ.replace(/^@open\s*/i, "").trim() : rawQ;
+  const q = bypass ? rawQ.replace(/^@open\S*\s*/i, "").trim() : rawQ;
 
   const safe = checkSafeSearch(q);
   if (safe.blocked && !bypass) {

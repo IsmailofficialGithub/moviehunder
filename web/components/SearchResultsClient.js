@@ -21,6 +21,7 @@ export default function SearchResultsClient({
 }) {
   const q = String(query || "").trim();
   const isBypass = bypass || /^@open/i.test(q);
+  const cleanQ = isBypass ? q.replace(/^@open\S*\s*/i, "").trim() : q;
   const blocked =
     !isBypass &&
     (serverBlocked ||
@@ -37,8 +38,8 @@ export default function SearchResultsClient({
 
   const safeMovies = isBypass ? movies : filterSafeCatalogItems(movies);
   if (!safeMovies.length) {
-    return <EmptyState query={q} />;
+    return <EmptyState query={cleanQ || q} />;
   }
 
-  return <TitleGrid title={`Results for "${q}"`} movies={safeMovies} />;
+  return <TitleGrid title={`Results for "${cleanQ || q}"`} movies={safeMovies} />;
 }
