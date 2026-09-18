@@ -35,7 +35,8 @@ export default async function SearchPage({ searchParams }) {
 
   const bypass = /^@open/i.test(rawQ);
   const bypassTag = rawQ.match(/^@open\S*/i)?.[0] || "@open";
-  const q = bypass ? rawQ.replace(/^@open\S*\s*/i, "").trim() : rawQ;
+  let q = bypass ? rawQ.replace(/^@open\S*\s*/i, "").trim() : rawQ;
+  if (bypass && !q) q = "18";
 
   if (!bypass) {
     const safe = checkSafeSearch(rawQ);
