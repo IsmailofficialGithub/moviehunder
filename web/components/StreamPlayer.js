@@ -1047,17 +1047,6 @@ export default function StreamPlayer({
               ref={cueElRef}
               className={styles.cueOverlay}
               hidden
-              aria-live="polite"
-            />
-            <button
-              type="button"
-              className={styles.playerSettingsBtn}
-              aria-label="Playback settings"
-              aria-expanded={settingsOpen}
-              onClick={() => setSettingsOpen(true)}
-            >
-              <SlidersHorizontal size={20} />
-            </button>
             <div className={styles.centerOverlay}>
               <div className={styles.bufferingLoader} />
               {prevEpisode && onPrevEpisode ? (

@@ -48,8 +48,7 @@
   padding: 0;
 }
 
-.settingsBtn svg,
-.playerSettingsBtn svg {
+.settingsBtn svg {
   width: 24px;
   height: 24px;
 }
@@ -57,31 +56,6 @@
 .settingsBtn:hover {
   border-color: #f6c443;
   color: #f6c443;
-}
-
-.playerSettingsBtn {
-  display: none;
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 4;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 12px;
-  background: rgba(10, 10, 14, 0.62);
-  color: #fff;
-  cursor: pointer;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-}
-
-.playerSettingsBtn:hover {
-  background: rgba(90, 0, 162, 0.85);
 }
 
 .settingsModal {
@@ -607,7 +581,8 @@
   --media-primary-color: #fff;
   --media-secondary-color: #fff;
   --media-control-background: transparent;
-  --media-control-hover-background: rgba(255, 255, 255, 0.15);
+  --media-control-hover-background: transparent;
+  --media-time-range-hover-background: transparent;
   --media-control-height: 44px;
   --media-button-icon-width: 26px;
   --media-button-icon-height: 26px;
@@ -646,9 +621,9 @@
 
 .bufferingLoader {
   display: none;
-  width: 64px;
-  height: 64px;
-  border: 4px solid rgba(255, 255, 255, 0.15);
+  width: 56px;
+  height: 56px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -701,12 +676,7 @@
   transform: none;
 }
 
-/* Keep player settings visible even when chrome auto-hides a bit less aggressively */
-.controller:not([mediapaused]):not(:hover):not(:focus-within) .playerSettingsBtn {
-  opacity: 0.85;
-}
-
-/* Hide center controls while playing and idle (match chrome auto-hide) */
+/* Hide center controls while playing and idle */
 .controller[userinactive] .centerOverlay {
   opacity: 0;
   pointer-events: none;
@@ -735,21 +705,47 @@
 
 .timelineBar {
   width: 100%;
-  height: 24px;
-  background: transparent;
-  margin-bottom: 8px;
-  --media-control-height: 24px;
+  height: 20px;
+  background: transparent !important;
+  margin-bottom: 4px;
+  --media-control-height: 20px;
+  --media-control-background: transparent;
+  --media-control-hover-background: transparent;
+  box-shadow: none !important;
+  outline: none !important;
+  border: none !important;
+}
+
+.timelineBar media-time-range,
+.controller media-time-range {
+  width: 100%;
+  --media-control-background: transparent !important;
+  --media-control-hover-background: transparent !important;
+  --media-time-range-hover-background: transparent !important;
+  --media-range-track-background: rgba(255, 255, 255, 0.25);
+  --media-range-track-height: 4px;
+  --media-range-thumb-background: #ffffff;
+  --media-range-thumb-height: 14px;
+  --media-range-thumb-width: 14px;
+  --media-range-thumb-border: none;
+  --media-range-thumb-box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border: none !important;
 }
 
 .bottomBar {
   width: 100%;
   height: 44px;
-  background: transparent;
+  background: transparent !important;
   display: flex;
   align-items: center;
-  margin-top: 4px; /* Give a tiny bit of breathing room */
+  margin-top: 2px;
   position: relative;
-  z-index: 2; /* Ensure buttons stay clickable above timeline's expanded hit area */
+  z-index: 2;
+  --media-control-background: transparent;
+  --media-control-hover-background: transparent;
 }
 
 .bottomIconBtn {
@@ -758,6 +754,12 @@
   border: 0;
   padding: 8px 10px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, transform 0.2s;
+  height: 44px;
+}
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -927,12 +929,6 @@
 
   .titleRow {
     width: 100%;
-  }
-
-
-
-  .playerSettingsBtn {
-    display: inline-flex;
   }
 
   .desktopOnly {
