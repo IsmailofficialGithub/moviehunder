@@ -1,4 +1,4 @@
-import { getApiBase, getPlayRelayBase, apiClientHeaders, withAppKeyQuery } from "./config";
+import { getApiBase, getPlayRelayBase, apiClientHeaders } from "./config";
 
 async function fetchJson(url) {
   const res = await fetch(url, { headers: apiClientHeaders() });
@@ -21,11 +21,33 @@ export async function relayHealthy() {
   }
 }
 
-/**
- * Resolve stream list. Prefers localhost play relay (correct Referer).
- * Falls back to Worker /api/stream.
- */
+// Resolve stream list.
+// In the browser, routes through secure Next.js BFF endpoint (/api/stream/resolve)
+// to shield raw CDN links, tokens, and backend relay credentials.
 export async function resolveStreams({ subjectId, detailPath, se = 0, ep = 0 }) {
+  const isBrowser = typeof window !== "undefined";
+
+  if (isBrowser) {
+    try {
+      const bffUrl = `/api/stream/resolve?subjectId=${encodeURIComponent(
+        subjectId
+      )}&detailPath=${encodeURIComponent(detailPath)}&se=${se}&ep=${ep}`;
+      const res = await fetch(bffUrl);
+      if (res.ok) {
+        const bffData = await res.json();
+        if (Array.isArray(bffData.sources) && bffData.sources.length > 0) {
+          return {
+            sources: bffData.sources,
+            host: bffData.host || "secure-proxy",
+            via: bffData.via || "bff",
+          };
+        }
+      }
+    } catch {
+      // Fall through to direct resolution if BFF route fails
+    }
+  }
+
   const path = `/api/stream/${encodeURIComponent(
     subjectId
   )}?detail_path=${encodeURIComponent(detailPath)}&se=${se}&ep=${ep}`;
@@ -47,12 +69,14 @@ export async function resolveStreams({ subjectId, detailPath, se = 0, ep = 0 }) 
   };
 }
 
+// Format media URL for player. Never attaches master app_key in browser query params.
 export function proxiedMediaUrl(cdnUrl) {
   if (!cdnUrl) return "";
-  if (cdnUrl.includes("/api/media?")) return withAppKeyQuery(cdnUrl);
-  return withAppKeyQuery(
-    `${getPlayRelayBase()}/api/media?url=${encodeURIComponent(cdnUrl)}`
-  );
+  // Already routed through /api/media with a secure ticket
+  if (cdnUrl.startsWith("/api/media") || cdnUrl.includes("/api/media?")) {
+    return cdnUrl;
+  }
+  return cdnUrl;
 }
 
 function normalizeSources(sources) {

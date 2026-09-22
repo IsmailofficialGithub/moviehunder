@@ -1,3 +1,4 @@
+// Web application configuration
 export function getApiBase() {
   return (
     process.env.NEXT_PUBLIC_API_BASE?.replace(/\/+$/, "") ||
@@ -12,11 +13,15 @@ export function getPlayRelayBase() {
   );
 }
 
+// Secret app key is strictly server-side. Never expose to client browser.
 export function getAppClientKey() {
-  return String(process.env.NEXT_PUBLIC_APP_CLIENT_KEY || "").trim();
+  if (typeof window !== "undefined") return "";
+  return String(
+    process.env.APP_CLIENT_KEY || process.env.NEXT_PUBLIC_APP_CLIENT_KEY || ""
+  ).trim();
 }
 
-/** Public GitHub profile. */
+// Public GitHub profile
 export function getGithubUrl() {
   return (
     process.env.NEXT_PUBLIC_GITHUB_URL?.replace(/\/+$/, "") ||
@@ -24,7 +29,7 @@ export function getGithubUrl() {
   );
 }
 
-/** Remote version.json used for app update / download availability. */
+// Remote version.json used for app update / download availability
 export function getVersionJsonUrl() {
   return (
     process.env.NEXT_PUBLIC_VERSION_JSON_URL ||
@@ -32,14 +37,13 @@ export function getVersionJsonUrl() {
   );
 }
 
-/** Headers for API / relay. Browser relies on Origin allowlist; SSR sends key. */
+// Headers for API / relay. Browser relies on Origin allowlist; SSR sends key.
 export function apiClientHeaders(extra = {}) {
   const headers = {
     Accept: "application/json",
     ...extra,
   };
-  // Only attach app key outside the browser (SSR / Node) — custom headers
-  // force a CORS preflight that browsers send without X-App-Key.
+  // Only attach app key outside the browser (SSR / Node)
   const isBrowser = typeof window !== "undefined";
   if (!isBrowser) {
     headers["X-MovieHunter-Client"] = "web";
@@ -49,9 +53,11 @@ export function apiClientHeaders(extra = {}) {
   return headers;
 }
 
+// Never append app_key on client browser. Preserved only for server-side callers.
 export function withAppKeyQuery(url) {
+  if (typeof window !== "undefined" || !url) return url;
   const key = getAppClientKey();
-  if (!key || !url) return url;
+  if (!key) return url;
   try {
     const u = new URL(url);
     if (!u.searchParams.get("app_key")) u.searchParams.set("app_key", key);
