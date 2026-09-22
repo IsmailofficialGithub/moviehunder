@@ -35,7 +35,17 @@ async function handleMedia(request) {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       Accept: "*/*",
+      Origin: "https://trackese.co",
+      Referer: "https://trackese.co/",
+      Connection: "close", // Force Node.js to close the TCP socket so we don't exceed CDN connection limits
     };
+    
+    // Pass real IP if available to avoid all users sharing the same rate limit bucket
+    const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip");
+    if (clientIp) {
+      upstreamHeaders["X-Forwarded-For"] = clientIp;
+    }
+
     if (rangeHeader) {
       upstreamHeaders["Range"] = rangeHeader;
     }
