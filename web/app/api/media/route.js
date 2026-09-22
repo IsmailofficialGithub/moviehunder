@@ -1,11 +1,15 @@
 // Secure BFF Media Stream Route Handler
-// Proxies media chunks safely without exposing upstream URLs or master app_key
+// Set MEDIA_PROXY=false in .env to use 302 redirect mode (faster, no rate-limits).
+// Default (true) = full secure proxy, CDN URL never exposed to browser.
 import { NextResponse } from "next/server";
 import { verifyPlaybackTicket } from "../../../lib/mediaSecurity";
 import { getPlayRelayBase } from "../../../lib/config";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+// Proxy mode toggle — set MEDIA_PROXY=false in .env to use redirect mode
+const PROXY_ENABLED = process.env.MEDIA_PROXY !== "false";
 
 // CDN sliding-window token bucket — module-level so it persists across requests
 // on the same Node.js process (the Next.js long-running server).
@@ -87,8 +91,13 @@ async function handleMedia(request) {
       );
     }
 
-    // Wait for a CDN slot before proceeding — this is the core rate-limit fix.
-    // Instead of a blind fixed delay, we precisely mirror the CDN's rate limit window.
+    // REDIRECT MODE (MEDIA_PROXY=false): browser fetches CDN directly using its own IP.
+    // Eliminates all 429 rate-limits. CDN URL is visible in Network tab (expires via sign= token).
+    if (!PROXY_ENABLED) {
+      return Response.redirect(targetUrl, 302);
+    }
+
+    // PROXY MODE (default): token bucket queues requests so CDN sees at most N/window.
     await acquireCdnSlot(request.signal);
     if (request.signal.aborted) {
       return new Response(null, { status: 499 }); // Client Closed Request — no CDN hit needed
