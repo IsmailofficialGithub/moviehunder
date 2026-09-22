@@ -1,10 +1,7 @@
-/**
- * Local play relay — Origin/Referer for stream CDN.
- * Config from server/.env (or .dev.vars). No hardcoded upstream hosts.
- *
- * npm run dev        → with catalog API
- * npm run dev:relay  → relay only
- */
+// Local play relay — Origin/Referer for stream CDN.
+// Config from server/.env (or .dev.vars). No hardcoded upstream hosts.
+// npm run dev        -> with catalog API
+// npm run dev:relay  -> relay only
 
 import http from "node:http";
 import { Readable } from "node:stream";
@@ -49,15 +46,12 @@ if (config.missing.length) {
   console.error(
     "Missing required env keys:",
     config.missing.join(", "),
-    "\nCopy .env.example → .env and fill values."
+    "\nCopy .env.example -> .env and fill values."
   );
   process.exit(1);
 }
 
 const PORT = Number(process.env.PORT || fileEnv.PORT || 8788);
-/** Cap concurrent media proxies so one phone can't melt the box. */
-const MAX_MEDIA_PROXY = Number(process.env.MAX_MEDIA_PROXY || 3);
-let activeMediaProxies = 0;
 
 function applyCors(res, headers = {}) {
   for (const [k, v] of Object.entries(headers)) {
@@ -94,18 +88,6 @@ function sendJson(res, status, body, corsHeaders = {}) {
 
 async function proxyMedia(req, res, targetUrl) {
   const corsHeaders = req._corsHeaders || {};
-  if (activeMediaProxies >= MAX_MEDIA_PROXY) {
-    sendJson(
-      res,
-      503,
-      {
-        error: "Too many downloads/streams on this relay. Wait and retry.",
-        code: "RELAY_BUSY",
-      },
-      corsHeaders
-    );
-    return;
-  }
 
   let parsed;
   try {
@@ -135,7 +117,6 @@ async function proxyMedia(req, res, targetUrl) {
   const ac = new AbortController();
   const onClose = () => ac.abort();
   req.on("close", onClose);
-  activeMediaProxies += 1;
 
   try {
     const upstream = await fetch(parsed.href, {
@@ -168,7 +149,6 @@ async function proxyMedia(req, res, targetUrl) {
     if (ac.signal.aborted || res.writableEnded) return;
     sendJson(res, 502, { error: "Media proxy failed" }, corsHeaders);
   } finally {
-    activeMediaProxies = Math.max(0, activeMediaProxies - 1);
     req.off("close", onClose);
   }
 }
@@ -254,7 +234,6 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
-    return;
   }
 
   const url = new URL(req.url || "/", `http://127.0.0.1:${PORT}`);
