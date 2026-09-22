@@ -7,6 +7,64 @@ import { getPlayRelayBase } from "../../../lib/config";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// CDN sliding-window token bucket — module-level so it persists across requests
+// on the same Node.js process (the Next.js long-running server).
+// All configurable via env vars; safe defaults are conservative enough to avoid 429.
+const CDN_MAX_REQUESTS = Number(process.env.CDN_MAX_REQUESTS || 3);
+const CDN_WINDOW_MS = Number(process.env.CDN_WINDOW_MS || 10000); // 10 seconds
+const CDN_BAN_COOLDOWN_MS = Number(process.env.CDN_BAN_COOLDOWN_MS || 15000); // 15 seconds after a real 429
+
+// Timestamps (Date.now()) of recent CDN request starts within the current window
+const cdnRequestLog = [];
+// If we received a real 429, record when we can retry again
+let cdnBanUntil = 0;
+
+// Acquire a token from the bucket. Resolves when it is safe to make a CDN request.
+// If the request is aborted while waiting, resolves early so the caller can check signal.aborted.
+async function acquireCdnSlot(signal) {
+  while (true) {
+    if (signal.aborted) return;
+
+    const now = Date.now();
+
+    // If we're in a ban period (got a real 429), wait until ban expires
+    if (cdnBanUntil > now) {
+      const wait = cdnBanUntil - now;
+      await new Promise((r) => setTimeout(r, Math.min(wait, 500)));
+      continue;
+    }
+
+    // Evict timestamps outside the sliding window
+    const windowStart = now - CDN_WINDOW_MS;
+    while (cdnRequestLog.length > 0 && cdnRequestLog[0] < windowStart) {
+      cdnRequestLog.shift();
+    }
+
+    // If we have capacity, consume a slot and proceed
+    if (cdnRequestLog.length < CDN_MAX_REQUESTS) {
+      cdnRequestLog.push(now);
+      return;
+    }
+
+    // No capacity — wait until the oldest request falls out of the window
+    const oldestTs = cdnRequestLog[0];
+    const msUntilSlotFree = oldestTs + CDN_WINDOW_MS - now + 10; // +10ms margin
+    await new Promise((r) => setTimeout(r, Math.min(msUntilSlotFree, 500)));
+  }
+}
+
+// Record a real CDN 429 response — impose a ban cooldown
+function recordCdnBan(retryAfterHeader) {
+  const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : null;
+  const cooldownMs =
+    retryAfterSec && retryAfterSec > 0
+      ? retryAfterSec * 1000
+      : CDN_BAN_COOLDOWN_MS;
+  cdnBanUntil = Date.now() + cooldownMs;
+  // Clear the log so the window starts fresh after the ban
+  cdnRequestLog.length = 0;
+}
+
 async function handleMedia(request) {
   try {
     const url = new URL(request.url);
@@ -19,24 +77,21 @@ async function handleMedia(request) {
       );
     }
 
-    // Debounce rapid seek requests: wait 1200ms before connecting to upstream.
-    // Since we are proxying (to keep the URL 100% secure), the CDN sees all requests
-    // coming from our server. If the user seeks, the CDN needs time to clear the old 
-    // connection before accepting a new one. A 1.2s delay ensures the old connection 
-    // is fully closed before we open a new one, preventing the 429 rate limit.
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    if (request.signal.aborted) {
-      return new Response(null, { status: 499 }); // Client Closed Request
-    }
-
     let targetUrl;
     try {
       targetUrl = verifyPlaybackTicket(ticket);
-    } catch (err) {
+    } catch {
       return NextResponse.json(
         { ok: false, error: "Invalid or expired playback ticket" },
         { status: 403 }
       );
+    }
+
+    // Wait for a CDN slot before proceeding — this is the core rate-limit fix.
+    // Instead of a blind fixed delay, we precisely mirror the CDN's rate limit window.
+    await acquireCdnSlot(request.signal);
+    if (request.signal.aborted) {
+      return new Response(null, { status: 499 }); // Client Closed Request — no CDN hit needed
     }
 
     // Forward Range header from the browser video element
@@ -47,11 +102,13 @@ async function handleMedia(request) {
       Accept: "*/*",
       Origin: "https://trackese.co",
       Referer: "https://trackese.co/",
-      Connection: "close", // Force Node.js to close the TCP socket so we don't exceed CDN connection limits
+      Connection: "close", // Ensure TCP socket is closed after each response — prevents connection pool buildup
     };
-    
-    // Pass real IP if available to avoid all users sharing the same rate limit bucket
-    const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip");
+
+    // Pass real client IP to avoid all users sharing one CDN rate-limit bucket
+    const clientIp =
+      request.headers.get("x-forwarded-for") ||
+      request.headers.get("x-real-ip");
     if (clientIp) {
       upstreamHeaders["X-Forwarded-For"] = clientIp;
     }
@@ -60,12 +117,15 @@ async function handleMedia(request) {
       upstreamHeaders["Range"] = rangeHeader;
     }
 
-    // Attempt upstream streaming directly or via internal relay
     let upstreamRes;
     const relayBase = getPlayRelayBase();
-    const appKey = String(process.env.APP_CLIENT_KEY || process.env.NEXT_PUBLIC_APP_CLIENT_KEY || "").trim();
+    const appKey = String(
+      process.env.APP_CLIENT_KEY ||
+        process.env.NEXT_PUBLIC_APP_CLIENT_KEY ||
+        ""
+    ).trim();
 
-    // If a remote relay is configured, prefer it (it sets correct Referer / Origin)
+    // Prefer remote relay if configured — it sets correct CDN Referer/Origin from PLAY_HOSTS
     const isRelayConfigured =
       relayBase &&
       !relayBase.includes("127.0.0.1:8788") &&
@@ -85,66 +145,50 @@ async function handleMedia(request) {
           signal: request.signal,
         });
 
-        // Relay is busy (503) — fall through to direct CDN immediately
+        // Relay busy — fall through to direct CDN
         if (upstreamRes.status === 503) {
           upstreamRes = null;
         }
 
-        // CDN rate-limited through relay (429) — wait briefly then retry once via relay
-        // If still 429, fall through to direct CDN (which has its own signed token)
+        // CDN rate-limited the relay — record ban and fall through to direct CDN
         if (upstreamRes && upstreamRes.status === 429) {
-          await new Promise((r) => setTimeout(r, 800));
-          if (!request.signal.aborted) {
-            upstreamRes = await fetch(relayMediaUrl, {
-              method: request.method,
-              headers: relayHeaders,
-              signal: request.signal,
-            });
-            if (upstreamRes.status === 429) {
-              // Still rate-limited — try direct CDN as last resort
-              upstreamRes = null;
-            }
-          }
+          recordCdnBan(upstreamRes.headers.get("Retry-After"));
+          upstreamRes = null;
         }
 
-        // Relay auth failed (key not configured / wrong) — fall through to direct CDN
-        if (upstreamRes && (upstreamRes.status === 401 || upstreamRes.status === 403)) {
+        // Relay auth failed — fall through to direct CDN
+        if (
+          upstreamRes &&
+          (upstreamRes.status === 401 || upstreamRes.status === 403)
+        ) {
           upstreamRes = null;
         }
       } catch (err) {
-        if (err.name === 'AbortError') throw err;
-        // Relay connection failed (network error) — fall through to direct CDN
+        if (err.name === "AbortError") throw err;
         upstreamRes = null;
       }
     }
 
-    // Fall through to direct CDN when relay was not configured, auth failed, busy, or rate-limited
+    // Direct CDN fetch when relay is not available
     if (!upstreamRes && !request.signal.aborted) {
-      let retryCount = 0;
-      while (retryCount < 3) {
-        try {
-          upstreamRes = await fetch(targetUrl, {
-            method: request.method,
-            headers: upstreamHeaders,
-            redirect: "follow",
-            signal: request.signal,
-          });
-          
-          if (upstreamRes.status === 429) {
-            retryCount++;
-            await new Promise(r => setTimeout(r, 1000 * retryCount));
-            if (request.signal.aborted) break;
-            continue;
-          }
-          break;
-        } catch (err) {
-          if (err.name === 'AbortError') throw err;
-          break;
-        }
+      upstreamRes = await fetch(targetUrl, {
+        method: request.method,
+        headers: upstreamHeaders,
+        redirect: "follow",
+        signal: request.signal,
+      });
+
+      // Real 429 from CDN — record ban so future requests back off correctly
+      if (upstreamRes.status === 429) {
+        recordCdnBan(upstreamRes.headers.get("Retry-After"));
       }
     }
 
-    // 206 Partial Content is a success for Range requests — check for actual errors
+    if (!upstreamRes || request.signal.aborted) {
+      return new Response(null, { status: 499 });
+    }
+
+    // 206 Partial Content is success for Range requests
     const statusOk = upstreamRes.ok || upstreamRes.status === 206;
     if (!statusOk) {
       return new Response(null, {
@@ -183,6 +227,9 @@ async function handleMedia(request) {
       headers: responseHeaders,
     });
   } catch (err) {
+    if (err.name === "AbortError") {
+      return new Response(null, { status: 499 });
+    }
     console.error("[api/media] proxy error:", err);
     return NextResponse.json(
       { ok: false, error: "Media streaming failed" },
