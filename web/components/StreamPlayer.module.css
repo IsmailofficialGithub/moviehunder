@@ -534,15 +534,6 @@
   cursor: wait;
 }
 
-.banner {
-  background: #1b1b22;
-  color: #cfcfd8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-}
-
 .error {
   background: #3a1717;
   color: #fecaca;
@@ -752,14 +743,8 @@
   background: transparent;
   color: #fff;
   border: 0;
-  padding: 8px 10px;
+  padding: 8px 8px;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s, transform 0.2s;
-  height: 44px;
-}
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -913,10 +898,8 @@
     object-fit: contain;
   }
 
-  .banner,
   .error {
     width: min(100%, 920px);
-    order: -1;
   }
 
   .toolbar {

@@ -645,15 +645,6 @@ export default function StreamPlayer({
               {active ? ` · ${active.resolution}` : ""}
             </p>
           </div>
-          <button
-            type="button"
-            className={`${styles.settingsBtn} ${styles.settingsBtnTitle}`}
-            aria-label="Playback settings"
-            aria-expanded={settingsOpen}
-            onClick={() => setSettingsOpen(true)}
-          >
-            <SlidersHorizontal size={20} />
-          </button>
         </div>
       </header>
 
@@ -1005,11 +996,6 @@ export default function StreamPlayer({
         </FullscreenPortal>
       ) : null}
 
-      {status === "loading" ? (
-        <div className={styles.banner} aria-busy="true">
-          <BtnSpinner />
-        </div>
-      ) : null}
       {status === "error" ? (
         <div className={styles.error}>
           {error}
@@ -1047,37 +1033,38 @@ export default function StreamPlayer({
               ref={cueElRef}
               className={styles.cueOverlay}
               hidden
+            />
             <div className={styles.centerOverlay}>
-              <div className={styles.bufferingLoader} />
-              {prevEpisode && onPrevEpisode ? (
-                <button
-                  type="button"
-                  className={styles.centerNavBtn}
-                  onClick={goPrev}
-                  disabled={busy}
-                  aria-label="Previous episode"
-                >
-                  <SkipBack size={32} fill="currentColor" strokeWidth={2} />
-                </button>
-              ) : null}
-              {busy ? (
-                <div className={styles.centerPlayBtnLoader}>
-                  <BtnSpinner />
-                </div>
+              {status === "loading" || busy ? (
+                <div className={styles.bufferingLoader} style={{ display: "block" }} />
               ) : (
-                <MediaPlayButton />
+                <>
+                  <div className={styles.bufferingLoader} />
+                  {prevEpisode && onPrevEpisode ? (
+                    <button
+                      type="button"
+                      className={styles.centerNavBtn}
+                      onClick={goPrev}
+                      disabled={busy}
+                      aria-label="Previous episode"
+                    >
+                      <SkipBack size={32} fill="currentColor" strokeWidth={2} />
+                    </button>
+                  ) : null}
+                  <MediaPlayButton />
+                  {nextEpisode && onNextEpisode ? (
+                    <button
+                      type="button"
+                      className={styles.centerNavBtn}
+                      onClick={goNext}
+                      disabled={busy}
+                      aria-label="Next episode"
+                    >
+                      <SkipForward size={32} fill="currentColor" strokeWidth={2} />
+                    </button>
+                  ) : null}
+                </>
               )}
-              {nextEpisode && onNextEpisode ? (
-                <button
-                  type="button"
-                  className={styles.centerNavBtn}
-                  onClick={goNext}
-                  disabled={busy}
-                  aria-label="Next episode"
-                >
-                  <SkipForward size={32} fill="currentColor" strokeWidth={2} />
-                </button>
-              ) : null}
             </div>
             <MediaErrorDialog />
             <div className={styles.controlsWrapper}>
