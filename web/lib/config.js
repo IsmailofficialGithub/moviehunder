@@ -16,6 +16,7 @@ export function getPlayRelayBase() {
 // Secret app key is strictly server-side. Never expose to client browser.
 export function getAppClientKey() {
   if (typeof window !== "undefined") return "";
+  // Support both the old NEXT_PUBLIC_ name and the new private name
   return String(
     process.env.APP_CLIENT_KEY || process.env.NEXT_PUBLIC_APP_CLIENT_KEY || ""
   ).trim();
