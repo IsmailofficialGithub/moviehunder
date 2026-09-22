@@ -43,9 +43,9 @@ async function handleMedia(request) {
     // Attempt upstream streaming directly or via internal relay
     let upstreamRes;
     const relayBase = getPlayRelayBase();
-    const appKey = String(process.env.APP_CLIENT_KEY || "").trim();
+    const appKey = String(process.env.APP_CLIENT_KEY || process.env.NEXT_PUBLIC_APP_CLIENT_KEY || "").trim();
 
-    // If a remote or local relay is configured, request through relay with server-side credentials
+    // If a remote relay is configured, prefer it (it sets correct Referer / Origin)
     const isRelayConfigured =
       relayBase &&
       !relayBase.includes("127.0.0.1:8788") &&
@@ -62,12 +62,27 @@ async function handleMedia(request) {
           method: request.method,
           headers: relayHeaders,
         });
+
+        // If relay itself is rate-limited or hard-errors, pass it upstream immediately
+        // — do NOT fallback to direct CDN fetch, as that double-hits the CDN and
+        // causes the 429 seen on the first request.
+        if (upstreamRes.status === 429) {
+          return new Response(null, {
+            status: 429,
+            headers: {
+              "Retry-After": upstreamRes.headers.get("Retry-After") || "3",
+              "Cache-Control": "no-store",
+            },
+          });
+        }
       } catch {
-        // Fall back to direct fetch if relay network request fails
+        // Relay connection failed (network), fall through to direct fetch
+        upstreamRes = null;
       }
     }
 
-    if (!upstreamRes || !upstreamRes.ok) {
+    // Only fall through to direct fetch if relay was not configured or threw a network error
+    if (!upstreamRes) {
       upstreamRes = await fetch(targetUrl, {
         method: request.method,
         headers: upstreamHeaders,
@@ -75,11 +90,13 @@ async function handleMedia(request) {
       });
     }
 
-    if (!upstreamRes.ok && upstreamRes.status !== 206) {
-      return NextResponse.json(
-        { ok: false, error: `Upstream media error (${upstreamRes.status})` },
-        { status: upstreamRes.status }
-      );
+    // 206 Partial Content is a success for Range requests — check for actual errors
+    const statusOk = upstreamRes.ok || upstreamRes.status === 206;
+    if (!statusOk) {
+      return new Response(null, {
+        status: upstreamRes.status,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
 
     const responseHeaders = new Headers();
