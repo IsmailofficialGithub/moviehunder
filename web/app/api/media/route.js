@@ -19,11 +19,12 @@ async function handleMedia(request) {
       );
     }
 
-    // Debounce rapid seek requests: wait 400ms before connecting to upstream.
-    // When a user scrubs the timeline, the browser fires multiple intermediate requests 
-    // and instantly aborts them. This delay ensures we only forward the final request 
-    // to the CDN, preventing aggressive rate limits (429) from rapid seeking.
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // Debounce rapid seek requests: wait 1200ms before connecting to upstream.
+    // Since we are proxying (to keep the URL 100% secure), the CDN sees all requests
+    // coming from our server. If the user seeks, the CDN needs time to clear the old 
+    // connection before accepting a new one. A 1.2s delay ensures the old connection 
+    // is fully closed before we open a new one, preventing the 429 rate limit.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
     if (request.signal.aborted) {
       return new Response(null, { status: 499 }); // Client Closed Request
     }
