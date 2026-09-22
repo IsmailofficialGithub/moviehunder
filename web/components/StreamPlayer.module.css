@@ -78,10 +78,12 @@
   padding: 18px;
   display: grid;
   gap: 12px;
-  max-height: min(70vh, 480px);
-  overflow: auto;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  max-height: min(80vh, 520px);
+  overflow-y: auto;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
   margin: 0;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 .settingsHead {
@@ -140,41 +142,59 @@
 
 .displayGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
 }
 
 .displayChip {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid #2e2e38;
-  background: #1b1b22;
-  color: #f3f3f7;
-  cursor: pointer;
-  text-align: left;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  padding: 10px 12px !important;
+  border-radius: 12px !important;
+  border: 1px solid #2e2e38 !important;
+  background: #1b1b22 !important;
+  color: #f3f3f7 !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-height: 52px !important;
+  position: static !important;
 }
 
 .displayChip strong {
-  font-size: 13px;
+  display: block !important;
+  position: static !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #f3f3f7 !important;
 }
 
 .displayChip span {
-  font-size: 11px;
-  color: #9a9aa8;
-  font-weight: 500;
+  display: block !important;
+  position: static !important;
+  font-size: 11px !important;
+  color: #9a9aa8 !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .displayChipOn {
-  border-color: #f6c443;
-  background: rgba(246, 196, 67, 0.12);
+  border-color: #f6c443 !important;
+  background: rgba(246, 196, 67, 0.14) !important;
 }
 
 .displayChipOn strong {
-  color: #f6c443;
+  color: #f6c443 !important;
 }
 
 .desktopOnly {

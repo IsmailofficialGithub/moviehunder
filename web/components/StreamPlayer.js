@@ -650,20 +650,38 @@ export default function StreamPlayer({
 
       {settingsOpen ? (
         <FullscreenPortal>
-        <div className={styles.settingsModal} role="dialog" aria-modal="true">
+        <div
+          className={styles.settingsModal}
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
             className={styles.subBackdrop}
             aria-label="Close settings"
-            onClick={() => setSettingsOpen(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSettingsOpen(false);
+            }}
           />
-          <section className={styles.settingsPanel}>
+          <section
+            className={styles.settingsPanel}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+          >
             <div className={styles.settingsHead}>
               <h2>Settings</h2>
               <button
                 type="button"
                 className={styles.removeBtn}
-                onClick={() => setSettingsOpen(false)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSettingsOpen(false);
+                }}
               >
                 Close
               </button>
@@ -676,6 +694,8 @@ export default function StreamPlayer({
                 value={qualityIndex}
                 onChange={onQualityChange}
                 disabled={!sources.length}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
               >
                 {sources.map((s, i) => {
                   const size = formatBytes(s.size_bytes);
@@ -704,6 +724,7 @@ export default function StreamPlayer({
                       e.stopPropagation();
                       setDisplayMode(m.id);
                     }}
+                    onPointerDown={(e) => e.stopPropagation()}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
@@ -724,10 +745,12 @@ export default function StreamPlayer({
               className={`${styles.settingsAction} ${
                 subPanelOpen ? styles.subToggleOn : ""
               }`}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setSettingsOpen(false);
                 setSubPanelOpen(true);
               }}
+              onPointerDown={(e) => e.stopPropagation()}
             >
               <span>Subtitles</span>
               <span className={styles.settingsActionMeta}>{subButtonLabel}</span>
@@ -739,14 +762,29 @@ export default function StreamPlayer({
 
       {subPanelOpen ? (
         <FullscreenPortal>
-        <div className={styles.subModal} role="dialog" aria-modal="true">
+        <div
+          className={styles.subModal}
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
             className={styles.subBackdrop}
             aria-label="Close subtitles"
-            onClick={() => setSubPanelOpen(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSubPanelOpen(false);
+            }}
           />
-          <section className={styles.subPanel}>
+          <section
+            className={styles.subPanel}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+          >
           <div className={styles.subPanelTop}>
             <div>
               <h2>Subtitles</h2>
