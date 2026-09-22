@@ -62,6 +62,7 @@ async function handleMedia(request) {
         upstreamRes = await fetch(relayMediaUrl, {
           method: request.method,
           headers: relayHeaders,
+          signal: request.signal,
         });
 
         // Relay is busy (503) — fall through to direct CDN immediately
@@ -73,13 +74,16 @@ async function handleMedia(request) {
         // If still 429, fall through to direct CDN (which has its own signed token)
         if (upstreamRes && upstreamRes.status === 429) {
           await new Promise((r) => setTimeout(r, 800));
-          upstreamRes = await fetch(relayMediaUrl, {
-            method: request.method,
-            headers: relayHeaders,
-          });
-          if (upstreamRes.status === 429) {
-            // Still rate-limited — try direct CDN as last resort
-            upstreamRes = null;
+          if (!request.signal.aborted) {
+            upstreamRes = await fetch(relayMediaUrl, {
+              method: request.method,
+              headers: relayHeaders,
+              signal: request.signal,
+            });
+            if (upstreamRes.status === 429) {
+              // Still rate-limited — try direct CDN as last resort
+              upstreamRes = null;
+            }
           }
         }
 
@@ -87,19 +91,37 @@ async function handleMedia(request) {
         if (upstreamRes && (upstreamRes.status === 401 || upstreamRes.status === 403)) {
           upstreamRes = null;
         }
-      } catch {
+      } catch (err) {
+        if (err.name === 'AbortError') throw err;
         // Relay connection failed (network error) — fall through to direct CDN
         upstreamRes = null;
       }
     }
 
     // Fall through to direct CDN when relay was not configured, auth failed, busy, or rate-limited
-    if (!upstreamRes) {
-      upstreamRes = await fetch(targetUrl, {
-        method: request.method,
-        headers: upstreamHeaders,
-        redirect: "follow",
-      });
+    if (!upstreamRes && !request.signal.aborted) {
+      let retryCount = 0;
+      while (retryCount < 3) {
+        try {
+          upstreamRes = await fetch(targetUrl, {
+            method: request.method,
+            headers: upstreamHeaders,
+            redirect: "follow",
+            signal: request.signal,
+          });
+          
+          if (upstreamRes.status === 429) {
+            retryCount++;
+            await new Promise(r => setTimeout(r, 1000 * retryCount));
+            if (request.signal.aborted) break;
+            continue;
+          }
+          break;
+        } catch (err) {
+          if (err.name === 'AbortError') throw err;
+          break;
+        }
+      }
     }
 
     // 206 Partial Content is a success for Range requests — check for actual errors
