@@ -113,6 +113,8 @@ export default function StreamPlayer({
   const cueElRef = useRef(null);
   const lastCueRef = useRef("");
   const lastClockPaintRef = useRef(0);
+  const videoRetryCount = useRef(0);
+  const videoRetryTimer = useRef(null);
 
   useEffect(() => {
     setMounted(true);
@@ -308,7 +310,11 @@ export default function StreamPlayer({
     const video = videoRef.current;
     if (!video || !src) return;
     let resume = resumeAtRef.current;
-    
+
+    // Reset retry counter every time the src changes (new episode or quality change)
+    videoRetryCount.current = 0;
+    clearTimeout(videoRetryTimer.current);
+
     if (resume === 0) {
       try {
         const saved = localStorage.getItem(`history_${subjectId}_${se}_${ep}`);
@@ -331,7 +337,43 @@ export default function StreamPlayer({
       video.play().catch(() => {});
     };
     video.addEventListener("loadeddata", onReady, { once: true });
-    return () => video.removeEventListener("loadeddata", onReady);
+
+    // Auto-retry on network errors (e.g. 429 rate-limit from CDN proxy).
+    // Saves current position, waits with exponential backoff, then reloads src.
+    const MAX_RETRIES = 4;
+    const onVideoError = () => {
+      const err = video.error;
+      // Only retry on network errors (code 2) or decode errors (code 3).
+      // Don't retry on src-not-found (code 4) which is a config error.
+      if (!err || err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return;
+      if (videoRetryCount.current >= MAX_RETRIES) return;
+
+      const attempt = videoRetryCount.current + 1;
+      videoRetryCount.current = attempt;
+      // Save position before reloading so we can resume at the same spot
+      const savedTime = video.currentTime || 0;
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 10000); // 1s, 2s, 4s, 8s
+
+      videoRetryTimer.current = setTimeout(() => {
+        if (!videoRef.current) return;
+        videoRef.current.src = src;
+        videoRef.current.load();
+        const onRetryReady = () => {
+          if (savedTime > 0) {
+            try { videoRef.current.currentTime = savedTime; } catch { /* ignore */ }
+          }
+          videoRef.current.play().catch(() => {});
+        };
+        videoRef.current.addEventListener("loadeddata", onRetryReady, { once: true });
+      }, delay);
+    };
+
+    video.addEventListener("error", onVideoError);
+    return () => {
+      video.removeEventListener("loadeddata", onReady);
+      video.removeEventListener("error", onVideoError);
+      clearTimeout(videoRetryTimer.current);
+    };
   }, [mounted, src]);
 
   // Tie subtitle lines to video.currentTime (+ sync offset)
