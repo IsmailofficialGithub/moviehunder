@@ -58,25 +58,33 @@ async function handleMedia(request) {
         const relayMediaUrl = `${relayBase}/api/media?url=${encodeURIComponent(
           targetUrl
         )}`;
+
         upstreamRes = await fetch(relayMediaUrl, {
           method: request.method,
           headers: relayHeaders,
         });
 
-        // Relay rate-limited — surface it immediately, don't double-hit CDN
-        if (upstreamRes.status === 429) {
-          return new Response(null, {
-            status: 429,
-            headers: {
-              "Retry-After": upstreamRes.headers.get("Retry-After") || "3",
-              "Cache-Control": "no-store",
-            },
+        // Relay is busy (503) — fall through to direct CDN immediately
+        if (upstreamRes.status === 503) {
+          upstreamRes = null;
+        }
+
+        // CDN rate-limited through relay (429) — wait briefly then retry once via relay
+        // If still 429, fall through to direct CDN (which has its own signed token)
+        if (upstreamRes && upstreamRes.status === 429) {
+          await new Promise((r) => setTimeout(r, 800));
+          upstreamRes = await fetch(relayMediaUrl, {
+            method: request.method,
+            headers: relayHeaders,
           });
+          if (upstreamRes.status === 429) {
+            // Still rate-limited — try direct CDN as last resort
+            upstreamRes = null;
+          }
         }
 
         // Relay auth failed (key not configured / wrong) — fall through to direct CDN
-        // The CDN URL carries its own signed token so it doesn't need the relay
-        if (upstreamRes.status === 401 || upstreamRes.status === 403) {
+        if (upstreamRes && (upstreamRes.status === 401 || upstreamRes.status === 403)) {
           upstreamRes = null;
         }
       } catch {
@@ -85,7 +93,7 @@ async function handleMedia(request) {
       }
     }
 
-    // Fall through to direct CDN fetch when relay was not configured, auth failed, or network errored
+    // Fall through to direct CDN when relay was not configured, auth failed, busy, or rate-limited
     if (!upstreamRes) {
       upstreamRes = await fetch(targetUrl, {
         method: request.method,
