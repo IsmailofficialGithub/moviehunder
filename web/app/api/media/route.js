@@ -63,9 +63,7 @@ async function handleMedia(request) {
           headers: relayHeaders,
         });
 
-        // If relay itself is rate-limited or hard-errors, pass it upstream immediately
-        // — do NOT fallback to direct CDN fetch, as that double-hits the CDN and
-        // causes the 429 seen on the first request.
+        // Relay rate-limited — surface it immediately, don't double-hit CDN
         if (upstreamRes.status === 429) {
           return new Response(null, {
             status: 429,
@@ -75,13 +73,19 @@ async function handleMedia(request) {
             },
           });
         }
+
+        // Relay auth failed (key not configured / wrong) — fall through to direct CDN
+        // The CDN URL carries its own signed token so it doesn't need the relay
+        if (upstreamRes.status === 401 || upstreamRes.status === 403) {
+          upstreamRes = null;
+        }
       } catch {
-        // Relay connection failed (network), fall through to direct fetch
+        // Relay connection failed (network error) — fall through to direct CDN
         upstreamRes = null;
       }
     }
 
-    // Only fall through to direct fetch if relay was not configured or threw a network error
+    // Fall through to direct CDN fetch when relay was not configured, auth failed, or network errored
     if (!upstreamRes) {
       upstreamRes = await fetch(targetUrl, {
         method: request.method,
