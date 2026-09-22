@@ -19,6 +19,15 @@ async function handleMedia(request) {
       );
     }
 
+    // Debounce rapid seek requests: wait 400ms before connecting to upstream.
+    // When a user scrubs the timeline, the browser fires multiple intermediate requests 
+    // and instantly aborts them. This delay ensures we only forward the final request 
+    // to the CDN, preventing aggressive rate limits (429) from rapid seeking.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    if (request.signal.aborted) {
+      return new Response(null, { status: 499 }); // Client Closed Request
+    }
+
     let targetUrl;
     try {
       targetUrl = verifyPlaybackTicket(ticket);
