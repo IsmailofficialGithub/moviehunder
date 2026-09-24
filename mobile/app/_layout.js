@@ -105,6 +105,7 @@ export default function RootLayout() {
           <AppUpdateGate
             info={update.info}
             force
+            otaReady={update.otaReady}
             busy={update.busy}
             progress={update.progress}
             error={update.error}
@@ -155,6 +156,7 @@ export default function RootLayout() {
             <SoftUpdateModal
               visible={update.softVisible}
               info={update.info}
+              otaReady={update.otaReady}
               busy={update.busy}
               progress={update.progress}
               error={update.error}

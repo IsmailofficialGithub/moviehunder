@@ -245,6 +245,10 @@ export function packKeyFromItem(item) {
   return `${item.subjectId}|${item.detailPath}`;
 }
 
+export function isSeriesItem(d) {
+  return d?.kind === "series" || Number(d?.se) > 0 || Number(d?.ep) > 0;
+}
+
 // Minimum bytes before partial offline play is offered (~256 KB).
 const MIN_PARTIAL_BYTES = 256 * 1024;
 

@@ -892,9 +892,11 @@ export default function DownloadsScreen() {
         return Number(a.ep) - Number(b.ep);
       });
     }
-    return [...map.values()].sort((a, b) =>
-      String(a.title).localeCompare(String(b.title))
-    );
+    return [...map.values()].sort((a, b) => {
+      const latestA = Math.max(...a.episodes.map((e) => e.updatedAt || 0));
+      const latestB = Math.max(...b.episodes.map((e) => e.updatedAt || 0));
+      return latestB - latestA;
+    });
   }, [visibleList]);
 
   const onStorageTap = async () => {
@@ -1400,7 +1402,14 @@ export default function DownloadsScreen() {
                   pack={pack}
                   watchMap={watchMap}
                   expanded={!!expanded[pack.key]}
-                  onToggle={() => togglePack(pack.key)}
+                  onToggle={() =>
+                    vaultMode
+                      ? togglePack(pack.key)
+                      : router.push({
+                          pathname: "/series-detail",
+                          params: { packKey: encodeURIComponent(pack.key) },
+                        })
+                  }
                   onPlay={onPlay}
                   onPause={onPause}
                   onResume={onResume}

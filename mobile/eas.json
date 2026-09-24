@@ -23,6 +23,12 @@
     },
     "production": {
       "android": {
+        "buildType": "apk"
+      },
+      "channel": "production"
+    },
+    "production-bundle": {
+      "android": {
         "buildType": "app-bundle"
       },
       "channel": "production"

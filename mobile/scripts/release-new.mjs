@@ -505,7 +505,10 @@ async function saveArtifact(platform, version, url) {
   ensureReleaseDirs();
   const isIos = platform === "ios";
   const dir = path.join(RELEASE_ROOT, isIos ? "ios" : "apk");
-  const ext = isIos ? "ipa" : "apk";
+  let ext = isIos ? "ipa" : "apk";
+  if (!isIos && typeof url === "string" && url.toLowerCase().includes(".aab")) {
+    ext = "aab";
+  }
   const fileName = `moviehunter-${version}.${ext}`;
   const dest = path.join(dir, fileName);
 
@@ -545,9 +548,16 @@ function writeVersionFiles({
   metadata,
   force,
 }) {
+  const existing = fs.existsSync(VERSION_PATHS[0]) ? readJson(VERSION_PATHS[0]) : {};
   const payload = {
     latest_version: version,
     min_supported_version: version,
+    update_type: existing.update_type || (force ? "hard" : "soft"),
+    env: existing.env || {
+      api_base: "",
+      play_relay: "",
+      app_client_key: "",
+    },
     release_notes: notes || `MovieHunter v${version}`,
     release_metadata: metadata || {},
     android: {

@@ -1,5 +1,26 @@
 {
   "releases": {
+    "0.0.4": {
+      "summary": "Offline series management with dedicated episode navigation, playback controls, remote dynamic environment config, and Google Play DEX code optimization.",
+      "added": [
+        "Dedicated Series Details screen for offline downloads with grouped episodes and bulk download actions",
+        "Next and Previous episode playback controls for both streaming and offline downloaded media",
+        "Auto-play next movie in downloads when finishing offline movie playback",
+        "Remote environment configuration (.env) hydrated dynamically from version.json without needing app rebuilds",
+        "Two-tier update engine: seamless background OTA soft updates and in-app APK installer",
+        "Hidden adult content toggle unlocked via security keyword"
+      ],
+      "changed": [
+        "Downloads tab groups series titles on top with badge counts and navigation to the new series episode viewer",
+        "Improved player controls layout and bottom navigation bar styling"
+      ],
+      "fixed": [
+        "Google Play Console DEX code optimization warning resolved via R8 minification and resource shrinking",
+        "ProGuard rules configured for React Native and Hermes runtime stability",
+        "Removed deprecated Android edgeToEdgeEnabled property"
+      ],
+      "removed": []
+    },
     "0.0.3": {
       "summary": "A faster, clearer way to browse, watch, and continue titles across mobile and web.",
       "added": [

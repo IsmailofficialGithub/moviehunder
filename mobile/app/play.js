@@ -36,9 +36,14 @@ import { toUserMessage } from "../lib/userFacingError";
 import { cueAtTime, makeSubtitleTrack } from "../lib/subtitles";
 import {
   getDownloadById,
+  getDownloads,
   hydrateDownloads,
+  isSeriesItem,
+  packKeyFromItem,
+  subscribeDownloads,
   subtitleFileNameFor,
 } from "../lib/downloads";
+import { getEpisodes } from "../lib/api";
 
 import {
   clearWatchProgress,
@@ -280,6 +285,228 @@ export default function PlayScreen() {
         }
       })
       .catch(() => {});
+  }, [player]);
+
+  const isCurrentSeries = kind === "series" || Number(se) > 0 || Number(ep) > 0;
+
+  // Track downloads for offline next/previous navigation
+  const [downloadList, setDownloadList] = useState(() => getDownloads({ vault: true }));
+  useEffect(() => {
+    return subscribeDownloads((list) => setDownloadList(list));
+  }, []);
+
+  // Offline series episodes
+  const seriesDownloads = useMemo(() => {
+    if (!downloadId || !isCurrentSeries) return [];
+    const currentDl = downloadList.find((d) => d.id === downloadId);
+    const curPackKey = currentDl ? packKeyFromItem(currentDl) : `${subjectId}|${detailPath}`;
+    return downloadList
+      .filter((d) => {
+        if (d.status !== "completed" && !d.fileUri) return false;
+        if (d.inVault && !isVaultUnlocked()) return false;
+        if (!isSeriesItem(d)) return false;
+        return (
+          packKeyFromItem(d) === curPackKey ||
+          (d.detailPath && d.detailPath === detailPath) ||
+          (d.subjectId && subjectId && d.subjectId === subjectId)
+        );
+      })
+      .sort((a, b) => (Number(a.se) - Number(b.se)) || (Number(a.ep) - Number(b.ep)));
+  }, [downloadId, isCurrentSeries, downloadList, subjectId, detailPath]);
+
+  const currentSeriesDlIndex = useMemo(() => {
+    if (!seriesDownloads.length) return -1;
+    const byId = seriesDownloads.findIndex((d) => d.id === downloadId);
+    if (byId >= 0) return byId;
+    return seriesDownloads.findIndex(
+      (d) => String(d.se) === String(se) && String(d.ep) === String(ep)
+    );
+  }, [seriesDownloads, downloadId, se, ep]);
+
+  const prevDownloadedEp = currentSeriesDlIndex > 0 ? seriesDownloads[currentSeriesDlIndex - 1] : null;
+  const nextDownloadedEp =
+    currentSeriesDlIndex >= 0 && currentSeriesDlIndex < seriesDownloads.length - 1
+      ? seriesDownloads[currentSeriesDlIndex + 1]
+      : null;
+
+  // Offline movies
+  const movieDownloads = useMemo(() => {
+    if (!downloadId || isCurrentSeries) return [];
+    return downloadList
+      .filter((d) => {
+        if (d.status !== "completed" && !d.fileUri) return false;
+        if (d.inVault && !isVaultUnlocked()) return false;
+        if (d.kind === "music") return false;
+        return !isSeriesItem(d);
+      })
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }, [downloadId, isCurrentSeries, downloadList]);
+
+  const currentMovieDlIndex = useMemo(() => {
+    if (!movieDownloads.length) return -1;
+    return movieDownloads.findIndex((d) => d.id === downloadId);
+  }, [movieDownloads, downloadId]);
+
+  const prevDownloadedMovie = currentMovieDlIndex > 0 ? movieDownloads[currentMovieDlIndex - 1] : null;
+  const nextDownloadedMovie =
+    currentMovieDlIndex >= 0 && currentMovieDlIndex < movieDownloads.length - 1
+      ? movieDownloads[currentMovieDlIndex + 1]
+      : null;
+
+  // Live series episodes
+  const [liveEpisodes, setLiveEpisodes] = useState([]);
+  useEffect(() => {
+    if (downloadId || !isCurrentSeries || !detailPath) return;
+    let cancelled = false;
+    getEpisodes(detailPath)
+      .then((data) => {
+        if (cancelled || !data?.seasons) return;
+        const list = [];
+        for (const s of data.seasons) {
+          const sNum = Number(s.season) || 1;
+          for (const e of s.episodes || []) {
+            const epNum = Number(e.ep ?? e.episode);
+            if (Number.isFinite(epNum)) {
+              list.push({
+                se: String(e.se ?? sNum),
+                ep: String(epNum),
+                title: e.name || e.title || `S${e.se ?? sNum}E${epNum}`,
+              });
+            }
+          }
+        }
+        list.sort((a, b) => (Number(a.se) - Number(b.se)) || (Number(a.ep) - Number(b.ep)));
+        if (!cancelled) setLiveEpisodes(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [downloadId, isCurrentSeries, detailPath]);
+
+  const liveIndex = useMemo(() => {
+    if (!liveEpisodes.length) return -1;
+    return liveEpisodes.findIndex(
+      (e) => String(e.se) === String(se) && String(e.ep) === String(ep)
+    );
+  }, [liveEpisodes, se, ep]);
+
+  const prevLiveEp = useMemo(() => {
+    if (liveIndex > 0) return liveEpisodes[liveIndex - 1];
+    if (liveEpisodes.length === 0 && Number(ep) > 1) {
+      return { se, ep: String(Number(ep) - 1), title: `S${se}E${Number(ep) - 1}` };
+    }
+    return null;
+  }, [liveIndex, liveEpisodes, se, ep]);
+
+  const nextLiveEp = useMemo(() => {
+    if (liveIndex >= 0 && liveIndex < liveEpisodes.length - 1) {
+      return liveEpisodes[liveIndex + 1];
+    }
+    if (liveEpisodes.length === 0 && Number(ep) >= 1) {
+      return { se, ep: String(Number(ep) + 1), title: `S${se}E${Number(ep) + 1}` };
+    }
+    return null;
+  }, [liveIndex, liveEpisodes, se, ep]);
+
+  const prevItem = useMemo(() => {
+    if (downloadId) {
+      if (isCurrentSeries) {
+        return prevDownloadedEp ? { ...prevDownloadedEp, isDownload: true, isSeries: true } : null;
+      }
+      return prevDownloadedMovie ? { ...prevDownloadedMovie, isDownload: true, isSeries: false } : null;
+    }
+    if (isCurrentSeries) {
+      return prevLiveEp ? { ...prevLiveEp, isDownload: false, isSeries: true } : null;
+    }
+    return null;
+  }, [
+    downloadId,
+    isCurrentSeries,
+    prevDownloadedEp,
+    prevDownloadedMovie,
+    prevLiveEp,
+  ]);
+
+  const nextItem = useMemo(() => {
+    if (downloadId) {
+      if (isCurrentSeries) {
+        return nextDownloadedEp ? { ...nextDownloadedEp, isDownload: true, isSeries: true } : null;
+      }
+      return nextDownloadedMovie ? { ...nextDownloadedMovie, isDownload: true, isSeries: false } : null;
+    }
+    if (isCurrentSeries) {
+      return nextLiveEp ? { ...nextLiveEp, isDownload: false, isSeries: true } : null;
+    }
+    return null;
+  }, [
+    downloadId,
+    isCurrentSeries,
+    nextDownloadedEp,
+    nextDownloadedMovie,
+    nextLiveEp,
+  ]);
+
+  const navigateTo = useCallback(
+    (target) => {
+      if (!target) return;
+      try {
+        player.pause();
+      } catch {
+        // ignore
+      }
+
+      if (target.isDownload) {
+        router.replace({
+          pathname: "/play",
+          params: {
+            subjectId: target.subjectId || subjectId,
+            detail_path: target.detailPath || detailPath,
+            se: target.se || "0",
+            ep: target.ep || "0",
+            title: target.isSeries
+              ? `${target.title || title} · S${target.se}E${target.ep}`
+              : target.title || title,
+            poster: target.poster || poster,
+            kind: target.isSeries ? "series" : "movie",
+            autoplay: "1",
+            downloadId: encodeURIComponent(target.id),
+          },
+        });
+      } else {
+        const cleanTitle = String(title || "")
+          .replace(/\s*[-·]\s*S\d+E\d+.*$/i, "")
+          .trim();
+        router.replace({
+          pathname: "/play",
+          params: {
+            subjectId,
+            detail_path: detailPath,
+            se: target.se,
+            ep: target.ep,
+            title: `${cleanTitle || "Series"} - S${target.se}E${target.ep}`,
+            poster,
+            kind: "series",
+            autoplay: "1",
+          },
+        });
+      }
+    },
+    [player, subjectId, detailPath, title, poster, router]
+  );
+
+  const nextItemRef = useRef(nextItem);
+  nextItemRef.current = nextItem;
+  const navigateToRef = useRef(navigateTo);
+  navigateToRef.current = navigateTo;
+
+  useEffect(() => {
+    const sub = player.addListener("playToEnd", () => {
+      if (nextItemRef.current) {
+        navigateToRef.current(nextItemRef.current);
+      }
+    });
+    return () => sub.remove();
   }, [player]);
 
   const clearPreloadTimers = useCallback(() => {
@@ -1525,17 +1752,45 @@ export default function PlayScreen() {
                 </View>
 
                 <View style={styles.centerPlay} pointerEvents="box-none">
-                  <Pressable style={styles.bigPlay} onPress={togglePlayPause}>
-                    {waitingToPlay && !isPlaying ? (
-                      <ActivityIndicator color="#fff" size="large" />
+                  <View style={styles.centerRow} pointerEvents="box-none">
+                    {prevItem ? (
+                      <Pressable
+                        style={styles.navSkipBtn}
+                        onPress={() => navigateTo(prevItem)}
+                        hitSlop={10}
+                        accessibilityLabel="Previous"
+                      >
+                        <Ionicons name="play-skip-back" size={26} color="#fff" />
+                      </Pressable>
                     ) : (
-                      <Ionicons
-                        name={isPlaying ? "pause" : "play"}
-                        size={40}
-                        color="#fff"
-                      />
+                      <View style={styles.navSkipPlaceholder} />
                     )}
-                  </Pressable>
+
+                    <Pressable style={styles.bigPlay} onPress={togglePlayPause}>
+                      {waitingToPlay && !isPlaying ? (
+                        <ActivityIndicator color="#fff" size="large" />
+                      ) : (
+                        <Ionicons
+                          name={isPlaying ? "pause" : "play"}
+                          size={40}
+                          color="#fff"
+                        />
+                      )}
+                    </Pressable>
+
+                    {nextItem ? (
+                      <Pressable
+                        style={styles.navSkipBtn}
+                        onPress={() => navigateTo(nextItem)}
+                        hitSlop={10}
+                        accessibilityLabel="Next"
+                      >
+                        <Ionicons name="play-skip-forward" size={26} color="#fff" />
+                      </Pressable>
+                    ) : (
+                      <View style={styles.navSkipPlaceholder} />
+                    )}
+                  </View>
                 </View>
 
                 <View
@@ -1962,6 +2217,24 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: "center",
     justifyContent: "center",
+  },
+  centerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 32,
+  },
+  navSkipBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navSkipPlaceholder: {
+    width: 48,
+    height: 48,
   },
   bigPlay: {
     width: 80,

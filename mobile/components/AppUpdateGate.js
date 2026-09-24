@@ -12,7 +12,9 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  applyOtaUpdate,
   checkForAppUpdate,
+  checkOtaUpdate,
   downloadAndInstallApk,
   openReleasesPage,
 } from "../lib/appUpdate";
@@ -25,6 +27,7 @@ import { colors, radii, spacing } from "../lib/theme";
 export function useAppUpdateCheck({ enabled = true } = {}) {
   const [checking, setChecking] = useState(Boolean(enabled));
   const [info, setInfo] = useState(null);
+  const [otaReady, setOtaReady] = useState(false);
   const [softVisible, setSoftVisible] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,9 +42,19 @@ export function useAppUpdateCheck({ enabled = true } = {}) {
     setChecking(true);
     setError("");
     try {
-      const next = await checkForAppUpdate();
+      const [next, ota] = await Promise.all([
+        checkForAppUpdate(),
+        checkOtaUpdate().catch(() => ({ isAvailable: false })),
+      ]);
       setInfo(next);
-      if (next?.updateAvailable && !next.force) {
+      if (ota?.isAvailable) {
+        setOtaReady(true);
+        if (next?.force) {
+          await applyOtaUpdate();
+          return;
+        }
+        setSoftVisible(true);
+      } else if (next?.updateAvailable && !next.force) {
         setSoftVisible(true);
       }
     } catch {
@@ -57,6 +70,10 @@ export function useAppUpdateCheck({ enabled = true } = {}) {
   }, [runCheck]);
 
   const startUpdate = useCallback(async () => {
+    if (otaReady) {
+      await applyOtaUpdate();
+      return;
+    }
     if (!info) return;
     setBusy(true);
     setError("");
@@ -81,7 +98,7 @@ export function useAppUpdateCheck({ enabled = true } = {}) {
     } finally {
       setBusy(false);
     }
-  }, [info]);
+  }, [info, otaReady]);
 
   const dismissSoft = useCallback(() => setSoftVisible(false), []);
 
@@ -91,7 +108,8 @@ export function useAppUpdateCheck({ enabled = true } = {}) {
     checking,
     blocking,
     info,
-    softVisible: softVisible && info?.updateAvailable && !info?.force,
+    otaReady,
+    softVisible: softVisible && ((info?.updateAvailable && !info?.force) || otaReady),
     error,
     busy,
     progress,
@@ -104,6 +122,7 @@ export function useAppUpdateCheck({ enabled = true } = {}) {
 export function AppUpdateGate({
   info,
   force,
+  otaReady = false,
   busy,
   progress,
   error,
@@ -112,7 +131,7 @@ export function AppUpdateGate({
 }) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  if (!info) return null;
+  if (!info && !otaReady) return null;
 
   const pct = Math.round((progress || 0) * 100);
   const softMaxHeight = Math.max(
@@ -122,7 +141,7 @@ export function AppUpdateGate({
       windowHeight - insets.top - insets.bottom - 16
     )
   );
-  const releaseMetadata = info.releaseMetadata;
+  const releaseMetadata = info?.releaseMetadata;
   const changeGroups = [
     ["Added", releaseMetadata?.added],
     ["Changed", releaseMetadata?.changed],
@@ -140,24 +159,43 @@ export function AppUpdateGate({
       ]}
     >
       <Ionicons
-        name={force ? "cloud-download-outline" : "arrow-up-circle-outline"}
+        name={
+          otaReady
+            ? "refresh-circle-outline"
+            : force
+            ? "cloud-download-outline"
+            : "arrow-up-circle-outline"
+        }
         size={force ? 56 : 36}
         color={colors.secondary}
       />
       <Text style={styles.title}>
-        {force ? "Update required" : "Update available"}
+        {otaReady
+          ? "Update ready"
+          : force
+          ? "Update required"
+          : "Update available"}
       </Text>
       <Text style={styles.meta}>
-        v{info.currentVersion} → v{info.latestVersion}
+        {otaReady
+          ? "Restart required to apply changes"
+          : info
+          ? `v${info.currentVersion} → v${info.latestVersion}`
+          : ""}
       </Text>
       <ScrollView
         style={styles.detailsScroll}
         contentContainerStyle={styles.detailsContent}
         showsVerticalScrollIndicator
       >
-        {releaseMetadata?.summary ? (
+        {otaReady ? (
+          <Text style={styles.notes}>
+            A new in-app update was downloaded in the background. Tap restart to
+            apply it now.
+          </Text>
+        ) : releaseMetadata?.summary ? (
           <Text style={styles.notes}>{releaseMetadata.summary}</Text>
-        ) : info.releaseNotes ? (
+        ) : info?.releaseNotes ? (
           <Text style={styles.notes}>{info.releaseNotes}</Text>
         ) : (
           <Text style={styles.notes}>
@@ -200,9 +238,17 @@ export function AppUpdateGate({
         disabled={busy}
         onPress={onUpdate}
       >
-        <Ionicons name="download-outline" size={18} color={colors.accentInk} />
+        <Ionicons
+          name={otaReady ? "refresh-outline" : "download-outline"}
+          size={18}
+          color={colors.accentInk}
+        />
         <Text style={styles.primaryText}>
-          {info.canInstallApk ? "Download & install" : "Get update"}
+          {otaReady
+            ? "Restart to apply"
+            : info?.canInstallApk
+            ? "Download & install"
+            : "Get update"}
         </Text>
       </Pressable>
 
@@ -212,7 +258,7 @@ export function AppUpdateGate({
         </Pressable>
       ) : null}
 
-      {!info.canInstallApk ? (
+      {!info?.canInstallApk && !otaReady ? (
         <Text style={styles.hint}>
           Opens the GitHub releases page. Use a release APK build for in-app
           install.
@@ -222,10 +268,11 @@ export function AppUpdateGate({
   );
 }
 
-/** Soft update as a modal sheet over the app. */
+// Soft update as a modal sheet over the app
 export function SoftUpdateModal({
   visible,
   info,
+  otaReady = false,
   busy,
   progress,
   error,
@@ -238,6 +285,7 @@ export function SoftUpdateModal({
         <AppUpdateGate
           info={info}
           force={false}
+          otaReady={otaReady}
           busy={busy}
           progress={progress}
           error={error}

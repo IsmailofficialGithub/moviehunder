@@ -2,7 +2,7 @@
   "expo": {
     "name": "MovieHunter",
     "slug": "moviehunter",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "moviehunter",
@@ -28,9 +28,8 @@
     },
     "android": {
       "package": "com.moviehunder.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "softwareKeyboardLayoutMode": "pan",
-      "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#0c0c0e",
         "backgroundImage": "./assets/android-icon-background.png",
@@ -42,7 +41,6 @@
         "resizeMode": "contain",
         "backgroundColor": "#0c0c0e"
       },
-      "navigationBarColor": "#0b0b10",
       "permissions": [
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
@@ -86,6 +84,16 @@
           "imageWidth": 220,
           "resizeMode": "contain",
           "backgroundColor": "#0c0c0e"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class com.facebook.react.** { *; }\n-keep class com.facebook.jni.** { *; }"
+          }
         }
       ]
     ],

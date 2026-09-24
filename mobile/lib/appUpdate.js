@@ -9,6 +9,8 @@ import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
 import * as FileSystem from "expo-file-system/legacy";
 import * as IntentLauncher from "expo-intent-launcher";
+import * as Updates from "expo-updates";
+import { setRemoteEnv } from "./config";
 
 const IS_EXPO_GO =
   Constants.appOwnership === "expo" ||
@@ -114,6 +116,11 @@ export async function checkForAppUpdate() {
     if (!res.ok) throw new Error(`version.json HTTP ${res.status}`);
     const data = await res.json();
 
+    // Dynamically apply remote environment variables for all users
+    if (data?.env && typeof data.env === "object") {
+      setRemoteEnv(data.env);
+    }
+
     const latestVersion = String(
       data.latest_version || data.latestVersion || ""
     ).replace(/^v/i, "");
@@ -144,12 +151,26 @@ export async function checkForAppUpdate() {
           ? belowLatest
           : false;
 
-    const updateAvailable = belowLatest || belowCode;
-    const force = belowMin || (updateAvailable && forceFlag);
+    let updateAvailable = belowLatest || belowCode;
+    let force = belowMin || (updateAvailable && forceFlag);
+
+    // Support explicit update_type: "hard" | "soft" | "none"
+    const updateType = String(data.update_type || data.updateType || "").toLowerCase();
+    if (updateType === "none") {
+      updateAvailable = false;
+      force = false;
+    } else if (updateAvailable) {
+      if (updateType === "hard") {
+        force = true;
+      } else if (updateType === "soft") {
+        force = false;
+      }
+    }
 
     return {
       updateAvailable,
       force,
+      updateType: updateType || (force ? "hard" : updateAvailable ? "soft" : "none"),
       latestVersion: latestVersion || currentVersion,
       minSupported: minSupported || latestVersion,
       currentVersion,
@@ -160,9 +181,38 @@ export async function checkForAppUpdate() {
       releasesUrl,
       canInstallApk:
         Platform.OS === "android" && !IS_EXPO_GO && Boolean(apkUrl),
+      env: data?.env || null,
     };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// Check and download OTA JS update via expo-updates
+export async function checkOtaUpdate() {
+  if (__DEV__ || !Updates.isEnabled) {
+    return { isAvailable: false };
+  }
+  try {
+    const check = await Updates.checkForUpdateAsync();
+    if (check.isAvailable) {
+      await Updates.fetchUpdateAsync();
+      return { isAvailable: true };
+    }
+  } catch {
+    // Fail soft if offline or Expo server unavailable
+  }
+  return { isAvailable: false };
+}
+
+// Reload application to apply fetched OTA update
+export async function applyOtaUpdate() {
+  try {
+    if (Updates.isEnabled) {
+      await Updates.reloadAsync();
+    }
+  } catch {
+    // Fail soft
   }
 }
 
