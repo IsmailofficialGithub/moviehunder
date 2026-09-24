@@ -193,7 +193,13 @@ function which(bin) {
     shell: true,
     windowsHide: true,
   });
-  return res.status === 0 ? String(res.stdout || "").split(/\r?\n/)[0].trim() : "";
+  if (res.status !== 0) return "";
+  const lines = String(res.stdout || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (process.platform === "win32") {
+    const cmdOrExe = lines.find((l) => /\.(cmd|exe|bat)$/i.test(l));
+    if (cmdOrExe) return cmdOrExe;
+  }
+  return lines[0] || "";
 }
 
 function readJson(filePath) {
