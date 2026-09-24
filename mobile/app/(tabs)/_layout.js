@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../lib/theme";
 
 const TAB_BAR_CONTENT_HEIGHT = 56;
-/** Fallback when Android edge-to-edge reports insets.bottom === 0 (3-button nav). */
+// Fallback when Android edge-to-edge reports insets.bottom === 0 (3-button nav).
 const ANDROID_NAV_FALLBACK = 48;
 
 export default function TabsLayout() {

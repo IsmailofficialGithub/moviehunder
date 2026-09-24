@@ -17,6 +17,7 @@ import MusicPlayerModal from "../components/MusicPlayerModal";
 import { useAccessGate } from "../lib/useAccessGate";
 import Constants from "expo-constants";
 import { setupMusicNotifications } from "../lib/musicNotification";
+import { setupDownloadNotifications } from "../lib/downloadNotification";
 import { openMusicPlayer, registerMusicPlayerOpener } from "../lib/musicUi";
 import { colors } from "../lib/theme";
 
@@ -24,7 +25,7 @@ const IS_EXPO_GO =
   Constants.appOwnership === "expo" ||
   Constants.executionEnvironment === "storeClient";
 
-/** Skip splash on dev reload — only show on first open this session. */
+// Skip splash on dev reload — only show on first open this session.
 let splashShownThisSession = false;
 
 function BootScreen({ label = "Loading…" }) {
@@ -63,6 +64,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (!allowed || IS_EXPO_GO) return;
     setupMusicNotifications().catch(() => {});
+    setupDownloadNotifications().catch(() => {});
   }, [allowed]);
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export default function RootLayout() {
     try {
       NavigationBar.setStyle("light");
     } catch {
-      /* Expo Go / unsupported */
+      // Expo Go / unsupported
     }
   }, []);
 

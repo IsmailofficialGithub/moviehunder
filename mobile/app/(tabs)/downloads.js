@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import EmptyState from "../../components/EmptyState";
 import DownloadSheet from "../../components/DownloadSheet";
+import DownloadSettingsModal from "../../components/DownloadSettingsModal";
 import ProgressBorder from "../../components/ProgressBorder";
 import VaultModal, {
   resolveVaultModalMode,
@@ -721,7 +722,7 @@ export default function DownloadsScreen() {
   const [stats, setStats] = useState({ used: 0, free: 0, count: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState({});
-  /** @type {[Record<string, { seasons?: any[], error?: string }>, Function]} */
+  // Catalog cache by pack key
   const [catalogByPack, setCatalogByPack] = useState({});
   const [catalogBusyKey, setCatalogBusyKey] = useState(null);
   const [dlSheet, setDlSheet] = useState(null);
@@ -730,6 +731,7 @@ export default function DownloadsScreen() {
   const [vaultModal, setVaultModal] = useState(null); // 'setup' | 'unlock' | null
   const [vaultImportOpen, setVaultImportOpen] = useState(false);
   const [vaultBusy, setVaultBusy] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const storageTaps = useRef({ count: 0, at: 0 });
 
   useEffect(() => subscribeVault(setVaultUnlocked), []);
@@ -1231,7 +1233,16 @@ export default function DownloadsScreen() {
               <Ionicons name="exit-outline" size={18} color={colors.danger} />
             </Pressable>
           </View>
-        ) : null}
+        ) : (
+          <Pressable
+            onPress={() => setSettingsModalOpen(true)}
+            hitSlop={10}
+            style={styles.settingsIconBtn}
+            accessibilityLabel="Download settings"
+          >
+            <Ionicons name="settings-outline" size={18} color={colors.textDim} />
+          </Pressable>
+        )}
       </Pressable>
 
       {!vaultMode ? (
@@ -1456,6 +1467,10 @@ export default function DownloadsScreen() {
         onClose={() => setVaultImportOpen(false)}
         onImport={onImportToVault}
       />
+      <DownloadSettingsModal
+        visible={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
+      />
     </Screen>
   );
 }
@@ -1512,6 +1527,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(239, 68, 68, 0.12)",
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.35)",
+  },
+  settingsIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   importBtn: {
     flexDirection: "row",

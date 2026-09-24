@@ -1,8 +1,7 @@
-/**
- * In-app download manager — resumable, quality-aware, space-conscious.
- * Uses expo-file-system/legacy DownloadResumable + AsyncStorage.
- */
+// In-app download manager — resumable, quality-aware, space-conscious.
+// Uses expo-file-system/legacy DownloadResumable + AsyncStorage.
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { getEpisodes } from "./api";
 import { getCachedStreams, prefetchStreams } from "./streamCache";
@@ -10,43 +9,29 @@ import { downloadMediaUrl } from "./stream";
 import { toUserMessage } from "./userFacingError";
 import { cleanSearchTitle } from "./subtitles";
 import { downloadSubtitle, searchSubtitles } from "./subtitlesApi";
+import {
+  notifyDownloadComplete,
+  syncDownloadNotification,
+} from "./downloadNotification";
 
 const STORE_KEY = "flick.downloads.v1";
+const SETTINGS_STORE_KEY = "flick.downloads.settings.v1";
 const ROOT = `${FileSystem.documentDirectory || ""}flick-dl/`;
-const MAX_CONCURRENT = 1;
 const PROGRESS_THROTTLE_MS = 400;
 
-/** @typedef {'queued'|'downloading'|'paused'|'completed'|'failed'} DlStatus */
+let downloadSettings = {
+  maxConcurrent: 2,
+  autoResume: true,
+};
 
-/**
- * @typedef {object} DownloadItem
- * @property {string} id
- * @property {'movie'|'series'} kind
- * @property {string} subjectId
- * @property {string} detailPath
- * @property {string} title
- * @property {string} [poster]
- * @property {string} se
- * @property {string} ep
- * @property {string} resolution
- * @property {number} height
- * @property {string} sourceUrl
- * @property {string} fileUri
- * @property {DlStatus} status
- * @property {number} bytesWritten
- * @property {number} totalBytes
- * @property {number} [sizeHint]
- * @property {string} [error]
- * @property {string} [resumeData]
- * @property {number} createdAt
- * @property {number} updatedAt
- */
+const settingsListeners = new Set();
 
-/** @type {Map<string, DownloadItem>} */
+// Download status: 'queued'|'downloading'|'paused'|'completed'|'failed'
+// Download item map and state
 const items = new Map();
-/** @type {Map<string, import('expo-file-system/legacy').DownloadResumable>} */
+// Resumable download tasks
 const tasks = new Map();
-/** @type {Set<(list: DownloadItem[]) => void>} */
+// Subscribed state listeners
 const listeners = new Set();
 let hydrated = false;
 let hydratePromise = null;
@@ -66,10 +51,74 @@ function emit(force = false) {
     try {
       fn(list);
     } catch {
-      /* ignore */
+      // ignore
     }
   }
+  syncDownloadNotification(list).catch(() => {});
 }
+
+export async function loadDownloadSettings() {
+  try {
+    const raw = await AsyncStorage.getItem(SETTINGS_STORE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null) {
+        downloadSettings = {
+          maxConcurrent: Math.max(1, Math.min(5, Number(parsed.maxConcurrent) || 2)),
+          autoResume: parsed.autoResume !== false,
+        };
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return downloadSettings;
+}
+
+export function getDownloadSettings() {
+  return { ...downloadSettings };
+}
+
+export async function setDownloadSettings(partial) {
+  downloadSettings = {
+    ...downloadSettings,
+    ...partial,
+  };
+  if (downloadSettings.maxConcurrent < 1) downloadSettings.maxConcurrent = 1;
+  if (downloadSettings.maxConcurrent > 5) downloadSettings.maxConcurrent = 5;
+
+  try {
+    await AsyncStorage.setItem(SETTINGS_STORE_KEY, JSON.stringify(downloadSettings));
+  } catch {
+    // ignore
+  }
+
+  for (const fn of settingsListeners) {
+    try {
+      fn({ ...downloadSettings });
+    } catch {
+      // ignore
+    }
+  }
+
+  pumpQueue();
+  return { ...downloadSettings };
+}
+
+export function subscribeDownloadSettings(fn) {
+  settingsListeners.add(fn);
+  fn({ ...downloadSettings });
+  return () => settingsListeners.delete(fn);
+}
+
+// Automatically resume downloads when user returns to app
+AppState.addEventListener("change", (nextState) => {
+  if (nextState === "active") {
+    if (downloadSettings.autoResume) {
+      pumpQueue();
+    }
+  }
+});
 
 function schedulePersist() {
   clearTimeout(persistTimer);
@@ -102,15 +151,21 @@ export async function hydrateDownloads() {
   hydratePromise = (async () => {
     try {
       await ensureRoot();
+      await loadDownloadSettings();
       const raw = await AsyncStorage.getItem(STORE_KEY);
       if (raw) {
         const list = JSON.parse(raw);
         if (Array.isArray(list)) {
           for (const row of list) {
             if (!row?.id) continue;
-            // Incomplete downloads become paused so user can resume
+            // If autoResume is enabled and user did not explicitly pause it,
+            // set to "queued" so pumpQueue will automatically resume downloading!
             if (row.status === "downloading" || row.status === "queued") {
-              row.status = "paused";
+              if (downloadSettings.autoResume && !row.userPaused) {
+                row.status = "queued";
+              } else {
+                row.status = "paused";
+              }
             }
             // Drop stale preparing rows from previous hung runs
             if (row.pending) continue;
@@ -132,7 +187,7 @@ export async function hydrateDownloads() {
         }
       }
     } catch {
-      /* empty store */
+      // empty store
     } finally {
       hydrated = true;
       hydratePromise = null;
@@ -190,10 +245,10 @@ export function packKeyFromItem(item) {
   return `${item.subjectId}|${item.detailPath}`;
 }
 
-/** Minimum bytes before partial offline play is offered (~256 KB). */
+// Minimum bytes before partial offline play is offered (~256 KB).
 const MIN_PARTIAL_BYTES = 256 * 1024;
 
-/** True when enough of the file exists on disk to try offline playback. */
+// True when enough of the file exists on disk to try offline playback.
 export function canPlayPartial(item) {
   if (!item || item.pending || !item.fileUri) return false;
   if (item.status === "completed") return true;
@@ -204,12 +259,12 @@ export function canPlayPartial(item) {
   return written >= MIN_PARTIAL_BYTES;
 }
 
-/** Playable but not fully downloaded yet. */
+// Playable but not fully downloaded yet.
 export function isPartialOnly(item) {
   return canPlayPartial(item) && item.status !== "completed";
 }
 
-/** Catalog lookup: any non-vault downloads for a title slug / detail path. */
+// Catalog lookup: any non-vault downloads for a title slug / detail path.
 export function getDownloadSummaryForPath(detailPath) {
   const path = String(detailPath || "");
   if (!path) return null;
@@ -321,9 +376,7 @@ export async function downloadSubtitleForDownload(item) {
 }
 
 
-/**
- * Find the real on-disk URI for a download (handles stale documentDirectory paths).
- */
+// Find the real on-disk URI for a download (handles stale documentDirectory paths).
 export async function resolveDownloadFileUri(item) {
   if (!item) return null;
   const doc = FileSystem.documentDirectory || "";
@@ -343,7 +396,7 @@ export async function resolveDownloadFileUri(item) {
         return info.uri || normalize(item.fileUri);
       }
     } catch {
-      /* fall through to candidates */
+      // fall through to candidates
     }
   }
 
@@ -386,7 +439,7 @@ export async function resolveDownloadFileUri(item) {
         return info.uri || uri;
       }
     } catch {
-      /* try next */
+      // try next
     }
   }
   return null;
@@ -422,8 +475,9 @@ function nextQueued() {
 }
 
 function pumpQueue() {
+  const max = downloadSettings.maxConcurrent || 2;
   // Claim slots synchronously so we never spawn duplicate startTask calls
-  while (activeCount() + startingIds.size < MAX_CONCURRENT) {
+  while (activeCount() + startingIds.size < max) {
     const next = nextQueued();
     if (!next) break;
     startingIds.add(next.id);
@@ -449,8 +503,8 @@ function pumpQueue() {
   emit(true);
 }
 
-/** @type {Map<string, { t: number, bytes: number, rate: number }>} */
 const speedSamples = new Map();
+let lastResumeSnapshot = 0;
 
 function onProgress(id, { totalBytesWritten, totalBytesExpectedToWrite }) {
   const written = Number(totalBytesWritten) || 0;
@@ -471,10 +525,27 @@ function onProgress(id, { totalBytesWritten, totalBytesExpectedToWrite }) {
     speedSamples.set(id, { t: now, bytes: written, rate: 0 });
   }
 
+  // Periodically snapshot resumeData so if the process is killed by Android (e.g. user opens Instagram),
+  // progress is saved and download resumes smoothly
+  let resumeData = undefined;
+  if (now - lastResumeSnapshot >= 5000) {
+    lastResumeSnapshot = now;
+    try {
+      const task = tasks.get(id);
+      const savable = task?.savable?.();
+      if (savable?.resumeData) {
+        resumeData = savable.resumeData;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   patch(id, {
     bytesWritten: written,
     totalBytes: total || Number(items.get(id)?.totalBytes) || 0,
     bytesPerSec: rate > 0 ? rate : undefined,
+    ...(resumeData ? { resumeData } : {}),
   });
 }
 
@@ -588,6 +659,7 @@ async function startTask(id) {
     speedSamples.delete(id);
     // Ensure subtitle is downloaded if not finished earlier
     downloadSubtitleForDownload(items.get(id) || latest).catch(() => {});
+    notifyDownloadComplete(items.get(id) || latest).catch(() => {});
   } catch (err) {
 
     let resumeData = latest.resumeData;
@@ -595,7 +667,7 @@ async function startTask(id) {
       const savable = task.savable?.();
       if (savable?.resumeData) resumeData = savable.resumeData;
     } catch {
-      /* ignore */
+      // ignore
     }
     tasks.delete(id);
     speedSamples.delete(id);
@@ -612,10 +684,8 @@ async function startTask(id) {
   }
 }
 
-/**
- * Enqueue a download for a specific quality.
- * Reuses existing incomplete download when same id.
- */
+// Enqueue a download for a specific quality.
+// Reuses existing incomplete download when same id.
 export async function enqueueDownload({
   subjectId,
   detailPath,
@@ -685,7 +755,7 @@ export async function enqueueDownload({
     return items.get(id);
   }
 
-  /** @type {DownloadItem} */
+  // Create new download item
   const item = {
     id,
     kind: kind === "series" || Number(se) > 0 || Number(ep) > 0 ? "series" : "movie",
@@ -714,7 +784,7 @@ export async function enqueueDownload({
   return item;
 }
 
-/** Resolve qualities then enqueue chosen height (or default ≤720 for space). */
+// Resolve qualities then enqueue chosen height (or default ≤720 for space).
 export async function enqueueBestEffort({
   subjectId,
   detailPath,
@@ -830,7 +900,7 @@ export async function enqueueBestEffort({
   }
 }
 
-/** True if this episode is already downloaded, queued, or preparing (any height). Vault copies do not count (hidden from UI). */
+// True if this episode is already downloaded, queued, or preparing (any height). Vault copies do not count (hidden from UI).
 export function isEpisodeCovered({ subjectId, detailPath, se, ep }) {
   const sid = String(subjectId);
   const path = String(detailPath);
@@ -870,10 +940,8 @@ function episodeExistsIncludingVault({ subjectId, detailPath, se, ep }) {
   return false;
 }
 
-/**
- * Fetch season episodes from the API and queue missing ones at preferredHeight
- * (default 720p). Never prompts for resolution.
- */
+// Fetch season episodes from the API and queue missing ones at preferredHeight
+// (default 720p). Never prompts for resolution.
 export async function enqueueSeason({
   subjectId,
   detailPath,
@@ -916,7 +984,7 @@ export async function enqueueSeason({
           preferredHeight,
         });
       } catch {
-        /* keep going through the season */
+        // keep going through the season
       }
     }
   })();
@@ -928,7 +996,7 @@ export async function enqueueSeason({
   };
 }
 
-/** Load season/episode catalog from the server (for Downloads “more”). */
+// Load season/episode catalog from the server (for Downloads “more”).
 export async function fetchSeasonCatalog(detailPath) {
   const data = await getEpisodes(detailPath);
   return {
@@ -950,16 +1018,17 @@ export async function pauseDownload(id) {
         id,
         {
           status: "paused",
+          userPaused: true,
           resumeData: savable.resumeData || item.resumeData,
         },
         { emitNow: true }
       );
     } catch {
-      patch(id, { status: "paused" }, { emitNow: true });
+      patch(id, { status: "paused", userPaused: true }, { emitNow: true });
     }
     tasks.delete(id);
   } else if (item.status === "queued" || item.status === "downloading") {
-    patch(id, { status: "paused" }, { emitNow: true });
+    patch(id, { status: "paused", userPaused: true }, { emitNow: true });
   }
   pumpQueue();
 }
@@ -968,7 +1037,7 @@ export async function resumeDownload(id) {
   await hydrateDownloads();
   const item = items.get(id);
   if (!item || item.status === "completed") return;
-  patch(id, { status: "queued", error: undefined }, { emitNow: true });
+  patch(id, { status: "queued", userPaused: false, error: undefined }, { emitNow: true });
   pumpQueue();
 }
 
@@ -982,12 +1051,12 @@ export async function removeDownload(id) {
     try {
       await task.pauseAsync();
     } catch {
-      /* ignore */
+      // ignore
     }
     try {
       await task.cancelAsync?.();
     } catch {
-      /* ignore */
+      // ignore
     }
     tasks.delete(id);
   }
@@ -1018,7 +1087,7 @@ export async function removeDownload(id) {
   pumpQueue();
 }
 
-/** Move a completed download into the password vault (caller must unlock vault first). */
+// Move a completed download into the password vault (caller must unlock vault first).
 export async function moveDownloadToVault(id) {
   await hydrateDownloads();
   const item = items.get(id);
@@ -1053,7 +1122,7 @@ export async function moveDownloadToVault(id) {
   return items.get(id);
 }
 
-/** Seal many finished downloads into the vault (one after another). */
+// Seal many finished downloads into the vault (one after another).
 export async function moveDownloadsToVault(ids) {
   const moved = [];
   const failed = [];
@@ -1073,7 +1142,7 @@ export async function moveDownloadsToVault(ids) {
   return { moved, failed };
 }
 
-/** Restore a vault download to the normal Downloads list. */
+// Restore a vault download to the normal Downloads list.
 export async function moveDownloadFromVault(id) {
   await hydrateDownloads();
   const item = items.get(id);
@@ -1129,7 +1198,7 @@ export function progressOf(item) {
   return Math.min(1, (item.bytesWritten || 0) / total);
 }
 
-/** Remaining seconds for one download, or null if unknown. */
+// Remaining seconds for one download, or null if unknown.
 export function etaSecondsOf(item) {
   if (!item || item.status === "completed" || item.status === "failed") {
     return null;
@@ -1145,7 +1214,7 @@ export function etaSecondsOf(item) {
   return Math.max(1, Math.ceil(left / rate));
 }
 
-/** Human ETA like "45s left", "12m left", "1h 5m left". */
+// Human ETA like "45s left", "12m left", "1h 5m left".
 export function formatEta(seconds) {
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return "";
   const s = Math.ceil(seconds);
@@ -1159,9 +1228,7 @@ export function formatEta(seconds) {
   return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
 }
 
-/**
- * ETA for a series pack: remaining bytes across unfinished eps / observed speed.
- */
+// ETA for a series pack: remaining bytes across unfinished eps / observed speed.
 export function packEtaSeconds(episodes = []) {
   const list = Array.isArray(episodes) ? episodes : [];
   const unfinished = list.filter(
