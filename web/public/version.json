@@ -1,6 +1,6 @@
 {
   "latest_version": "0.0.4",
-  "min_supported_version": "0.0.3",
+  "min_supported_version": "0.0.4",
   "update_type": "soft",
   "env": {
     "api_base": "",
