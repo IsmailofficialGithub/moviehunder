@@ -820,7 +820,7 @@
 .cueOverlay {
   position: absolute;
   left: 50%;
-  bottom: 14%;
+  bottom: 84px;
   transform: translateX(-50%);
   z-index: 5;
   max-width: min(90%, 820px);
@@ -834,13 +834,22 @@
   pointer-events: none;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
   white-space: pre-wrap;
+  transition: bottom 0.25s ease;
 }
 
-/* Keep captions above the video layer inside media-chrome fullscreen */
+.controller[userinactive] .cueOverlay {
+  bottom: 20px;
+}
+
 .controller:fullscreen .cueOverlay,
 .controller:-webkit-full-screen .cueOverlay {
-  bottom: 16%;
+  bottom: 96px;
   font-size: clamp(18px, 2.6vw, 36px);
+}
+
+.controller:fullscreen[userinactive] .cueOverlay,
+.controller:-webkit-full-screen[userinactive] .cueOverlay {
+  bottom: 28px;
 }
 
 .cueOverlay:empty,
