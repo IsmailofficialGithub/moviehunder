@@ -301,3 +301,55 @@ export function formatOffsetLabel(sec) {
   const sign = sec > 0 ? "+" : "";
   return `${sign}${sec.toFixed(1)}s`;
 }
+
+// Search subtitle cues for dialogue phrases to sync
+export function searchCuesByDialogue(cues, query, { currentTime = 0, rate = 1, maxResults = 12 } = {}) {
+  const q = String(query || "").trim().toLowerCase().replace(/[^\w\s]/g, "");
+  if (!q || !Array.isArray(cues) || cues.length === 0) return [];
+
+  const words = q.split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+
+  const results = [];
+  const currentVideoTime = Number(currentTime) || 0;
+  const currentRate = Number(rate) > 0 ? Number(rate) : 1;
+
+  for (let i = 0; i < cues.length; i++) {
+    const cue = cues[i];
+    const rawText = String(cue.text || "").replace(/\n+/g, " ");
+    const cleanText = rawText.toLowerCase().replace(/[^\w\s]/g, "");
+
+    // Exact phrase match
+    const hasExactPhrase = cleanText.includes(q);
+
+    // All words match
+    const hasAllWords = words.every((w) => cleanText.includes(w));
+
+    if (hasExactPhrase || hasAllWords) {
+      const cueTime = (Number(cue.start) || 0) * currentRate;
+      // Offset required to align this cue right now to current playback time
+      const suggestedOffset = Math.round((currentVideoTime - cueTime) * 10) / 10;
+      const timeDiff = Math.abs(currentVideoTime - cueTime);
+
+      let score = 0;
+      if (hasExactPhrase) score += 100;
+      if (cleanText.startsWith(q)) score += 50;
+      score -= Math.min(50, timeDiff / 10);
+
+      results.push({
+        index: i,
+        cue,
+        text: rawText,
+        start: cue.start,
+        end: cue.end,
+        suggestedOffset,
+        timeDiff,
+        score,
+      });
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score || a.timeDiff - b.timeDiff);
+  return results.slice(0, maxResults);
+}
+

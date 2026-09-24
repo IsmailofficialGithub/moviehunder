@@ -37,7 +37,23 @@ import {
 } from "../lib/subtitles";
 import BtnSpinner from "./BtnSpinner";
 import CustomSelect from "./CustomSelect";
-import { Settings, Subtitles, SkipBack, SkipForward, SlidersHorizontal, Search, MessageSquare } from "lucide-react";
+import {
+  Settings,
+  Subtitles,
+  SkipBack,
+  SkipForward,
+  SlidersHorizontal,
+  Search,
+  MessageSquare,
+  Sparkles,
+  Wand2,
+  Upload,
+  RotateCcw,
+  X,
+  Check,
+} from "lucide-react";
+
+
 
 import styles from "./StreamPlayer.module.css";
 import { friendlyError, friendlyPlaybackError } from "../lib/errors";
@@ -112,6 +128,8 @@ export default function StreamPlayer({
   const [osLoadingId, setOsLoadingId] = useState(null);
   const [dialogueQuery, setDialogueQuery] = useState("");
   const [dialogueSyncToast, setDialogueSyncToast] = useState("");
+  const [syncTab, setSyncTab] = useState("smart");
+
 
   const resumeAtRef = useRef(0);
   const activeTrackRef = useRef(null);
@@ -872,30 +890,35 @@ export default function StreamPlayer({
             onPointerDown={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}
           >
-          <div className={styles.subPanelTop}>
-            <div>
-              <h2>Subtitles</h2>
-              <p>
-                Subtitles are timestamped lines. This video (often CAM) usually
-                starts at a different time than the .srt. Pause on a spoken
-                line, then tap <strong>This line is now</strong>.
-              </p>
+          <div className={styles.subPanelHeader}>
+            <div className={styles.subPanelTitleGroup}>
+              <div className={styles.aiBadge}>
+                <Sparkles size={13} className={styles.aiSparkleIcon} />
+                <span>AI SUBTITLES</span>
+              </div>
+              {activeTrack ? (
+                <span className={styles.activeTrackBadge} title={activeTrack.label}>
+                  <span className={styles.activeDot} />
+                  {activeTrack.label}
+                </span>
+              ) : (
+                <span className={styles.inactiveTrackBadge}>Off</span>
+              )}
             </div>
             <button
               type="button"
-              className={styles.removeBtn}
+              className={styles.iconCloseBtn}
               onClick={() => setSubPanelOpen(false)}
+              title="Close subtitles"
             >
-              Close
+              <X size={15} />
             </button>
           </div>
 
-          <div className={styles.subActions}>
+          <div className={styles.subActionRow}>
             <button
               type="button"
-              className={
-                activeSubId === "off" ? styles.chipActive : styles.chip
-              }
+              className={activeSubId === "off" ? styles.miniChipActive : styles.miniChip}
               onClick={() => {
                 setActiveSubId("off");
                 setCueText("");
@@ -912,14 +935,15 @@ export default function StreamPlayer({
             />
             <button
               type="button"
-              className={styles.chip}
+              className={styles.miniChip}
               onClick={() => fileInputRef.current?.click()}
             >
-              Upload .srt / .vtt
+              <Upload size={12} />
+              <span>Upload</span>
             </button>
             <button
               type="button"
-              className={styles.chipPrimary}
+              className={styles.miniChipPrimary}
               onClick={searchSubdl}
               disabled={osStatus === "loading"}
               aria-busy={osStatus === "loading" || undefined}
@@ -927,219 +951,296 @@ export default function StreamPlayer({
               {osStatus === "loading" ? (
                 <BtnSpinner />
               ) : (
-                "Search online (SubDL)"
+                <>
+                  <Search size={12} />
+                  <span>Search SubDL</span>
+                </>
               )}
             </button>
           </div>
 
           {subtitles.length > 0 ? (
-            <div className={styles.loadedList}>
-              <div className={styles.osHead}>Loaded</div>
-              <ul>
-                {subtitles.map((t) => (
-                  <li key={t.id}>
-                    <button
-                      type="button"
-                      className={
-                        t.id === activeSubId ? styles.loadedActive : undefined
-                      }
-                      onClick={() => setActiveSubId(t.id)}
-                    >
-                      <span>{t.label}</span>
-                      <span className={styles.osMeta}>
-                        {t.cues.length} lines
-                        {t.offset ? ` · ${formatOffsetLabel(t.offset)}` : ""}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.tinyRemove}
-                      onClick={() => removeTrack(t.id)}
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            <div className={styles.loadedStrip}>
+              {subtitles.map((t) => (
+                <div
+                  key={t.id}
+                  className={t.id === activeSubId ? styles.loadedPillActive : styles.loadedPill}
+                >
+                  <button
+                    type="button"
+                    className={styles.loadedSelectBtn}
+                    onClick={() => setActiveSubId(t.id)}
+                  >
+                    <span className={styles.loadedLabel}>{t.label}</span>
+                    <span className={styles.loadedCount}>{t.cues.length} lines</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.loadedRemoveBtn}
+                    onClick={() => removeTrack(t.id)}
+                    title="Remove track"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
             </div>
           ) : null}
 
           {activeTrack ? (
-            <div className={styles.syncPanel}>
-              <div className={styles.syncRow}>
-                <span className={styles.syncLabel}>Match to video</span>
-                <span className={styles.syncClock}>
-                  Video {formatClock(videoTime)} · first line{" "}
-                  {formatClock(activeTrack.cues[0]?.start || 0)} · offset{" "}
-                  {formatOffsetLabel(activeTrack.offset)}
-                </span>
-              </div>
-              <p className={styles.nowLine}>
-                {cueText
-                  ? `On screen: “${cueText.replace(/\n/g, " ")}”`
-                  : "No line at this time — skip ahead in the movie, then align."}
-              </p>
-              <div className={styles.syncBtns}>
-                <button type="button" onClick={() => jumpToCue(-1)}>
-                  ← Prev line
+            <div className={styles.syncCard}>
+              <div className={styles.segmentedTabs}>
+                <button
+                  type="button"
+                  className={syncTab === "smart" ? styles.segmentActive : styles.segmentBtn}
+                  onClick={() => setSyncTab("smart")}
+                >
+                  <Sparkles size={12} />
+                  <span>AI Dialogue Sync</span>
                 </button>
                 <button
                   type="button"
-                  className={styles.alignNow}
-                  onClick={alignLineToNow}
+                  className={syncTab === "manual" ? styles.segmentActive : styles.segmentBtn}
+                  onClick={() => setSyncTab("manual")}
                 >
-                  This line is now
-                </button>
-                <button type="button" onClick={() => jumpToCue(1)}>
-                  Next line →
-                </button>
-              </div>
-              <input
-                type="range"
-                className={styles.syncSlider}
-                min={-180}
-                max={180}
-                step={0.1}
-                value={Math.max(-180, Math.min(180, activeTrack.offset || 0))}
-                onChange={(e) => setOffset(Number(e.target.value))}
-              />
-              <label className={styles.offsetInput}>
-                Offset (seconds)
-                <input
-                  type="number"
-                  step={0.1}
-                  min={-600}
-                  max={600}
-                  value={activeTrack.offset || 0}
-                  onChange={(e) => setOffset(Number(e.target.value))}
-                />
-              </label>
-              <div className={styles.syncBtns}>
-                <button type="button" onClick={() => nudgeOffset(-10)}>
-                  −10s
-                </button>
-                <button type="button" onClick={() => nudgeOffset(-5)}>
-                  −5s
-                </button>
-                <button type="button" onClick={() => nudgeOffset(-1)}>
-                  −1s
-                </button>
-                <button type="button" onClick={() => setOffset(0)}>
-                  Reset
-                </button>
-                <button type="button" onClick={() => nudgeOffset(1)}>
-                  +1s
-                </button>
-                <button type="button" onClick={() => nudgeOffset(5)}>
-                  +5s
-                </button>
-                <button type="button" onClick={() => nudgeOffset(10)}>
-                  +10s
-                </button>
-              </div>
-              <div className={styles.rateRow}>
-                <span>Speed (if it drifts later in the movie)</span>
-                <button
-                  type="button"
-                  className={
-                    Math.abs((activeTrack.rate || 1) - 1) < 0.001
-                      ? styles.chipActive
-                      : styles.chip
-                  }
-                  onClick={() => setRate(1)}
-                >
-                  1.00×
-                </button>
-                <button
-                  type="button"
-                  className={styles.chip}
-                  onClick={() => setRate(23.976 / 25)}
-                >
-                  23.98→25
-                </button>
-                <button
-                  type="button"
-                  className={styles.chip}
-                  onClick={() => setRate(25 / 23.976)}
-                >
-                  25→23.98
+                  <SlidersHorizontal size={12} />
+                  <span>Manual Timing</span>
                 </button>
               </div>
 
-              <div className={styles.dialogueSyncBox}>
-                <div className={styles.dialogueSyncHeader}>
-                  <MessageSquare size={15} className={styles.dialogueIcon} />
-                  <span>Sync by Spoken Dialogue</span>
-                </div>
-                <p className={styles.dialogueDesc}>
-                  Heard a line (e.g. “hello brother”)? Type it below to align subtitles instantly to current video time.
-                </p>
-                <div className={styles.dialogueInputWrap}>
-                  <Search size={14} className={styles.dialogueSearchIcon} />
-                  <input
-                    type="text"
-                    className={styles.dialogueInput}
-                    placeholder="Search dialogue you heard (e.g. hello brother)..."
-                    value={dialogueQuery}
-                    onChange={(e) => setDialogueQuery(e.target.value)}
-                  />
-                  {dialogueQuery ? (
-                    <button
-                      type="button"
-                      className={styles.dialogueClearBtn}
-                      onClick={() => setDialogueQuery("")}
-                      title="Clear search"
-                    >
-                      ✕
-                    </button>
-                  ) : null}
-                </div>
-                {dialogueSyncToast ? (
-                  <div className={styles.dialogueToast}>
-                    <span>✓</span>
-                    <span>{dialogueSyncToast}</span>
-                  </div>
-                ) : null}
-                {dialogueMatches.length > 0 ? (
-                  <div className={styles.dialogueList}>
-                    {dialogueMatches.map((m) => (
-                      <div key={m.index} className={styles.dialogueItem}>
-                        <div className={styles.dialogueInfo}>
-                          <p className={styles.dialogueText}>“{m.text}”</p>
-                          <span className={styles.dialogueMeta}>
-                            Subtitle time: {formatClock(m.start)} · Needed offset: {formatOffsetLabel(m.suggestedOffset)}
-                          </span>
-                        </div>
-                        <div className={styles.dialogueActions}>
-                          <button
-                            type="button"
-                            className={styles.dialogueSyncBtn}
-                            onClick={() => syncDialogueCue(m)}
-                          >
-                            Sync Here
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.dialogueJumpBtn}
-                            onClick={() => {
-                              if (videoRef.current) {
-                                videoRef.current.currentTime =
-                                  m.start * (activeTrack.rate || 1) + (activeTrack.offset || 0);
-                              }
-                            }}
-                          >
-                            Jump
-                          </button>
-                        </div>
+              {syncTab === "smart" ? (
+                <div className={styles.smartTabContent}>
+                  <div className={styles.dialoguePromptBox}>
+                    <div className={styles.dialoguePromptHeader}>
+                      <MessageSquare size={13} className={styles.aiGlowIcon} />
+                      <span>Heard words out of sync? Type them to auto-align:</span>
+                    </div>
+                    <div className={styles.dialogueInputWrap}>
+                      <Search size={13} className={styles.dialogueSearchIcon} />
+                      <input
+                        type="text"
+                        className={styles.dialogueInput}
+                        placeholder="e.g. hello brother, wait for me..."
+                        value={dialogueQuery}
+                        onChange={(e) => setDialogueQuery(e.target.value)}
+                      />
+                      {dialogueQuery ? (
+                        <button
+                          type="button"
+                          className={styles.dialogueClearBtn}
+                          onClick={() => setDialogueQuery("")}
+                          title="Clear search"
+                        >
+                          <X size={12} />
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {dialogueSyncToast ? (
+                      <div className={styles.dialogueToast}>
+                        <Check size={13} />
+                        <span>{dialogueSyncToast}</span>
                       </div>
-                    ))}
+                    ) : null}
+
+                    {dialogueMatches.length > 0 ? (
+                      <div className={styles.dialogueList}>
+                        {dialogueMatches.map((m) => (
+                          <div key={m.index} className={styles.dialogueItem}>
+                            <div className={styles.dialogueInfo}>
+                              <p className={styles.dialogueText}>“{m.text}”</p>
+                              <span className={styles.dialogueMeta}>
+                                Subtitle clock: {formatClock(m.start)} · Needed: {formatOffsetLabel(m.suggestedOffset)}
+                              </span>
+                            </div>
+                            <div className={styles.dialogueActions}>
+                              <button
+                                type="button"
+                                className={styles.dialogueSyncBtn}
+                                onClick={() => syncDialogueCue(m)}
+                              >
+                                <Sparkles size={11} />
+                                <span>Sync Here</span>
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.dialogueJumpBtn}
+                                onClick={() => {
+                                  if (videoRef.current) {
+                                    videoRef.current.currentTime =
+                                      m.start * (activeTrack.rate || 1) + (activeTrack.offset || 0);
+                                  }
+                                }}
+                              >
+                                Jump
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : dialogueQuery.trim().length > 1 ? (
+                      <p className={styles.dialogueEmpty}>No matching dialogue found in this subtitle track.</p>
+                    ) : null}
                   </div>
-                ) : dialogueQuery.trim().length > 1 ? (
-                  <p className={styles.dialogueEmpty}>No matching dialogue found in this subtitle track.</p>
-                ) : null}
-              </div>
+
+                  <div className={styles.currentSpeechBox}>
+                    <div className={styles.currentSpeechTop}>
+                      <span className={styles.microLabel}>CURRENT TIMELINE CUE</span>
+                      <span className={styles.clockTag}>Video {formatClock(videoTime)}</span>
+                    </div>
+                    <p className={styles.currentSpeechText}>
+                      {cueText ? `“${cueText.replace(/\n/g, " ")}”` : "Silence / no line at this timestamp"}
+                    </p>
+                    <div className={styles.quickAlignRow}>
+                      <button
+                        type="button"
+                        className={styles.navCueBtn}
+                        onClick={() => jumpToCue(-1)}
+                        title="Previous line"
+                      >
+                        <SkipBack size={12} />
+                        <span>Prev</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.aiSyncNowBtn}
+                        onClick={alignLineToNow}
+                        title="Align current line to now"
+                      >
+                        <Wand2 size={12} />
+                        <span>Align this line to now</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.navCueBtn}
+                        onClick={() => jumpToCue(1)}
+                        title="Next line"
+                      >
+                        <span>Next</span>
+                        <SkipForward size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.manualTabContent}>
+                  <div className={styles.offsetControlBox}>
+                    <div className={styles.stepperTop}>
+                      <span className={styles.microLabel}>SYNC OFFSET</span>
+                      <span className={styles.offsetReadout}>
+                        {formatOffsetLabel(activeTrack.offset)}
+                      </span>
+                    </div>
+                    <div className={styles.stepperRow}>
+                      <button
+                        type="button"
+                        className={styles.stepBtn}
+                        onClick={() => nudgeOffset(-5)}
+                      >
+                        −5s
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.stepBtn}
+                        onClick={() => nudgeOffset(-1)}
+                      >
+                        −1s
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.stepBtn}
+                        onClick={() => nudgeOffset(-0.2)}
+                      >
+                        −0.2s
+                      </button>
+                      <div className={styles.inputPill}>
+                        <input
+                          type="number"
+                          step={0.1}
+                          min={-600}
+                          max={600}
+                          className={styles.compactNumberInput}
+                          value={activeTrack.offset || 0}
+                          onChange={(e) => setOffset(Number(e.target.value))}
+                        />
+                        <span className={styles.unitSec}>s</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.stepBtn}
+                        onClick={() => nudgeOffset(0.2)}
+                      >
+                        +0.2s
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.stepBtn}
+                        onClick={() => nudgeOffset(1)}
+                      >
+                        +1s
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.stepBtn}
+                        onClick={() => nudgeOffset(5)}
+                      >
+                        +5s
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.resetBtn}
+                        onClick={() => setOffset(0)}
+                        title="Reset to 0"
+                      >
+                        <RotateCcw size={12} />
+                      </button>
+                    </div>
+                    <input
+                      type="range"
+                      className={styles.compactSlider}
+                      min={-120}
+                      max={120}
+                      step={0.1}
+                      value={Math.max(-120, Math.min(120, activeTrack.offset || 0))}
+                      onChange={(e) => setOffset(Number(e.target.value))}
+                    />
+                  </div>
+
+                  <div className={styles.speedBox}>
+                    <span className={styles.microLabel}>DRIFT CORRECTION</span>
+                    <div className={styles.speedBtnRow}>
+                      <button
+                        type="button"
+                        className={
+                          Math.abs((activeTrack.rate || 1) - 1) < 0.001
+                            ? styles.miniSpeedActive
+                            : styles.miniSpeedBtn
+                        }
+                        onClick={() => setRate(1)}
+                      >
+                        1.00× Normal
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.miniSpeedBtn}
+                        onClick={() => setRate(23.976 / 25)}
+                      >
+                        23.98 → 25 fps
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.miniSpeedBtn}
+                        onClick={() => setRate(25 / 23.976)}
+                      >
+                        25 → 23.98 fps
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
+
 
 
           {subError ? <div className={styles.subError}>{subError}</div> : null}

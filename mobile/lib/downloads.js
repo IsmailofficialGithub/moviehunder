@@ -8,6 +8,8 @@ import { getEpisodes } from "./api";
 import { getCachedStreams, prefetchStreams } from "./streamCache";
 import { downloadMediaUrl } from "./stream";
 import { toUserMessage } from "./userFacingError";
+import { cleanSearchTitle } from "./subtitles";
+import { downloadSubtitle, searchSubtitles } from "./subtitlesApi";
 
 const STORE_KEY = "flick.downloads.v1";
 const ROOT = `${FileSystem.documentDirectory || ""}flick-dl/`;
@@ -120,7 +122,12 @@ export async function hydrateDownloads() {
               else if (vault)
                 row.fileUri = `${FileSystem.documentDirectory}${vault[0]}`;
             }
+            if (row.subtitleUri && FileSystem.documentDirectory) {
+              const dlSub = String(row.subtitleUri).match(/flick-dl\/[^?#]+/);
+              if (dlSub) row.subtitleUri = `${FileSystem.documentDirectory}${dlSub[0]}`;
+            }
             items.set(row.id, row);
+
           }
         }
       }
@@ -249,6 +256,70 @@ function fileNameFor(item) {
       : "";
   return `${safe}${epPart}_${item.height || "auto"}p.mp4`;
 }
+
+export function subtitleFileNameFor(item) {
+  const safe = String(item?.detailPath || item?.subjectId || "sub")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .slice(0, 48);
+  const epPart =
+    Number(item?.se) > 0 || Number(item?.ep) > 0
+      ? `_S${item.se}E${item.ep}`
+      : "";
+  return `${safe}${epPart}.vtt`;
+}
+
+// Automatically fetch English subtitle for downloaded movie/series and save to disk
+export async function downloadSubtitleForDownload(item) {
+  if (!item?.detailPath && !item?.title) return null;
+  try {
+    await ensureRoot();
+    const fileName = subtitleFileNameFor(item);
+    const subUri = `${ROOT}${fileName}`;
+    const info = await FileSystem.getInfoAsync(subUri);
+    if (info.exists && info.size > 80) {
+      if (item.id && !items.get(item.id)?.subtitleUri) {
+        patch(item.id, { subtitleUri: subUri });
+      }
+      return subUri;
+    }
+
+    const query = cleanSearchTitle(item.title, item.detailPath);
+    if (!query) return null;
+
+    const params = {
+      query,
+      languages: "en",
+    };
+    if (Number(item.se) > 0) params.season = String(item.se);
+    if (Number(item.ep) > 0) params.episode = String(item.ep);
+    if (Number(item.se) > 0 || Number(item.ep) > 0) params.type = "episode";
+    else params.type = "movie";
+
+    const searchData = await searchSubtitles(params);
+    const results = Array.isArray(searchData?.results) ? searchData.results : [];
+    if (!results.length) return null;
+
+    const topMatch = results[0];
+    const dlData = await downloadSubtitle(topMatch.file_id);
+    if (!dlData?.ok || !dlData.vtt) return null;
+
+    await FileSystem.writeAsStringAsync(subUri, dlData.vtt, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+
+    if (item.id) {
+      patch(item.id, {
+        subtitleUri: subUri,
+        subtitleLabel: dlData.label || topMatch.file_name || "English Subtitles",
+      });
+    }
+
+    return subUri;
+  } catch {
+    return null;
+  }
+}
+
 
 /**
  * Find the real on-disk URI for a download (handles stale documentDirectory paths).
@@ -433,8 +504,12 @@ async function startTask(id) {
 
   patch(id, { status: "downloading", error: undefined }, { emitNow: true });
 
+  // Pre-fetch subtitles in background while user is connected
+  downloadSubtitleForDownload(latest).catch(() => {});
+
   const callback = (data) => onProgress(id, data);
   const latest = items.get(id) || item;
+
 
   let task;
   try {
@@ -511,7 +586,10 @@ async function startTask(id) {
     );
     tasks.delete(id);
     speedSamples.delete(id);
+    // Ensure subtitle is downloaded if not finished earlier
+    downloadSubtitleForDownload(items.get(id) || latest).catch(() => {});
   } catch (err) {
+
     let resumeData = latest.resumeData;
     try {
       const savable = task.savable?.();
@@ -918,10 +996,23 @@ export async function removeDownload(id) {
     try {
       await FileSystem.deleteAsync(item.fileUri, { idempotent: true });
     } catch {
-      /* ignore */
+      // ignore
+    }
+  }
+  const subFile = item ? subtitleFileNameFor(item) : "";
+  const subUri = subFile ? `${ROOT}${subFile}` : "";
+  const otherUsingSub = [...items.values()].some(
+    (d) => d.id !== id && subtitleFileNameFor(d) === subFile
+  );
+  if (subUri && !otherUsingSub) {
+    try {
+      await FileSystem.deleteAsync(subUri, { idempotent: true });
+    } catch {
+      // ignore
     }
   }
   items.delete(id);
+
   schedulePersist();
   emit(true);
   pumpQueue();

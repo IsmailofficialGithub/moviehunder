@@ -33,11 +33,13 @@ import {
 import { getCachedStreams, prefetchStreams } from "../lib/streamCache";
 import { colors, radii, spacing } from "../lib/theme";
 import { toUserMessage } from "../lib/userFacingError";
-import { cueAtTime } from "../lib/subtitles";
+import { cueAtTime, makeSubtitleTrack } from "../lib/subtitles";
 import {
   getDownloadById,
   hydrateDownloads,
+  subtitleFileNameFor,
 } from "../lib/downloads";
+
 import {
   clearWatchProgress,
   formatResumeTime,
@@ -646,7 +648,43 @@ export default function PlayScreen() {
           setStatus("ready");
           setOfflineReady(true);
           showControlsRef.current?.();
+
+
+          // Automatically load offline downloaded subtitle if present
+          try {
+            const docRoot = FileSystem.documentDirectory || "";
+            const subName = subtitleFileNameFor(item);
+            const candidates = [
+              item.subtitleUri,
+              `${docRoot}flick-dl/${subName}`,
+              playFileUri ? playFileUri.replace(/\.[a-zA-Z0-9]+$/, ".vtt") : "",
+            ].filter(Boolean);
+
+            for (const cUri of candidates) {
+              const subInfo = await FileSystem.getInfoAsync(cUri);
+              if (subInfo.exists && (subInfo.size == null || subInfo.size > 50)) {
+                const vttText = await FileSystem.readAsStringAsync(cUri, {
+                  encoding: FileSystem.EncodingType.UTF8,
+                });
+                const offlineTrack = makeSubtitleTrack({
+                  vttText,
+                  label: item.subtitleLabel || "English (Offline)",
+                  srclang: "en",
+                  source: "download",
+                });
+                setSubtitles((prev) => {
+                  const filtered = prev.filter((t) => t.source !== "download");
+                  return [offlineTrack, ...filtered];
+                });
+                setActiveSubId(offlineTrack.id);
+                break;
+              }
+            }
+          } catch {
+            // ignore offline subtitle error
+          }
         }
+
       } catch (err) {
         if (!cancelled) {
           setError(
