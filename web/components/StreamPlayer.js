@@ -248,6 +248,8 @@ export default function StreamPlayer({
     }
     setStatus("loading");
     setError("");
+    setActiveSubId("off");
+    setCueText("");
     try {
       const result = await resolveStreams({
         subjectId,
@@ -274,6 +276,65 @@ export default function StreamPlayer({
   useEffect(() => {
     if (status === "ready" || status === "error") setNavBusy(null);
   }, [status, se, ep]);
+
+  // Auto-search and auto-activate subtitles for every video/episode played
+  useEffect(() => {
+    if (status !== "ready" || !searchQuery) return;
+
+    let cancelled = false;
+
+    const autoFetchSubtitle = async () => {
+      try {
+        const params = new URLSearchParams({
+          query: searchQuery,
+          languages: "en",
+        });
+        if (Number(se) > 0) params.set("season", String(se));
+        if (Number(ep) > 0) params.set("episode", String(ep));
+        if (Number(se) > 0 || Number(ep) > 0) params.set("type", "episode");
+        else params.set("type", "movie");
+
+        const res = await fetch(`/api/subtitles/search?${params}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !data.ok || !data.results?.length) return;
+
+        // Auto-select the top subtitle result
+        const topItem = data.results[0];
+        if (!topItem?.file_id) return;
+
+        const dlRes = await fetch("/api/subtitles/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_id: topItem.file_id }),
+        });
+        const dlData = await dlRes.json().catch(() => ({}));
+        if (cancelled || !dlData.ok || !dlData.vtt) return;
+
+        const track = makeSubtitleTrack({
+          vttText: dlData.vtt,
+          label: dlData.label || topItem.file_name,
+          srclang: String(topItem.language || "en").slice(0, 8),
+          source: "subdl",
+          fileId: topItem.file_id,
+        });
+
+        if (cancelled) return;
+        setSubtitles((prev) => {
+          const exists = prev.some((t) => t.fileId === topItem.file_id);
+          return exists ? prev : [...prev, track];
+        });
+        setActiveSubId(track.id);
+      } catch (err) {
+        // Ignore auto-fetch failure silently
+      }
+    };
+
+    autoFetchSubtitle();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status, searchQuery, se, ep]);
 
   const busy = status === "loading" || Boolean(navBusy);
 
