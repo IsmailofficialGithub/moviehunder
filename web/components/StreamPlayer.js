@@ -159,6 +159,11 @@ export default function StreamPlayer({
     return base;
   }, [title, detailPath, se, ep]);
 
+  const searchQuery = useMemo(
+    () => cleanSearchTitle(title, detailPath),
+    [title, detailPath]
+  );
+
   useEffect(() => {
     setPageTitle(displayTitle);
   }, [displayTitle]);
@@ -518,10 +523,6 @@ export default function StreamPlayer({
     };
   }, [mounted, activeSubId, activeTrack?.id, activeTrack?.offset, activeTrack?.rate]);
 
-  const searchQuery = useMemo(
-    () => cleanSearchTitle(title, detailPath),
-    [title, detailPath]
-  );
 
   const searchSubdl = useCallback(async () => {
     if (!searchQuery) {
