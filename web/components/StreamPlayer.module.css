@@ -533,6 +533,184 @@
   font-size: 0.78rem;
 }
 
+.dialogueSyncBox {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dialogueSyncHeader {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #f3f3f7;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.dialogueIcon {
+  color: #f6c443;
+}
+
+.dialogueDesc {
+  margin: 0;
+  color: #9a9aa8;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.dialogueInputWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #111116;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px 10px;
+  transition: border-color 0.15s ease;
+}
+
+.dialogueInputWrap:focus-within {
+  border-color: #f6c443;
+}
+
+.dialogueSearchIcon {
+  color: #9a9aa8;
+  flex-shrink: 0;
+}
+
+.dialogueInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.dialogueInput::placeholder {
+  color: #6d6d7d;
+}
+
+.dialogueClearBtn {
+  background: transparent;
+  border: none;
+  color: #8e8e9e;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.85rem;
+}
+
+.dialogueClearBtn:hover {
+  color: #fff;
+}
+
+.dialogueToast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  color: #4ade80;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.dialogueList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.dialogueItem {
+  background: #191921;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 3px solid #f6c443;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialogueInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialogueText {
+  margin: 0 0 3px 0;
+  color: #f3f3f7;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dialogueMeta {
+  display: block;
+  color: #8e8e9e;
+  font-size: 0.75rem;
+}
+
+.dialogueActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dialogueSyncBtn {
+  background: #f6c443;
+  color: #111;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.dialogueSyncBtn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.dialogueJumpBtn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5e5ea;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dialogueJumpBtn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.dialogueEmpty {
+  margin: 4px 0 0;
+  color: #8e8e9e;
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+
 .subError {
   background: #3a1717;
   color: #fecaca;

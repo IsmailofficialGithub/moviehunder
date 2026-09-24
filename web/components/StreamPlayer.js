@@ -32,11 +32,13 @@ import {
   formatOffsetLabel,
   makeSubtitleTrack,
   referenceCue,
+  searchCuesByDialogue,
   shortSubtitleLabel,
 } from "../lib/subtitles";
 import BtnSpinner from "./BtnSpinner";
 import CustomSelect from "./CustomSelect";
-import { Settings, Subtitles, SkipBack, SkipForward, SlidersHorizontal } from "lucide-react";
+import { Settings, Subtitles, SkipBack, SkipForward, SlidersHorizontal, Search, MessageSquare } from "lucide-react";
+
 import styles from "./StreamPlayer.module.css";
 import { friendlyError, friendlyPlaybackError } from "../lib/errors";
 import {
@@ -108,6 +110,9 @@ export default function StreamPlayer({
   const [osStatus, setOsStatus] = useState("idle");
   const [osMessage, setOsMessage] = useState("");
   const [osLoadingId, setOsLoadingId] = useState(null);
+  const [dialogueQuery, setDialogueQuery] = useState("");
+  const [dialogueSyncToast, setDialogueSyncToast] = useState("");
+
   const resumeAtRef = useRef(0);
   const activeTrackRef = useRef(null);
   const cueElRef = useRef(null);
@@ -653,6 +658,26 @@ export default function StreamPlayer({
     }
   };
 
+  const dialogueMatches = useMemo(() => {
+    if (!activeTrack?.cues?.length || !dialogueQuery.trim()) return [];
+    return searchCuesByDialogue(activeTrack.cues, dialogueQuery, {
+      currentTime: videoTime,
+      rate: activeTrack.rate || 1,
+      maxResults: 8,
+    });
+  }, [activeTrack, dialogueQuery, videoTime]);
+
+  const syncDialogueCue = (item) => {
+    if (!activeTrack || item?.suggestedOffset == null) return;
+    setOffset(item.suggestedOffset);
+    const snippet = item.text.length > 28 ? `${item.text.slice(0, 28)}…` : item.text;
+    setDialogueSyncToast(
+      `Synced! Shifted by ${formatOffsetLabel(item.suggestedOffset)} for “${snippet}”`
+    );
+    setTimeout(() => setDialogueSyncToast(""), 4500);
+  };
+
+
   const loadOsSubtitle = async (item) => {
     setOsLoadingId(item.file_id);
     setSubError("");
@@ -1040,8 +1065,82 @@ export default function StreamPlayer({
                   25→23.98
                 </button>
               </div>
+
+              <div className={styles.dialogueSyncBox}>
+                <div className={styles.dialogueSyncHeader}>
+                  <MessageSquare size={15} className={styles.dialogueIcon} />
+                  <span>Sync by Spoken Dialogue</span>
+                </div>
+                <p className={styles.dialogueDesc}>
+                  Heard a line (e.g. “hello brother”)? Type it below to align subtitles instantly to current video time.
+                </p>
+                <div className={styles.dialogueInputWrap}>
+                  <Search size={14} className={styles.dialogueSearchIcon} />
+                  <input
+                    type="text"
+                    className={styles.dialogueInput}
+                    placeholder="Search dialogue you heard (e.g. hello brother)..."
+                    value={dialogueQuery}
+                    onChange={(e) => setDialogueQuery(e.target.value)}
+                  />
+                  {dialogueQuery ? (
+                    <button
+                      type="button"
+                      className={styles.dialogueClearBtn}
+                      onClick={() => setDialogueQuery("")}
+                      title="Clear search"
+                    >
+                      ✕
+                    </button>
+                  ) : null}
+                </div>
+                {dialogueSyncToast ? (
+                  <div className={styles.dialogueToast}>
+                    <span>✓</span>
+                    <span>{dialogueSyncToast}</span>
+                  </div>
+                ) : null}
+                {dialogueMatches.length > 0 ? (
+                  <div className={styles.dialogueList}>
+                    {dialogueMatches.map((m) => (
+                      <div key={m.index} className={styles.dialogueItem}>
+                        <div className={styles.dialogueInfo}>
+                          <p className={styles.dialogueText}>“{m.text}”</p>
+                          <span className={styles.dialogueMeta}>
+                            Subtitle time: {formatClock(m.start)} · Needed offset: {formatOffsetLabel(m.suggestedOffset)}
+                          </span>
+                        </div>
+                        <div className={styles.dialogueActions}>
+                          <button
+                            type="button"
+                            className={styles.dialogueSyncBtn}
+                            onClick={() => syncDialogueCue(m)}
+                          >
+                            Sync Here
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.dialogueJumpBtn}
+                            onClick={() => {
+                              if (videoRef.current) {
+                                videoRef.current.currentTime =
+                                  m.start * (activeTrack.rate || 1) + (activeTrack.offset || 0);
+                              }
+                            }}
+                          >
+                            Jump
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : dialogueQuery.trim().length > 1 ? (
+                  <p className={styles.dialogueEmpty}>No matching dialogue found in this subtitle track.</p>
+                ) : null}
+              </div>
             </div>
           ) : null}
+
 
           {subError ? <div className={styles.subError}>{subError}</div> : null}
           {osMessage ? (
