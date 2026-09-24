@@ -19,7 +19,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.moviehunder.app",
+      "bundleIdentifier": "com.moviehunter.app",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
@@ -27,7 +27,7 @@
       }
     },
     "android": {
-      "package": "com.moviehunder.app",
+      "package": "com.moviehunter.app",
       "versionCode": 4,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
