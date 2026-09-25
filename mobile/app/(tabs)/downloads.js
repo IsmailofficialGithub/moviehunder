@@ -251,111 +251,137 @@ function MovieCard({
   const pct = Math.round(progressOf(item) * 100);
   const written = formatBytes(item.bytesWritten || 0);
   const total = formatBytes(item.totalBytes || item.sizeHint || 0);
-  const playable = canPlayPartial(item);
-  const partial = isPartialOnly(item);
-  const active =
+  const isDownloading =
     !item.pending &&
     (item.status === "downloading" || item.status === "queued");
-  const canResume =
-    !item.pending && (item.status === "paused" || item.status === "failed");
-  const showPlay =
-    playable && !item.pending && item.status !== "downloading" && item.status !== "queued";
-  const canRestore =
-    vaultMode &&
-    typeof onRestoreFromVault === "function" &&
-    item.status === "completed" &&
-    !item.pending;
+  const isPaused = !item.pending && item.status === "paused";
+  const isFailed = !item.pending && item.status === "failed";
+  const canResume = isPaused || isFailed;
   const etaLabel = formatEta(etaSecondsOf(item));
 
+  const q = qualityLabel(item);
+  const qStr = q && q !== "—" ? q : "Movie";
+  const sizeStr = total || (written !== "0 B" ? written : "");
+
+  const subtitleLine1 = isDownloading
+    ? [qStr, sizeStr].filter(Boolean).join(" | ")
+    : [
+        qStr,
+        sizeStr,
+        watchPct > 0 ? `${watchPct}% watched` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+  const onLongPress = () => {
+    Alert.alert(
+      item.title,
+      "Movie Options",
+      [
+        vaultMode && typeof onRestoreFromVault === "function"
+          ? {
+              text: "Restore to Downloads",
+              onPress: () => onRestoreFromVault(item),
+            }
+          : null,
+        isDownloading
+          ? { text: "Pause", onPress: () => onPause?.(item) }
+          : canResume
+            ? { text: "Resume", onPress: () => onResume?.(item) }
+            : null,
+        {
+          text: "Delete download",
+          style: "destructive",
+          onPress: () => onDelete?.(item),
+        },
+        { text: "Cancel", style: "cancel" },
+      ].filter(Boolean)
+    );
+  };
+
   return (
-    <View style={styles.pack}>
-      <View style={styles.packHead}>
-        <ProgressBorder percent={watchPct} style={styles.posterProgress}>
-          {item.poster ? (
-            <Image
-              source={{ uri: item.poster }}
-              style={styles.poster}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-            />
-          ) : (
-            <View style={[styles.poster, styles.posterEmpty]}>
-              <Ionicons name="film-outline" size={22} color={colors.muted} />
-            </View>
-          )}
-        </ProgressBorder>
-        <View style={styles.packCopy}>
-          <Text style={styles.packTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-          <View style={styles.epMetaRow}>
-            <QualityBadge item={item} />
-            <StatusDot status={item.status} pending={item.pending} />
+    <Pressable
+      style={({ pressed }) => [
+        styles.netflixRow,
+        pressed && styles.netflixRowPressed,
+      ]}
+      onPress={() => onPlay(item)}
+      onLongPress={onLongPress}
+      android_ripple={{ color: "rgba(255,255,255,0.08)" }}
+    >
+      <View style={styles.netflixThumbWrap}>
+        {item.poster ? (
+          <Image
+            source={{ uri: item.poster }}
+            style={styles.netflixThumb}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+          />
+        ) : (
+          <View style={[styles.netflixThumb, styles.netflixThumbEmpty]}>
+            <Ionicons name="film-outline" size={24} color={colors.muted} />
           </View>
-          <Text style={styles.epSize} numberOfLines={2}>
-            {item.error
-              ? item.error
-              : [
-                  total
-                    ? `${written}${item.totalBytes || item.sizeHint ? ` / ${total}` : ""}`
-                    : written !== "0 B"
-                      ? written
-                      : "Movie",
-                  etaLabel,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-          </Text>
-          {watchPct > 0 ? (
-            <Text style={styles.watchedText}>{watchPct}% watched</Text>
-          ) : null}
-          {(item.status === "downloading" ||
-            item.status === "paused" ||
-            item.pending ||
-            item.status === "queued") && (
-            <View style={[styles.progressTrack, { marginTop: 8 }]}>
-              <View style={[styles.progressFill, { width: `${pct}%` }]} />
-            </View>
-          )}
-          <View style={[styles.epActions, { marginTop: 10, justifyContent: "flex-start" }]}>
-            {showPlay ? (
-              <Pressable style={styles.playWide} onPress={() => onPlay(item)}>
-                <Ionicons name="play" size={16} color={colors.accentInk} />
-                <Text style={styles.playWideText}>
-                  {partial ? "Play partial" : "Play"}
-                </Text>
-              </Pressable>
-            ) : null}
-            {active ? (
-              <Pressable style={styles.iconGhost} onPress={() => onPause(item)}>
-                <Ionicons name="pause" size={16} color={colors.text} />
-              </Pressable>
-            ) : null}
-            {canResume ? (
-              <Pressable style={styles.iconAct} onPress={() => onResume(item)}>
-                <Ionicons name="refresh" size={16} color={colors.accentInk} />
-              </Pressable>
-            ) : null}
-            {canRestore ? (
-              <Pressable
-                style={styles.iconGhost}
-                onPress={() => onRestoreFromVault(item)}
-              >
-                <Ionicons name="lock-open-outline" size={16} color={colors.accentLight} />
-              </Pressable>
-            ) : null}
-            <Pressable style={styles.iconGhost} onPress={() => onDelete(item)}>
-              <Ionicons name="trash-outline" size={16} color={colors.danger} />
-            </Pressable>
+        )}
+        {isDownloading || isPaused ? (
+          <View style={styles.thumbProgressTrack}>
+            <View style={[styles.thumbProgressFill, { width: `${pct}%` }]} />
           </View>
-          {partial && !active ? (
-            <Text style={[styles.partialHint, { marginTop: 6 }]}>
-              Partial — may stop early
-            </Text>
-          ) : null}
-        </View>
+        ) : null}
       </View>
-    </View>
+
+      <View style={styles.netflixCopy}>
+        <Text style={styles.netflixTitle} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.netflixMeta} numberOfLines={1}>
+          {subtitleLine1 || "Movie"}
+        </Text>
+        {isDownloading ? (
+          <Text style={styles.netflixStatusDownloading}>
+            Downloading{etaLabel ? ` · ${etaLabel}` : pct > 0 ? ` · ${pct}%` : ""}
+          </Text>
+        ) : isPaused ? (
+          <Text style={styles.netflixStatusPaused}>Paused</Text>
+        ) : isFailed ? (
+          <Text style={styles.netflixStatusFailed}>
+            {item.error || "Download failed"}
+          </Text>
+        ) : null}
+      </View>
+
+      <View style={styles.netflixActionWrap}>
+        {isDownloading ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              onPause(item);
+            }}
+            hitSlop={10}
+            style={styles.circleActionBtn}
+          >
+            <Ionicons name="pause-circle-outline" size={24} color={colors.accentLight} />
+          </Pressable>
+        ) : canResume ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              onResume(item);
+            }}
+            hitSlop={10}
+            style={styles.circleActionBtn}
+          >
+            <Ionicons name="arrow-down-circle-outline" size={24} color={colors.accentLight} />
+          </Pressable>
+        ) : (
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color="#ffffff"
+            style={styles.netflixChevron}
+          />
+        )}
+      </View>
+    </Pressable>
   );
 }
 
@@ -363,71 +389,108 @@ function SongCard({ item, onPlay, onPause, onResume, onDelete }) {
   const pct = Math.round(musicDownloadProgress(item) * 100);
   const written = formatBytes(item.bytesWritten || 0);
   const total = formatBytes(item.totalBytes || 0);
-  const playable = item.status === "completed";
+  const isDownloading = item.status === "downloading" || item.status === "queued";
+  const isPaused = item.status === "paused";
+  const isFailed = item.status === "failed";
+  const canResume = isPaused || isFailed;
+
+  const onLongPress = () => {
+    Alert.alert(item.name, "Song Options", [
+      isDownloading
+        ? { text: "Pause", onPress: () => onPause?.(item) }
+        : canResume
+          ? { text: "Resume", onPress: () => onResume?.(item) }
+          : null,
+      {
+        text: "Delete download",
+        style: "destructive",
+        onPress: () => onDelete?.(item),
+      },
+      { text: "Cancel", style: "cancel" },
+    ].filter(Boolean));
+  };
 
   return (
-    <View style={styles.pack}>
-      <View style={styles.packHead}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.netflixRow,
+        pressed && styles.netflixRowPressed,
+      ]}
+      onPress={() => onPlay(item)}
+      onLongPress={onLongPress}
+      android_ripple={{ color: "rgba(255,255,255,0.08)" }}
+    >
+      <View style={styles.netflixMusicThumbWrap}>
         {item.image ? (
           <Image
             source={{ uri: item.image }}
-            style={styles.songArt}
+            style={styles.netflixThumb}
             contentFit="cover"
             cachePolicy="memory-disk"
           />
         ) : (
-          <View style={[styles.songArt, styles.posterEmpty]}>
-            <Ionicons name="musical-notes" size={22} color={colors.muted} />
+          <View style={[styles.netflixThumb, styles.netflixThumbEmpty]}>
+            <Ionicons name="musical-notes" size={24} color={colors.muted} />
           </View>
         )}
-        <View style={styles.packCopy}>
-          <Text style={styles.packTitle} numberOfLines={2}>
-            {item.name}
-          </Text>
-          <Text style={styles.songArtist} numberOfLines={1}>
-            {item.artist || "Unknown artist"}
-          </Text>
-          <StatusDot status={item.status} pending={false} />
-          <Text style={styles.epSize} numberOfLines={2}>
-            {item.error
-              ? item.error
-              : total
-                ? `${written}${item.totalBytes ? ` / ${total}` : ""}`
-                : written !== "0 B"
-                  ? written
-                  : "Song"}
-          </Text>
-          {(item.status === "downloading" ||
-            item.status === "paused" ||
-            item.status === "queued") && (
-            <View style={[styles.progressTrack, { marginTop: 8 }]}>
-              <View style={[styles.progressFill, { width: `${pct}%` }]} />
-            </View>
-          )}
-          <View style={[styles.epActions, { marginTop: 10, justifyContent: "flex-start" }]}>
-            {playable ? (
-              <Pressable style={styles.playWide} onPress={() => onPlay(item)}>
-                <Ionicons name="play" size={16} color={colors.accentInk} />
-                <Text style={styles.playWideText}>Play</Text>
-              </Pressable>
-            ) : null}
-            {item.status === "downloading" || item.status === "queued" ? (
-              <Pressable style={styles.iconGhost} onPress={() => onPause(item)}>
-                <Ionicons name="pause" size={16} color={colors.text} />
-              </Pressable>
-            ) : null}
-            {item.status === "paused" || item.status === "failed" ? (
-              <Pressable style={styles.iconAct} onPress={() => onResume(item)}>
-                <Ionicons name="refresh" size={16} color={colors.accentInk} />
-              </Pressable>
-            ) : null}
-            <Pressable style={styles.iconGhost} onPress={() => onDelete(item)}>
-              <Ionicons name="trash-outline" size={16} color={colors.danger} />
-            </Pressable>
+        {isDownloading || isPaused ? (
+          <View style={styles.thumbProgressTrack}>
+            <View style={[styles.thumbProgressFill, { width: `${pct}%` }]} />
           </View>
-        </View>
+        ) : null}
       </View>
-    </View>
+
+      <View style={styles.netflixCopy}>
+        <Text style={styles.netflixTitle} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={styles.netflixMeta} numberOfLines={1}>
+          {[item.artist || "Unknown artist", total || (written !== "0 B" ? written : "")].filter(Boolean).join(" | ")}
+        </Text>
+        {isDownloading ? (
+          <Text style={styles.netflixStatusDownloading}>
+            Downloading{pct > 0 ? ` · ${pct}%` : ""}
+          </Text>
+        ) : isPaused ? (
+          <Text style={styles.netflixStatusPaused}>Paused</Text>
+        ) : isFailed ? (
+          <Text style={styles.netflixStatusFailed}>Failed</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.netflixActionWrap}>
+        {isDownloading ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              onPause(item);
+            }}
+            hitSlop={10}
+            style={styles.circleActionBtn}
+          >
+            <Ionicons name="pause-circle-outline" size={24} color={colors.accentLight} />
+          </Pressable>
+        ) : canResume ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              onResume(item);
+            }}
+            hitSlop={10}
+            style={styles.circleActionBtn}
+          >
+            <Ionicons name="arrow-down-circle-outline" size={24} color={colors.accentLight} />
+          </Pressable>
+        ) : (
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color="#ffffff"
+            style={styles.netflixChevron}
+          />
+        )}
+      </View>
+    </Pressable>
   );
 }
 
@@ -450,16 +513,12 @@ function SeriesPack({
   onDownloadEpisode,
 }) {
   const ready = pack.episodes.filter((e) => e.status === "completed" && !e.pending).length;
-  const active = pack.episodes.filter(
-    (e) =>
-      e.pending ||
-      e.status === "downloading" ||
-      e.status === "queued" ||
-      e.status === "paused"
-  ).length;
-  const qualities = [
-    ...new Set(pack.episodes.map((e) => qualityLabel(e)).filter((q) => q && q !== "—")),
-  ];
+  const isDownloading = pack.episodes.some(
+    (e) => e.status === "downloading" || e.status === "queued" || e.pending
+  );
+  const isPaused = !isDownloading && pack.episodes.some((e) => e.status === "paused");
+  const isFailed = !isDownloading && !isPaused && pack.episodes.some((e) => e.status === "failed");
+
   const bytes = pack.episodes.reduce(
     (n, e) => n + (e.bytesWritten || e.sizeHint || 0),
     0
@@ -505,50 +564,86 @@ function SeriesPack({
         ? "chevron-down"
         : "cloud-download-outline";
 
+  const thumbUri =
+    pack.poster ||
+    pack.episodes.find((e) => e.poster || e.thumbnail)?.poster ||
+    pack.episodes.find((e) => e.poster || e.thumbnail)?.thumbnail ||
+    "";
+
+  // Clean metadata matching Netflix design:
+  // Downloading: "2 Episodes"
+  // Completed: "2 Episodes | 175.4 MB"
+  const epCountLabel = `${pack.episodes.length} Episode${pack.episodes.length === 1 ? "" : "s"}`;
+  const sizeLabel = bytes ? formatBytes(bytes) : "";
+  const subtitleLine1 = isDownloading
+    ? epCountLabel
+    : [epCountLabel, sizeLabel].filter(Boolean).join(" | ");
+
+  const onLongPress = () => {
+    Alert.alert(
+      pack.title,
+      `Delete all ${pack.episodes.length} downloaded episodes?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete all", style: "destructive", onPress: onDeleteAll },
+      ]
+    );
+  };
+
   return (
-    <View style={styles.pack}>
-      <Pressable style={styles.packHead} onPress={onToggle}>
-        {pack.poster ? (
-          <Image
-            source={{ uri: pack.poster }}
-            style={styles.poster}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-          />
-        ) : (
-          <View style={[styles.poster, styles.posterEmpty]}>
-            <Ionicons name="tv-outline" size={22} color={colors.muted} />
-          </View>
-        )}
-        <View style={styles.packCopy}>
-          <Text style={styles.packTitle} numberOfLines={2}>
-            {pack.title}
-          </Text>
-          <Text style={styles.packSub} numberOfLines={2}>
-            {pack.episodes.length} episode{pack.episodes.length === 1 ? "" : "s"}
-            {ready ? ` · ${ready} ready` : ""}
-            {active ? ` · ${active} active` : ""}
-            {bytes ? ` · ${formatBytes(bytes)}` : ""}
-            {packEta ? ` · ${packEta}` : ""}
-          </Text>
-          <View style={styles.badgeRow}>
-            {qualities.slice(0, 3).map((q) => (
-              <View key={q} style={styles.qBadge}>
-                <Text style={styles.qBadgeText}>{q}</Text>
-              </View>
-            ))}
-          </View>
-          {active > 0 ? (
-            <View style={[styles.progressTrack, { marginTop: 8 }]}>
-              <View style={[styles.progressFill, { width: `${avgPct}%` }]} />
+    <View style={styles.netflixRowWrapper}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.netflixRow,
+          pressed && styles.netflixRowPressed,
+        ]}
+        onPress={onToggle}
+        onLongPress={onLongPress}
+        android_ripple={{ color: "rgba(255,255,255,0.08)" }}
+      >
+        <View style={styles.netflixThumbWrap}>
+          {thumbUri ? (
+            <Image
+              source={{ uri: thumbUri }}
+              style={styles.netflixThumb}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
+          ) : (
+            <View style={[styles.netflixThumb, styles.netflixThumbEmpty]}>
+              <Ionicons name="tv-outline" size={24} color={colors.muted} />
+            </View>
+          )}
+          {isDownloading || isPaused ? (
+            <View style={styles.thumbProgressTrack}>
+              <View style={[styles.thumbProgressFill, { width: `${avgPct}%` }]} />
             </View>
           ) : null}
         </View>
+
+        <View style={styles.netflixCopy}>
+          <Text style={styles.netflixTitle} numberOfLines={1}>
+            {pack.title}
+          </Text>
+          <Text style={styles.netflixMeta} numberOfLines={1}>
+            {subtitleLine1}
+          </Text>
+          {isDownloading ? (
+            <Text style={styles.netflixStatusDownloading}>
+              Downloading{packEta ? ` · ${packEta}` : avgPct > 0 ? ` · ${avgPct}%` : ""}
+            </Text>
+          ) : isPaused ? (
+            <Text style={styles.netflixStatusPaused}>Paused</Text>
+          ) : isFailed ? (
+            <Text style={styles.netflixStatusFailed}>Download failed</Text>
+          ) : null}
+        </View>
+
         <Ionicons
-          name={expanded ? "chevron-up" : "chevron-down"}
+          name={vaultMode && expanded ? "chevron-down" : "chevron-forward"}
           size={20}
-          color={colors.muted}
-          style={{ marginTop: 4 }}
+          color="#ffffff"
+          style={styles.netflixChevron}
         />
       </Pressable>
 
@@ -1611,8 +1706,101 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xl,
-    gap: 12,
+    paddingBottom: spacing.xl + 24,
+  },
+  netflixRowWrapper: {
+    width: "100%",
+  },
+  netflixRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+  },
+  netflixRowPressed: {
+    opacity: 0.72,
+  },
+  netflixThumbWrap: {
+    width: 126,
+    height: 71,
+    borderRadius: 6,
+    overflow: "hidden",
+    backgroundColor: colors.panelSoft,
+    position: "relative",
+  },
+  netflixMusicThumbWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 6,
+    overflow: "hidden",
+    backgroundColor: colors.panelSoft,
+    position: "relative",
+  },
+  netflixThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  netflixThumbEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.panelSoft,
+  },
+  thumbProgressTrack: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+  },
+  thumbProgressFill: {
+    height: "100%",
+    backgroundColor: colors.accentLight,
+  },
+  netflixCopy: {
+    flex: 1,
+    marginHorizontal: 14,
+    justifyContent: "center",
+  },
+  netflixTitle: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  netflixMeta: {
+    color: colors.muted,
+    fontSize: 13,
+    marginTop: 3,
+    lineHeight: 17,
+  },
+  netflixStatusDownloading: {
+    color: colors.accentLight,
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 3,
+  },
+  netflixStatusPaused: {
+    color: colors.muted,
+    fontSize: 13,
+    marginTop: 3,
+  },
+  netflixStatusFailed: {
+    color: colors.danger,
+    fontSize: 13,
+    marginTop: 3,
+  },
+  netflixChevron: {
+    opacity: 0.75,
+  },
+  netflixActionWrap: {
+    paddingLeft: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  circleActionBtn: {
+    padding: 4,
   },
   pack: {
     backgroundColor: colors.panel,

@@ -52,11 +52,20 @@ async function warmMediaUrl(url) {
   }
 }
 
-/** Resolve streams + fetch the first chunk of the default quality. */
+const failedCooldown = new Map();
+const FAILED_COOLDOWN_MS = 15000;
+
+// Resolve streams + fetch the first chunk of the default quality.
 export async function prefetchStreams(params, { maxHeight = 720 } = {}) {
   const key = streamKey(params);
   const cached = getCachedStreams(params);
   if (cached?.sources?.length) return cached;
+
+  // Protect against rapid-fire retry storms (especially on 429s)
+  const failedAt = failedCooldown.get(key);
+  if (failedAt && Date.now() - failedAt < FAILED_COOLDOWN_MS) {
+    throw new Error("Stream lookup temporarily cooling down. Please wait a few seconds.");
+  }
 
   if (inflight.has(key)) {
     try {
@@ -78,12 +87,16 @@ export async function prefetchStreams(params, { maxHeight = 720 } = {}) {
         "Stream lookup timed out"
       );
       if (result.sources?.length) {
+        failedCooldown.delete(key);
         setCachedStreams(params, result);
         const idx = pickAutoIndex(result.sources, maxHeight);
         const url = proxiedMediaUrl(result.sources[idx]?.url);
         warmMediaUrl(url).catch(() => {});
       }
       return result;
+    } catch (err) {
+      failedCooldown.set(key, Date.now());
+      throw err;
     } finally {
       inflight.delete(key);
     }

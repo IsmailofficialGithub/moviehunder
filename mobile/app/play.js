@@ -500,9 +500,19 @@ export default function PlayScreen() {
   const navigateToRef = useRef(navigateTo);
   navigateToRef.current = navigateTo;
 
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
   useEffect(() => {
     const sub = player.addListener("playToEnd", () => {
-      if (nextItemRef.current) {
+      // Guard: ONLY advance if the episode genuinely played to the end!
+      // If duration is 0, status is error/loading, or currentTime is near the beginning,
+      // it was a playback/load failure, NOT a completed video playback!
+      const cur = player.currentTime || 0;
+      const dur = player.duration || durationRef.current || 0;
+      const genuinelyCompleted = dur > 30 && cur >= Math.max(dur - 5, 25);
+
+      if (genuinelyCompleted && statusRef.current === "ready" && nextItemRef.current) {
         navigateToRef.current(nextItemRef.current);
       }
     });

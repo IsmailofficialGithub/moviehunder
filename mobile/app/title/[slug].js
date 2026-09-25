@@ -518,25 +518,7 @@ export default function TitleScreen() {
     });
   };
 
-  // Warm stream list + first media bytes while user reads the detail page.
-  useEffect(() => {
-    if (!subjectId || !slug) return;
 
-    let se = "0";
-    let ep = "0";
-    if (isSeries && activeSeason?.episodes?.length) {
-      const first = activeSeason.episodes[0];
-      se = String(activeSeason.season ?? 1);
-      ep = String(first?.episode ?? first?.ep ?? 1);
-    }
-
-    prefetchStreams({
-      subjectId: String(subjectId),
-      detailPath: slug,
-      se,
-      ep,
-    }).catch(() => {});
-  }, [subjectId, slug, isSeries, activeSeason]);
 
   return (
     <View style={styles.page}>
