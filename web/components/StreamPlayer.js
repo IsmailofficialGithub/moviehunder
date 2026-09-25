@@ -54,6 +54,7 @@ import {
   Palette,
   Globe,
   Download,
+  FastForward,
 } from "lucide-react";
 
 import styles from "./StreamPlayer.module.css";
@@ -207,6 +208,110 @@ export default function StreamPlayer({
   const lastClockPaintRef = useRef(0);
   const videoRetryCount = useRef(0);
   const videoRetryTimer = useRef(null);
+
+  // Hold-to-2x playback states and refs
+  const [hold2xActive, setHold2xActive] = useState(false);
+  const isHolding2xRef = useRef(false);
+  const holdTimerRef = useRef(null);
+  const prevRateRef = useRef(1);
+  const suppressClickRef = useRef(false);
+  const pointerDownPosRef = useRef(null);
+
+  const endHoldSpeed = useCallback(() => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (isHolding2xRef.current) {
+      isHolding2xRef.current = false;
+      setHold2xActive(false);
+      if (videoRef.current) {
+        videoRef.current.playbackRate = prevRateRef.current || 1;
+      }
+      suppressClickRef.current = true;
+      setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 120);
+    }
+  }, []);
+
+  const handlePointerDown = useCallback((e) => {
+    // Only primary mouse button or touch/pen
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+
+    // Ignore interactive controls, buttons, sliders, dialogs
+    const isInteractive = Boolean(
+      e.target?.closest?.(
+        `button, a, input, select, textarea, media-play-button, media-time-range, media-volume-range, media-playback-rate-button, media-fullscreen-button, media-mute-button, media-seek-backward-button, media-seek-forward-button, [role="button"], .${styles.controlsWrapper}, .${styles.centerNavBtn}, .${styles.settingsPanel}, .${styles.subPanel}, .${styles.retry}`
+      )
+    );
+    if (isInteractive) return;
+
+    pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
+
+    if (!videoRef.current) return;
+    prevRateRef.current = videoRef.current.playbackRate || 1;
+
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+    }
+
+    holdTimerRef.current = setTimeout(() => {
+      if (!videoRef.current) return;
+      isHolding2xRef.current = true;
+      suppressClickRef.current = true;
+      setHold2xActive(true);
+      videoRef.current.playbackRate = 2;
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch(() => {});
+      }
+    }, 220);
+
+    const onWindowPointerMove = (moveEvt) => {
+      if (pointerDownPosRef.current && !isHolding2xRef.current) {
+        const dx = moveEvt.clientX - pointerDownPosRef.current.x;
+        const dy = moveEvt.clientY - pointerDownPosRef.current.y;
+        if (Math.hypot(dx, dy) > 20) {
+          if (holdTimerRef.current) {
+            clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = null;
+          }
+        }
+      }
+    };
+
+    const onWindowPointerUp = () => {
+      endHoldSpeed();
+      window.removeEventListener("pointermove", onWindowPointerMove);
+      window.removeEventListener("pointerup", onWindowPointerUp);
+      window.removeEventListener("pointercancel", onWindowPointerUp);
+    };
+
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("pointerup", onWindowPointerUp);
+    window.addEventListener("pointercancel", onWindowPointerUp);
+  }, [endHoldSpeed]);
+
+  const handlePointerUp = useCallback(() => {
+    endHoldSpeed();
+  }, [endHoldSpeed]);
+
+  const handleClickCapture = useCallback((e) => {
+    if (suppressClickRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      suppressClickRef.current = false;
+    }
+  }, []);
+
+  // Cleanup hold timer on unmount
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -1579,7 +1684,14 @@ export default function StreamPlayer({
 
       <div className={styles.playerShell}>
         {mounted ? (
-          <MediaController className={styles.controller} autohide="5">
+          <MediaController
+            className={styles.controller}
+            autohide="5"
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onClickCapture={handleClickCapture}
+          >
             <video
               ref={videoRef}
               slot="media"
@@ -1596,6 +1708,12 @@ export default function StreamPlayer({
                     : undefined,
               }}
             />
+            {hold2xActive ? (
+              <div className={styles.speed2xBanner} aria-live="polite">
+                <FastForward size={16} className={styles.speed2xIcon} />
+                <span>2X Speed</span>
+              </div>
+            ) : null}
             <div
               ref={cueElRef}
               className={`${styles.cueOverlay} ${subSettings.bgColor === "transparent" ? styles.cueOutline : ""}`}

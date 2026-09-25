@@ -1921,3 +1921,57 @@
   background: transparent !important;
   text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6);
 }
+
+.speed2xBanner {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(18, 10, 26, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--accent-border, rgba(189, 132, 219, 0.35));
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(189, 132, 219, 0.35);
+  pointer-events: none;
+  user-select: none;
+  animation: speedPillFadeIn 0.15s ease-out;
+}
+
+.speed2xIcon {
+  color: var(--secondary, #bd84db);
+  animation: speed2xPulse 0.9s ease-in-out infinite;
+}
+
+@keyframes speedPillFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes speed2xPulse {
+  0%, 100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(3px);
+    opacity: 0.7;
+  }
+}
+
