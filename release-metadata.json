@@ -1,5 +1,24 @@
 {
   "releases": {
+    "0.0.5": {
+      "summary": "Enhanced subtitle management with online SubDL search, appearance customization, offline subtitle downloading, and intuitive swipe controls.",
+      "added": [
+        "Online subtitle search powered by SubDL with custom title query input and language filters",
+        "Subtitle appearance settings: font size, text colors, background box styles, and elevation positioning",
+        "Automatic subtitle download alongside offline movies and TV series episodes",
+        "Swipe gestures in media player: left-side vertical swipe for brightness and right-side vertical swipe for volume",
+        "Batch 'Download All' and episode selection options on Series Details page and Season headers"
+      ],
+      "changed": [
+        "Modernized delete icons for single episode and bulk season removals in offline downloads",
+        "Improved subtitle synchronization and audio-dialogue alignment tools"
+      ],
+      "fixed": [
+        "SubDL search error handling to prevent 502 Bad Gateway when titles are not matched",
+        "Offline subtitle loading and character encoding display"
+      ],
+      "removed": []
+    },
     "0.0.4": {
       "summary": "Offline series management with dedicated episode navigation, playback controls, remote dynamic environment config, and Google Play DEX code optimization.",
       "added": [
