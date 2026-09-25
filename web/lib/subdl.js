@@ -111,38 +111,72 @@ export async function searchSubdl({
     cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
+
+  const mapList = (subtitles) => {
+    const list = Array.isArray(subtitles) ? subtitles : [];
+    return list
+      .map((row, i) => {
+        const rawPath = row.url || row.download_link || "";
+        if (!rawPath) return null;
+        let file_id;
+        try {
+          file_id = encodeFileRef(rawPath);
+        } catch {
+          return null;
+        }
+        return {
+          id: `subdl-${row.sd_id || i}`,
+          file_id,
+          file_name: row.name || row.release_name || "subtitle.srt",
+          language: row.lang || row.language || "en",
+          download_count: row.download_count || 0,
+          hearing_impaired: false,
+          release: row.release_name || row.name || "",
+          season: row.season ?? null,
+          episode: row.episode ?? null,
+          from: "subdl",
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 25);
+  };
+
+  if (res.ok && data.status !== false && Array.isArray(data.subtitles)) {
+    return mapList(data.subtitles);
+  }
+
+  const errMsg = String(data.message || data.error || "").toLowerCase();
+
+  // If SubDL reports movie/tv not found, handle gracefully as 0 results
+  if (errMsg.includes("can't find") || errMsg.includes("not found") || errMsg.includes("no result")) {
+    if ((season || episode || type) && query) {
+      const fbParams = new URLSearchParams();
+      fbParams.set("api_key", key);
+      fbParams.set("film_name", query);
+      fbParams.set("languages", toSubdlLang(languages));
+      try {
+        const fbRes = await fetch(`${API}?${fbParams}`, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        const fbData = await fbRes.json().catch(() => ({}));
+        if (fbRes.ok && fbData.status !== false && Array.isArray(fbData.subtitles)) {
+          return mapList(fbData.subtitles);
+        }
+      } catch {
+        // Fallback network error, return empty
+      }
+    }
+    return [];
+  }
+
   if (!res.ok || data.status === false) {
     throw new Error(
       data.message || data.error || `SubDL search failed (${res.status})`
     );
   }
 
-  const list = Array.isArray(data.subtitles) ? data.subtitles : [];
-  return list
-    .map((row, i) => {
-      const rawPath = row.url || row.download_link || "";
-      if (!rawPath) return null;
-      let file_id;
-      try {
-        file_id = encodeFileRef(rawPath);
-      } catch {
-        return null;
-      }
-      return {
-        id: `subdl-${row.sd_id || i}`,
-        file_id,
-        file_name: row.name || row.release_name || "subtitle.srt",
-        language: row.lang || row.language || "en",
-        download_count: row.download_count || 0,
-        hearing_impaired: false,
-        release: row.release_name || row.name || "",
-        season: row.season ?? null,
-        episode: row.episode ?? null,
-        from: "subdl",
-      };
-    })
-    .filter(Boolean)
-    .slice(0, 25);
+  return mapList(data.subtitles);
 }
 
 async function extractSubtitleText(buffer, preferredName = "") {

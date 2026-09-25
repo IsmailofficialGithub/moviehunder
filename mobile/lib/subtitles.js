@@ -1,6 +1,4 @@
-/**
- * Subtitle helpers: parse SRT/VTT → cues, sync offset, file upload.
- */
+// Subtitle helpers: parse SRT/VTT -> cues, sync offset, file upload.
 
 function parseTimestamp(ts) {
   const raw = String(ts).trim().replace(",", ".");

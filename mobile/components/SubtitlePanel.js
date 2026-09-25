@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -24,6 +24,40 @@ import {
   uriToSubtitleTrack,
 } from "../lib/subtitles";
 
+// Popular languages for subtitle queries
+const SUB_LANGUAGES = [
+  { id: "en", label: "EN" },
+  { id: "hi", label: "HI" },
+  { id: "ur", label: "UR" },
+  { id: "ar", label: "AR" },
+  { id: "es", label: "ES" },
+  { id: "fr", label: "FR" },
+  { id: "all", label: "ALL" },
+];
+
+const FONT_SIZES = [
+  { id: "sm", label: "Small", size: 13 },
+  { id: "md", label: "Normal", size: 16 },
+  { id: "lg", label: "Large", size: 20 },
+  { id: "xl", label: "Extra", size: 24 },
+];
+
+const BG_STYLES = [
+  { id: "translucent", label: "Translucent", bg: "rgba(0,0,0,0.6)" },
+  { id: "solid", label: "Solid Black", bg: "rgba(0,0,0,0.95)" },
+  { id: "clear", label: "Clear Outline", bg: "transparent" },
+];
+
+const TEXT_COLORS = [
+  { id: "white", label: "White", color: "#ffffff" },
+  { id: "yellow", label: "Yellow", color: "#f6c443" },
+  { id: "cyan", label: "Cyan", color: "#38bdf8" },
+];
+
+const POSITIONS = [
+  { id: "bottom", label: "Bottom", elevation: 0 },
+  { id: "elevated", label: "Elevated", elevation: 28 },
+];
 
 export default function SubtitlePanel({
   title,
@@ -34,10 +68,13 @@ export default function SubtitlePanel({
   cueText = "",
   subtitles = [],
   activeSubId = "off",
+  subSettings,
+  onSubSettingsChange,
   onSubtitlesChange,
   onActiveSubIdChange,
   onSeek,
 }) {
+  const [panelTab, setPanelTab] = useState("search"); // "search" | "sync" | "style"
   const [subError, setSubError] = useState("");
   const [osResults, setOsResults] = useState([]);
   const [osStatus, setOsStatus] = useState("idle");
@@ -46,13 +83,20 @@ export default function SubtitlePanel({
   const [uploadBusy, setUploadBusy] = useState(false);
   const [dialogueQuery, setDialogueQuery] = useState("");
   const [dialogueSyncToast, setDialogueSyncToast] = useState("");
-  const [syncTab, setSyncTab] = useState("smart");
+  const [syncTab, setSyncTab] = useState("smart"); // "smart" | "manual"
+  const [selectedLang, setSelectedLang] = useState("en");
 
-
-  const searchQuery = useMemo(
+  // Editable custom keyword search for online subtitles
+  const defaultQuery = useMemo(
     () => cleanSearchTitle(title, detailPath),
     [title, detailPath]
   );
+  const [keywordQuery, setKeywordQuery] = useState(defaultQuery);
+
+  // Update query when title or detailPath changes
+  useEffect(() => {
+    setKeywordQuery(defaultQuery);
+  }, [defaultQuery]);
 
   const activeTrack = useMemo(
     () => subtitles.find((t) => t.id === activeSubId) || null,
@@ -66,9 +110,11 @@ export default function SubtitlePanel({
     [onSubtitlesChange, subtitles]
   );
 
+  // Online SubDL search using user's custom keyword & language
   const searchOnline = useCallback(async () => {
-    if (!searchQuery) {
-      setOsMessage("No title to search");
+    const q = (keywordQuery || "").trim();
+    if (!q) {
+      setOsMessage("Please enter a title or keyword to search");
       return;
     }
     setOsStatus("loading");
@@ -76,9 +122,11 @@ export default function SubtitlePanel({
     setOsResults([]);
     setSubError("");
     try {
+      const languagesParam =
+        selectedLang === "all" ? "en,hi,ur,ar,es,fr,de,tr" : selectedLang;
       const params = {
-        query: searchQuery,
-        languages: "en",
+        query: q,
+        languages: languagesParam,
       };
       if (Number(se) > 0) params.season = String(se);
       if (Number(ep) > 0) params.episode = String(ep);
@@ -88,24 +136,26 @@ export default function SubtitlePanel({
       const data = await searchSubtitles(params);
       if (!data.configured) {
         setOsStatus("need_key");
-        setOsMessage("Online subtitles aren’t set up yet. Add SUBDL_API_KEY to server/.dev.vars");
+        setOsMessage("Online subtitles aren't set up yet. Add SUBDL_API_KEY to server/.dev.vars");
         return;
       }
       if (!data.ok) throw new Error(data.error || "Search failed");
-      setOsResults(data.results || []);
+      const list = Array.isArray(data.results) ? data.results : [];
+      setOsResults(list);
       setOsStatus("ready");
       setOsMessage(
-        data.results?.length
-          ? `Found ${data.results.length} — pick one close to your quality (e.g. CAM)`
-          : "No matches. Try uploading a .srt file"
+        list.length
+          ? `Found ${list.length} subtitles · tap any to download and activate`
+          : "No subtitles found. Try different keywords or select ALL languages."
       );
     } catch (err) {
       setOsStatus("error");
-      setOsMessage(err?.message || "Subtitle search didn’t work");
+      setOsMessage(err?.message || "Subtitle search didn't work. Try again.");
       setOsResults([]);
     }
-  }, [searchQuery, se, ep]);
+  }, [keywordQuery, selectedLang, se, ep]);
 
+  // Upload local subtitle file (.srt / .vtt)
   const pickUpload = useCallback(async () => {
     setSubError("");
     setUploadBusy(true);
@@ -119,14 +169,15 @@ export default function SubtitlePanel({
       const track = await uriToSubtitleTrack(asset.uri, asset.name || "Subtitles");
       setSubtitles((prev) => [...prev, track]);
       onActiveSubIdChange(track.id);
-      setOsMessage(`Uploaded ${track.cues.length} lines. Use Sync if text is early/late.`);
+      setOsMessage(`Loaded ${track.cues.length} lines. Use Sync if timing needs adjusting.`);
     } catch (err) {
-      setSubError(err?.message || "Couldn’t load that subtitle file");
+      setSubError(err?.message || "Couldn't load that subtitle file");
     } finally {
       setUploadBusy(false);
     }
   }, [onActiveSubIdChange, setSubtitles]);
 
+  // Download chosen online subtitle
   const loadOnline = useCallback(
     async (item) => {
       setOsLoadingId(item.file_id);
@@ -143,10 +194,10 @@ export default function SubtitlePanel({
         });
         setSubtitles((prev) => [...prev, track]);
         onActiveSubIdChange(track.id);
-        setOsMessage(`On · ${track.label} (${track.cues.length} lines)`);
+        setOsMessage(`Active: ${track.label} (${track.cues.length} lines)`);
         setOsResults([]);
       } catch (err) {
-        setSubError(err?.message || "Couldn’t download that subtitle");
+        setSubError(err?.message || "Couldn't download that subtitle");
       } finally {
         setOsLoadingId(null);
       }
@@ -154,6 +205,7 @@ export default function SubtitlePanel({
     [onActiveSubIdChange, setSubtitles]
   );
 
+  // Sync adjustments
   const setOffset = useCallback(
     (value) => {
       if (!activeTrack) return;
@@ -169,7 +221,7 @@ export default function SubtitlePanel({
   const nudgeOffset = useCallback(
     (delta) => {
       if (!activeTrack) return;
-      setOffset(Math.round((activeTrack.offset + delta) * 10) / 10);
+      setOffset(Math.round(((activeTrack.offset || 0) + delta) * 10) / 10);
     },
     [activeTrack, setOffset]
   );
@@ -225,6 +277,7 @@ export default function SubtitlePanel({
     [activeSubId, onActiveSubIdChange, setSubtitles]
   );
 
+  // Dialogue search
   const dialogueMatches = useMemo(() => {
     if (!activeTrack?.cues?.length || !dialogueQuery.trim()) return [];
     return searchCuesByDialogue(activeTrack.cues, dialogueQuery, {
@@ -238,18 +291,38 @@ export default function SubtitlePanel({
     (item) => {
       if (!activeTrack || item?.suggestedOffset == null) return;
       setOffset(item.suggestedOffset);
-      const snippet = item.text.length > 28 ? `${item.text.slice(0, 28)}…` : item.text;
+      const snippet = item.text.length > 28 ? `${item.text.slice(0, 28)}...` : item.text;
       setDialogueSyncToast(
-        `Synced! Shifted by ${formatOffsetLabel(item.suggestedOffset)} for “${snippet}”`
+        `Synced! Shifted by ${formatOffsetLabel(item.suggestedOffset)} for "${snippet}"`
       );
       setTimeout(() => setDialogueSyncToast(""), 4500);
     },
     [activeTrack, setOffset]
   );
 
+  // Subtitle styling settings
+  const currentSettings = subSettings || {
+    fontSize: 16,
+    bgColor: "rgba(0,0,0,0.6)",
+    textColor: "#ffffff",
+    elevation: 0,
+  };
+
+  const handleUpdateSetting = (key, val) => {
+    if (onSubSettingsChange) {
+      onSubSettingsChange({ ...currentSettings, [key]: val });
+    }
+  };
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.body}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      nestedScrollEnabled={true}
+    >
+      // Header status row
       <View style={styles.headerRow}>
         <View style={styles.aiBadge}>
           <Ionicons name="sparkles" size={11} color={colors.accent} />
@@ -263,317 +336,635 @@ export default function SubtitlePanel({
             </Text>
           </View>
         ) : (
-          <Text style={styles.inactiveTrackText}>Off</Text>
+          <Text style={styles.inactiveTrackText}>Subtitles: Off</Text>
         )}
       </View>
 
-      <View style={styles.chips}>
+      // Top main navigation tabs: Search & Tracks | AI Sync & Timing | Appearance
+      <View style={styles.mainNav}>
         <Pressable
-          style={[styles.miniChip, activeSubId === "off" && styles.miniChipActive]}
-          onPress={() => onActiveSubIdChange("off")}
+          style={[styles.mainNavBtn, panelTab === "search" && styles.mainNavBtnActive]}
+          onPress={() => setPanelTab("search")}
         >
-          <Text style={[styles.miniChipText, activeSubId === "off" && styles.miniChipTextActive]}>
-            Off
+          <Ionicons
+            name="search"
+            size={13}
+            color={panelTab === "search" ? colors.accent : "rgba(255,255,255,0.6)"}
+          />
+          <Text
+            style={[
+              styles.mainNavText,
+              panelTab === "search" && styles.mainNavTextActive,
+            ]}
+          >
+            Search & Tracks
           </Text>
         </Pressable>
-        <Pressable style={styles.miniChip} onPress={pickUpload} disabled={uploadBusy}>
-          {uploadBusy ? (
-            <ActivityIndicator size="small" color={colors.accent} />
-          ) : (
-            <>
-              <Ionicons name="cloud-upload-outline" size={12} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.miniChipText}>Upload</Text>
-            </>
-          )}
-        </Pressable>
+
         <Pressable
-          style={[styles.miniChip, styles.miniChipPrimary]}
-          onPress={searchOnline}
-          disabled={osStatus === "loading"}
+          style={[styles.mainNavBtn, panelTab === "sync" && styles.mainNavBtnActive]}
+          onPress={() => setPanelTab("sync")}
         >
-          {osStatus === "loading" ? (
-            <ActivityIndicator size="small" color={colors.accentInk} />
-          ) : (
-            <>
-              <Ionicons name="search-outline" size={12} color={colors.accentInk} />
-              <Text style={styles.miniChipPrimaryText}>Search SubDL</Text>
-            </>
-          )}
+          <Ionicons
+            name="sparkles"
+            size={13}
+            color={panelTab === "sync" ? colors.accent : "rgba(255,255,255,0.6)"}
+          />
+          <Text
+            style={[
+              styles.mainNavText,
+              panelTab === "sync" && styles.mainNavTextActive,
+            ]}
+          >
+            AI Sync & Timing
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.mainNavBtn, panelTab === "style" && styles.mainNavBtnActive]}
+          onPress={() => setPanelTab("style")}
+        >
+          <Ionicons
+            name="color-palette-outline"
+            size={13}
+            color={panelTab === "style" ? colors.accent : "rgba(255,255,255,0.6)"}
+          />
+          <Text
+            style={[
+              styles.mainNavText,
+              panelTab === "style" && styles.mainNavTextActive,
+            ]}
+          >
+            Appearance
+          </Text>
         </Pressable>
       </View>
 
-      {subtitles.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.loadedStrip}>
-          {subtitles.map((t) => (
-            <View key={t.id} style={[styles.loadedPill, t.id === activeSubId && styles.loadedPillActive]}>
-              <Pressable
-                style={styles.loadedSelectBtn}
-                onPress={() => onActiveSubIdChange(t.id)}
-              >
-                <Text style={styles.loadedLabel} numberOfLines={1}>
-                  {t.label}
-                </Text>
-                <Text style={styles.loadedCount}>{t.cues.length} lines</Text>
-              </Pressable>
-              <Pressable style={styles.loadedRemoveBtn} onPress={() => removeTrack(t.id)}>
-                <Ionicons name="close" size={12} color="rgba(255,255,255,0.6)" />
-              </Pressable>
-            </View>
-          ))}
-        </ScrollView>
-      ) : null}
-
-      {activeTrack ? (
-        <View style={styles.syncCard}>
-          <View style={styles.segmentedTabs}>
+      // TAB 1: Search & Tracks
+      {panelTab === "search" ? (
+        <View style={styles.tabContent}>
+          // Quick actions: Off & Upload file
+          <View style={styles.actionChipRow}>
             <Pressable
-              style={[styles.segmentBtn, syncTab === "smart" && styles.segmentActive]}
-              onPress={() => setSyncTab("smart")}
+              style={[styles.miniChip, activeSubId === "off" && styles.miniChipActive]}
+              onPress={() => onActiveSubIdChange("off")}
             >
-              <Ionicons
-                name="sparkles"
-                size={11}
-                color={syncTab === "smart" ? colors.accent : "rgba(255,255,255,0.5)"}
-              />
               <Text
                 style={[
-                  styles.segmentText,
-                  syncTab === "smart" && styles.segmentTextActive,
+                  styles.miniChipText,
+                  activeSubId === "off" && styles.miniChipTextActive,
                 ]}
               >
-                AI Dialogue Sync
+                Off
               </Text>
             </Pressable>
-            <Pressable
-              style={[styles.segmentBtn, syncTab === "manual" && styles.segmentActive]}
-              onPress={() => setSyncTab("manual")}
-            >
-              <Ionicons
-                name="options-outline"
-                size={11}
-                color={syncTab === "manual" ? colors.accent : "rgba(255,255,255,0.5)"}
-              />
-              <Text
-                style={[
-                  styles.segmentText,
-                  syncTab === "manual" && styles.segmentTextActive,
-                ]}
-              >
-                Manual Timing
-              </Text>
+
+            <Pressable style={styles.miniChip} onPress={pickUpload} disabled={uploadBusy}>
+              {uploadBusy ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <>
+                  <Ionicons name="cloud-upload-outline" size={13} color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.miniChipText}>Upload File (.srt / .vtt)</Text>
+                </>
+              )}
             </Pressable>
           </View>
 
-          {syncTab === "smart" ? (
-            <View style={styles.smartTabContent}>
-              <View style={styles.dialoguePromptBox}>
-                <View style={styles.dialoguePromptHeader}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={12} color="#a855f7" />
-                  <Text style={styles.dialoguePromptText}>
-                    Heard words out of sync? Type them to auto-align:
-                  </Text>
-                </View>
-                <View style={styles.dialogueInputWrap}>
-                  <Ionicons name="search" size={13} color="rgba(255,255,255,0.4)" style={styles.dialogueSearchIcon} />
-                  <TextInput
-                    style={styles.dialogueInput}
-                    placeholder="e.g. hello brother, wait for me..."
-                    placeholderTextColor="rgba(255,255,255,0.35)"
-                    value={dialogueQuery}
-                    onChangeText={setDialogueQuery}
-                    returnKeyType="search"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  {dialogueQuery ? (
-                    <Pressable onPress={() => setDialogueQuery("")} hitSlop={8}>
-                      <Ionicons name="close-circle" size={14} color="rgba(255,255,255,0.5)" />
-                    </Pressable>
-                  ) : null}
-                </View>
-
-                {dialogueSyncToast ? (
-                  <View style={styles.toastBox}>
-                    <Ionicons name="checkmark-circle" size={13} color="#4ade80" />
-                    <Text style={styles.toastText}>{dialogueSyncToast}</Text>
-                  </View>
-                ) : null}
-
-                {dialogueMatches.length > 0 ? (
-                  <View style={styles.dialogueList}>
-                    {dialogueMatches.map((m) => (
-                      <View key={m.index} style={styles.dialogueItem}>
-                        <View style={styles.dialogueInfo}>
-                          <Text style={styles.dialogueText} numberOfLines={2}>
-                            “{m.text}”
-                          </Text>
-                          <Text style={styles.dialogueMeta}>
-                            Subtitle: {formatClock(m.start)} · Needed: {formatOffsetLabel(m.suggestedOffset)}
-                          </Text>
-                        </View>
-                        <View style={styles.dialogueActions}>
-                          <Pressable
-                            style={styles.dialogueSyncBtn}
-                            onPress={() => syncDialogueCue(m)}
-                          >
-                            <Ionicons name="sparkles" size={10} color="#000" />
-                            <Text style={styles.dialogueSyncBtnText}>Sync</Text>
-                          </Pressable>
-                          {onSeek ? (
-                            <Pressable
-                              style={styles.dialogueJumpBtn}
-                              onPress={() =>
-                                onSeek(m.start * (activeTrack.rate || 1) + (activeTrack.offset || 0))
-                              }
-                            >
-                              <Text style={styles.dialogueJumpBtnText}>Jump</Text>
-                            </Pressable>
-                          ) : null}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                ) : dialogueQuery.trim().length > 1 ? (
-                  <Text style={styles.dialogueEmpty}>No matching dialogue found in this subtitle track.</Text>
-                ) : null}
-              </View>
-
-              <View style={styles.currentSpeechBox}>
-                <View style={styles.currentSpeechTop}>
-                  <Text style={styles.microLabel}>CURRENT TIMELINE CUE</Text>
-                  <Text style={styles.clockTag}>Video {formatClock(currentTime)}</Text>
-                </View>
-                <Text style={styles.currentSpeechText} numberOfLines={2}>
-                  {cueText ? `“${cueText.replace(/\n/g, " ")}”` : "Silence / no line at this timestamp"}
-                </Text>
-                <View style={styles.quickAlignRow}>
-                  <Pressable style={styles.navCueBtn} onPress={() => jumpToCue(-1)}>
-                    <Ionicons name="play-skip-back" size={11} color="#fff" />
-                    <Text style={styles.navCueBtnText}>Prev</Text>
-                  </Pressable>
-                  <Pressable style={styles.aiSyncNowBtn} onPress={alignLineToNow}>
-                    <Ionicons name="sparkles" size={11} color="#000" />
-                    <Text style={styles.aiSyncNowBtnText}>Align this line to now</Text>
-                  </Pressable>
-                  <Pressable style={styles.navCueBtn} onPress={() => jumpToCue(1)}>
-                    <Text style={styles.navCueBtnText}>Next</Text>
-                    <Ionicons name="play-skip-forward" size={11} color="#fff" />
-                  </Pressable>
-                </View>
-              </View>
+          // Online Subtitle Keyword Search Box
+          <View style={styles.searchCard}>
+            <View style={styles.searchHeader}>
+              <Ionicons name="globe-outline" size={13} color={colors.accent} />
+              <Text style={styles.searchCardTitle}>Search Online Subtitles (SubDL)</Text>
             </View>
-          ) : (
-            <View style={styles.manualTabContent}>
-              <View style={styles.offsetControlBox}>
-                <View style={styles.stepperTop}>
-                  <Text style={styles.microLabel}>SYNC OFFSET</Text>
-                  <Text style={styles.offsetReadout}>{formatOffsetLabel(activeTrack.offset)}</Text>
-                </View>
-                <View style={styles.stepperRow}>
-                  {[-5, -1, -0.2].map((delta) => (
-                    <Pressable
-                      key={delta}
-                      style={styles.stepBtn}
-                      onPress={() => nudgeOffset(delta)}
-                    >
-                      <Text style={styles.stepBtnText}>{delta}s</Text>
-                    </Pressable>
-                  ))}
-                  <Pressable style={styles.stepResetBtn} onPress={() => setOffset(0)}>
-                    <Ionicons name="refresh-outline" size={12} color={colors.accent} />
-                    <Text style={styles.stepResetText}>0s</Text>
-                  </Pressable>
-                  {[0.2, 1, 5].map((delta) => (
-                    <Pressable
-                      key={delta}
-                      style={styles.stepBtn}
-                      onPress={() => nudgeOffset(delta)}
-                    >
-                      <Text style={styles.stepBtnText}>+{delta}s</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
 
-              <View style={styles.speedBox}>
-                <Text style={styles.microLabel}>DRIFT CORRECTION</Text>
-                <View style={styles.speedBtnRow}>
+            // Keyword input field
+            <View style={styles.keywordInputWrap}>
+              <Ionicons name="search" size={14} color="rgba(255,255,255,0.4)" style={styles.inputIcon} />
+              <TextInput
+                style={styles.keywordInput}
+                placeholder="Search title, movie, series, or keywords..."
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                value={keywordQuery}
+                onChangeText={setKeywordQuery}
+                returnKeyType="search"
+                onSubmitEditing={searchOnline}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {keywordQuery ? (
+                <Pressable onPress={() => setKeywordQuery("")} hitSlop={8} style={styles.clearBtn}>
+                  <Ionicons name="close-circle" size={15} color="rgba(255,255,255,0.5)" />
+                </Pressable>
+              ) : null}
+            </View>
+
+            // Language Selector Chips
+            <View style={styles.langRow}>
+              <Text style={styles.langLabel}>Lang:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.langScroll}>
+                {SUB_LANGUAGES.map((lang) => (
                   <Pressable
-                    style={[
-                      styles.miniSpeedBtn,
-                      Math.abs((activeTrack.rate || 1) - 1) < 0.001 && styles.miniSpeedActive,
-                    ]}
-                    onPress={() => setRate(1)}
+                    key={lang.id}
+                    style={[styles.langChip, selectedLang === lang.id && styles.langChipActive]}
+                    onPress={() => setSelectedLang(lang.id)}
                   >
                     <Text
-                      style={[
-                        styles.miniSpeedText,
-                        Math.abs((activeTrack.rate || 1) - 1) < 0.001 && styles.miniSpeedTextActive,
-                      ]}
+                      style={[styles.langChipText, selectedLang === lang.id && styles.langChipTextActive]}
                     >
-                      1.00× Normal
+                      {lang.label}
                     </Text>
                   </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
+            // Search Trigger Button
+            <Pressable
+              style={styles.searchSubmitBtn}
+              onPress={searchOnline}
+              disabled={osStatus === "loading"}
+            >
+              {osStatus === "loading" ? (
+                <ActivityIndicator size="small" color={colors.accentInk} />
+              ) : (
+                <>
+                  <Ionicons name="search" size={13} color={colors.accentInk} />
+                  <Text style={styles.searchSubmitText}>Search SubDL</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+
+          // Subtitle Status / Error / Information
+          {subError ? <Text style={styles.error}>{subError}</Text> : null}
+          {osMessage ? (
+            <Text
+              style={
+                osStatus === "need_key" || osStatus === "error" ? styles.error : styles.banner
+              }
+            >
+              {osMessage}
+            </Text>
+          ) : null}
+
+          // Search Results
+          {osResults.length > 0 ? (
+            <View style={styles.resultsBox}>
+              <Text style={styles.sectionHeader}>Available Online ({osResults.length})</Text>
+              {osResults.map((item) => {
+                const label = shortSubtitleLabel(item.release || item.file_name, item.language);
+                const loading = osLoadingId === item.file_id;
+                return (
                   <Pressable
-                    style={styles.miniSpeedBtn}
-                    onPress={() => setRate(23.976 / 25)}
+                    key={item.id || item.file_id}
+                    style={styles.resultItem}
+                    disabled={loading}
+                    onPress={() => loadOnline(item)}
                   >
-                    <Text style={styles.miniSpeedText}>23.98 → 25 fps</Text>
+                    <View style={styles.langBadge}>
+                      <Text style={styles.langBadgeText}>
+                        {String(item.language || "en").toUpperCase().slice(0, 3)}
+                      </Text>
+                    </View>
+                    <View style={styles.resultCopy}>
+                      <Text style={styles.resultName} numberOfLines={1}>
+                        {label}
+                      </Text>
+                      {item.download_count ? (
+                        <Text style={styles.resultMeta}>{item.download_count} downloads</Text>
+                      ) : null}
+                    </View>
+                    {loading ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <View style={styles.downloadIconWrap}>
+                        <Ionicons name="download" size={14} color={colors.accent} />
+                      </View>
+                    )}
                   </Pressable>
-                  <Pressable
-                    style={styles.miniSpeedBtn}
-                    onPress={() => setRate(25 / 23.976)}
+                );
+              })}
+            </View>
+          ) : null}
+
+          // Loaded Tracks List
+          {subtitles.length > 0 ? (
+            <View style={styles.loadedSection}>
+              <Text style={styles.sectionHeader}>Loaded Subtitles</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.loadedStrip}>
+                {subtitles.map((t) => (
+                  <View
+                    key={t.id}
+                    style={[styles.loadedPill, t.id === activeSubId && styles.loadedPillActive]}
                   >
-                    <Text style={styles.miniSpeedText}>25 → 23.98 fps</Text>
-                  </Pressable>
-                </View>
+                    <Pressable
+                      style={styles.loadedSelectBtn}
+                      onPress={() => onActiveSubIdChange(t.id)}
+                    >
+                      <Text style={styles.loadedLabel} numberOfLines={1}>
+                        {t.label}
+                      </Text>
+                      <Text style={styles.loadedCount}>{t.cues.length} lines</Text>
+                    </Pressable>
+                    <Pressable style={styles.loadedRemoveBtn} onPress={() => removeTrack(t.id)}>
+                      <Ionicons name="close" size={12} color="rgba(255,255,255,0.6)" />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      // TAB 2: AI Sync & Timing
+      {panelTab === "sync" ? (
+        <View style={styles.tabContent}>
+          {!activeTrack ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="information-circle-outline" size={24} color={colors.accent} />
+              <Text style={styles.emptyCardTitle}>No Subtitle Track Selected</Text>
+              <Text style={styles.emptyCardText}>
+                Search online or select a loaded subtitle track in the "Search & Tracks" tab to sync timing.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.syncCard}>
+              // Sub-tabs: AI Dialogue Sync vs Manual Timing
+              <View style={styles.segmentedTabs}>
+                <Pressable
+                  style={[styles.segmentBtn, syncTab === "smart" && styles.segmentActive]}
+                  onPress={() => setSyncTab("smart")}
+                >
+                  <Ionicons
+                    name="sparkles"
+                    size={12}
+                    color={syncTab === "smart" ? colors.accent : "rgba(255,255,255,0.5)"}
+                  />
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      syncTab === "smart" && styles.segmentTextActive,
+                    ]}
+                  >
+                    AI Dialogue Sync
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.segmentBtn, syncTab === "manual" && styles.segmentActive]}
+                  onPress={() => setSyncTab("manual")}
+                >
+                  <Ionicons
+                    name="options-outline"
+                    size={12}
+                    color={syncTab === "manual" ? colors.accent : "rgba(255,255,255,0.5)"}
+                  />
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      syncTab === "manual" && styles.segmentTextActive,
+                    ]}
+                  >
+                    Manual Timing
+                  </Text>
+                </Pressable>
               </View>
+
+              // AI Dialogue Sync content
+              {syncTab === "smart" ? (
+                <View style={styles.smartTabContent}>
+                  <View style={styles.dialoguePromptBox}>
+                    <View style={styles.dialoguePromptHeader}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={13} color="#a855f7" />
+                      <Text style={styles.dialoguePromptText}>
+                        Heard words out of sync? Type them to auto-align:
+                      </Text>
+                    </View>
+                    <View style={styles.dialogueInputWrap}>
+                      <Ionicons name="search" size={13} color="rgba(255,255,255,0.4)" style={styles.dialogueSearchIcon} />
+                      <TextInput
+                        style={styles.dialogueInput}
+                        placeholder="e.g. hello brother, wait for me..."
+                        placeholderTextColor="rgba(255,255,255,0.35)"
+                        value={dialogueQuery}
+                        onChangeText={setDialogueQuery}
+                        returnKeyType="search"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      {dialogueQuery ? (
+                        <Pressable onPress={() => setDialogueQuery("")} hitSlop={8}>
+                          <Ionicons name="close-circle" size={14} color="rgba(255,255,255,0.5)" />
+                        </Pressable>
+                      ) : null}
+                    </View>
+
+                    {dialogueSyncToast ? (
+                      <View style={styles.toastBox}>
+                        <Ionicons name="checkmark-circle" size={13} color="#4ade80" />
+                        <Text style={styles.toastText}>{dialogueSyncToast}</Text>
+                      </View>
+                    ) : null}
+
+                    {dialogueMatches.length > 0 ? (
+                      <View style={styles.dialogueList}>
+                        {dialogueMatches.map((m) => (
+                          <View key={m.index} style={styles.dialogueItem}>
+                            <View style={styles.dialogueInfo}>
+                              <Text style={styles.dialogueText} numberOfLines={2}>
+                                "{m.text}"
+                              </Text>
+                              <Text style={styles.dialogueMeta}>
+                                Subtitle: {formatClock(m.start)} · Needed: {formatOffsetLabel(m.suggestedOffset)}
+                              </Text>
+                            </View>
+                            <View style={styles.dialogueActions}>
+                              <Pressable
+                                style={styles.dialogueSyncBtn}
+                                onPress={() => syncDialogueCue(m)}
+                              >
+                                <Ionicons name="sparkles" size={10} color="#000" />
+                                <Text style={styles.dialogueSyncBtnText}>Sync Here</Text>
+                              </Pressable>
+                              {onSeek ? (
+                                <Pressable
+                                  style={styles.dialogueJumpBtn}
+                                  onPress={() =>
+                                    onSeek(m.start * (activeTrack.rate || 1) + (activeTrack.offset || 0))
+                                  }
+                                >
+                                  <Text style={styles.dialogueJumpBtnText}>Jump</Text>
+                                </Pressable>
+                              ) : null}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ) : dialogueQuery.trim().length > 1 ? (
+                      <Text style={styles.dialogueEmpty}>No matching dialogue found in this subtitle track.</Text>
+                    ) : null}
+                  </View>
+
+                  // Current Timeline Cue card
+                  <View style={styles.currentSpeechBox}>
+                    <View style={styles.currentSpeechTop}>
+                      <Text style={styles.microLabel}>CURRENT TIMELINE CUE</Text>
+                      <Text style={styles.clockTag}>Video {formatClock(currentTime)}</Text>
+                    </View>
+                    <Text style={styles.currentSpeechText} numberOfLines={2}>
+                      {cueText ? `"${cueText.replace(/\n/g, " ")}"` : "Silence / no line at this timestamp"}
+                    </Text>
+                    <View style={styles.quickAlignRow}>
+                      <Pressable style={styles.navCueBtn} onPress={() => jumpToCue(-1)}>
+                        <Ionicons name="play-skip-back" size={11} color="#fff" />
+                        <Text style={styles.navCueBtnText}>Prev</Text>
+                      </Pressable>
+                      <Pressable style={styles.aiSyncNowBtn} onPress={alignLineToNow}>
+                        <Ionicons name="sparkles" size={11} color="#000" />
+                        <Text style={styles.aiSyncNowBtnText}>Align this line to now</Text>
+                      </Pressable>
+                      <Pressable style={styles.navCueBtn} onPress={() => jumpToCue(1)}>
+                        <Text style={styles.navCueBtnText}>Next</Text>
+                        <Ionicons name="play-skip-forward" size={11} color="#fff" />
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              ) : (
+                // Manual Timing content
+                <View style={styles.manualTabContent}>
+                  <View style={styles.offsetControlBox}>
+                    <View style={styles.stepperTop}>
+                      <Text style={styles.microLabel}>SYNC OFFSET</Text>
+                      <Text style={styles.offsetReadout}>
+                        {formatOffsetLabel(activeTrack.offset || 0)}
+                      </Text>
+                    </View>
+                    <View style={styles.stepperRow}>
+                      {[-5, -1, -0.5, -0.2].map((delta) => (
+                        <Pressable
+                          key={delta}
+                          style={styles.stepBtn}
+                          onPress={() => nudgeOffset(delta)}
+                        >
+                          <Text style={styles.stepBtnText}>{delta}s</Text>
+                        </Pressable>
+                      ))}
+                      <Pressable style={styles.stepResetBtn} onPress={() => setOffset(0)}>
+                        <Ionicons name="refresh-outline" size={12} color={colors.accent} />
+                        <Text style={styles.stepResetText}>0s</Text>
+                      </Pressable>
+                      {[0.2, 0.5, 1, 5].map((delta) => (
+                        <Pressable
+                          key={delta}
+                          style={styles.stepBtn}
+                          onPress={() => nudgeOffset(delta)}
+                        >
+                          <Text style={styles.stepBtnText}>+{delta}s</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
+                  // Drift Rate Correction
+                  <View style={styles.speedBox}>
+                    <Text style={styles.microLabel}>DRIFT CORRECTION (FRAME RATE)</Text>
+                    <View style={styles.speedBtnRow}>
+                      <Pressable
+                        style={[
+                          styles.miniSpeedBtn,
+                          Math.abs((activeTrack.rate || 1) - 1) < 0.001 && styles.miniSpeedActive,
+                        ]}
+                        onPress={() => setRate(1)}
+                      >
+                        <Text
+                          style={[
+                            styles.miniSpeedText,
+                            Math.abs((activeTrack.rate || 1) - 1) < 0.001 && styles.miniSpeedTextActive,
+                          ]}
+                        >
+                          1.00x Normal
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[
+                          styles.miniSpeedBtn,
+                          Math.abs((activeTrack.rate || 1) - (23.976 / 25)) < 0.001 && styles.miniSpeedActive,
+                        ]}
+                        onPress={() => setRate(23.976 / 25)}
+                      >
+                        <Text
+                          style={[
+                            styles.miniSpeedText,
+                            Math.abs((activeTrack.rate || 1) - (23.976 / 25)) < 0.001 && styles.miniSpeedTextActive,
+                          ]}
+                        >
+                          23.98 -> 25 fps
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[
+                          styles.miniSpeedBtn,
+                          Math.abs((activeTrack.rate || 1) - (25 / 23.976)) < 0.001 && styles.miniSpeedActive,
+                        ]}
+                        onPress={() => setRate(25 / 23.976)}
+                      >
+                        <Text
+                          style={[
+                            styles.miniSpeedText,
+                            Math.abs((activeTrack.rate || 1) - (25 / 23.976)) < 0.001 && styles.miniSpeedTextActive,
+                          ]}
+                        >
+                          25 -> 23.98 fps
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
           )}
         </View>
       ) : null}
 
-      {subError ? <Text style={styles.error}>{subError}</Text> : null}
-      {osMessage ? (
-        <Text
-          style={
-            osStatus === "need_key" || osStatus === "error" ? styles.error : styles.banner
-          }
-        >
-          {osMessage}
-        </Text>
-      ) : null}
-
-      {osResults.length > 0 ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Online — tap to use</Text>
-          {osResults.map((item) => {
-            const label = shortSubtitleLabel(item.release || item.file_name, item.language);
-            const loading = osLoadingId === item.file_id;
-            return (
-              <Pressable
-                key={item.id}
-                style={styles.osRow}
-                disabled={loading}
-                onPress={() => loadOnline(item)}
+      // TAB 3: Appearance & Style
+      {panelTab === "style" ? (
+        <View style={styles.tabContent}>
+          // Live preview card
+          <View style={styles.previewBox}>
+            <Text style={styles.microLabel}>LIVE PREVIEW</Text>
+            <View style={styles.previewStage}>
+              <View
+                style={[
+                  styles.previewSubWrap,
+                  {
+                    backgroundColor: currentSettings.bgColor || "rgba(0,0,0,0.6)",
+                  },
+                  currentSettings.bgColor === "transparent" && styles.textShadowOutline,
+                ]}
               >
-                <Text style={styles.osLang}>{String(item.language || "en").slice(0, 7)}</Text>
-                <View style={styles.osCopy}>
-                  <Text style={styles.osName} numberOfLines={1}>
-                    {label}
+                <Text
+                  style={[
+                    styles.previewSubText,
+                    {
+                      fontSize: currentSettings.fontSize || 16,
+                      color: currentSettings.textColor || "#ffffff",
+                    },
+                    currentSettings.bgColor === "transparent" && styles.textShadowOutlineText,
+                  ]}
+                >
+                  "The quick brown fox jumps over the lazy dog"
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          // Font Size Selector
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>FONT SIZE</Text>
+            <View style={styles.settingOptionsRow}>
+              {FONT_SIZES.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={[
+                    styles.settingPill,
+                    currentSettings.fontSize === item.size && styles.settingPillActive,
+                  ]}
+                  onPress={() => handleUpdateSetting("fontSize", item.size)}
+                >
+                  <Text
+                    style={[
+                      styles.settingPillText,
+                      currentSettings.fontSize === item.size && styles.settingPillTextActive,
+                    ]}
+                  >
+                    {item.label} ({item.size})
                   </Text>
-                  {item.download_count ? (
-                    <Text style={styles.osMeta}>{item.download_count} downloads</Text>
-                  ) : null}
-                </View>
-                {loading ? (
-                  <ActivityIndicator size="small" color={colors.accent} />
-                ) : (
-                  <Ionicons name="download-outline" size={15} color={colors.accent} />
-                )}
-              </Pressable>
-            );
-          })}
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          // Background Style Selector
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>BACKGROUND STYLE</Text>
+            <View style={styles.settingOptionsRow}>
+              {BG_STYLES.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={[
+                    styles.settingPill,
+                    currentSettings.bgColor === item.bg && styles.settingPillActive,
+                  ]}
+                  onPress={() => handleUpdateSetting("bgColor", item.bg)}
+                >
+                  <Text
+                    style={[
+                      styles.settingPillText,
+                      currentSettings.bgColor === item.bg && styles.settingPillTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          // Text Color Selector
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>TEXT COLOR</Text>
+            <View style={styles.settingOptionsRow}>
+              {TEXT_COLORS.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={[
+                    styles.settingPill,
+                    currentSettings.textColor === item.color && styles.settingPillActive,
+                  ]}
+                  onPress={() => handleUpdateSetting("textColor", item.color)}
+                >
+                  <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                  <Text
+                    style={[
+                      styles.settingPillText,
+                      currentSettings.textColor === item.color && styles.settingPillTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          // Vertical Position
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>VERTICAL POSITION</Text>
+            <View style={styles.settingOptionsRow}>
+              {POSITIONS.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={[
+                    styles.settingPill,
+                    (currentSettings.elevation || 0) === item.elevation && styles.settingPillActive,
+                  ]}
+                  onPress={() => handleUpdateSetting("elevation", item.elevation)}
+                >
+                  <Text
+                    style={[
+                      styles.settingPillText,
+                      (currentSettings.elevation || 0) === item.elevation && styles.settingPillTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </View>
       ) : null}
     </ScrollView>
@@ -582,10 +973,10 @@ export default function SubtitlePanel({
 
 const styles = StyleSheet.create({
   scroll: {
-    maxHeight: 460,
+    maxHeight: 520,
   },
   body: {
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.lg,
     gap: 8,
   },
   headerRow: {
@@ -603,7 +994,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(246,196,67,0.35)",
     borderRadius: radii.pill,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 3,
   },
   aiBadgeText: {
@@ -622,11 +1013,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    maxWidth: 200,
+    maxWidth: 220,
   },
   activeDot: {
-    width: 5,
-    height: 5,
+    width: 6,
+    height: 6,
     borderRadius: 3,
     backgroundColor: "#4ade80",
   },
@@ -636,21 +1027,53 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   inactiveTrackText: {
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(255,255,255,0.45)",
     fontSize: 11,
     fontWeight: "600",
   },
-  chips: {
+  mainNav: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: radii.sm,
+    padding: 3,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  mainNavBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 7,
+    borderRadius: 5,
+  },
+  mainNavBtnActive: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  mainNavText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  mainNavTextActive: {
+    color: colors.accent,
+    fontWeight: "700",
+  },
+  tabContent: {
+    gap: 8,
+  },
+  actionChipRow: {
+    flexDirection: "row",
     gap: 6,
   },
   miniChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: radii.sm,
     backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
@@ -659,10 +1082,6 @@ const styles = StyleSheet.create({
   miniChipActive: {
     backgroundColor: "rgba(246,196,67,0.14)",
     borderColor: "rgba(246,196,67,0.45)",
-  },
-  miniChipPrimary: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
   },
   miniChipText: {
     color: "#cfcfdc",
@@ -673,10 +1092,150 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "700",
   },
-  miniChipPrimaryText: {
-    color: colors.accentInk,
-    fontWeight: "800",
+  searchCard: {
+    backgroundColor: "rgba(18,18,24,0.9)",
+    borderRadius: radii.md,
+    padding: 10,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  searchHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  searchCardTitle: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  keywordInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: radii.sm,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    height: 36,
+  },
+  inputIcon: {
+    marginRight: 6,
+  },
+  keywordInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 12,
+    paddingVertical: 4,
+  },
+  clearBtn: {
+    padding: 2,
+  },
+  langRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  langLabel: {
+    color: "rgba(255,255,255,0.5)",
     fontSize: 11,
+    fontWeight: "600",
+  },
+  langScroll: {
+    flexDirection: "row",
+    gap: 5,
+  },
+  langChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  langChipActive: {
+    backgroundColor: "rgba(246,196,67,0.18)",
+    borderColor: colors.accent,
+  },
+  langChipText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  langChipTextActive: {
+    color: colors.accent,
+  },
+  searchSubmitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.accent,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+  },
+  searchSubmitText: {
+    color: colors.accentInk,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  resultsBox: {
+    backgroundColor: "rgba(14,14,20,0.85)",
+    borderRadius: radii.md,
+    padding: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  sectionHeader: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  resultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: radii.sm,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  langBadge: {
+    backgroundColor: "rgba(246,196,67,0.15)",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "rgba(246,196,67,0.3)",
+  },
+  langBadgeText: {
+    color: colors.accent,
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  resultCopy: {
+    flex: 1,
+  },
+  resultName: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  resultMeta: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 9,
+    marginTop: 2,
+  },
+  downloadIconWrap: {
+    padding: 4,
+  },
+  loadedSection: {
+    gap: 6,
   },
   loadedStrip: {
     flexDirection: "row",
@@ -700,24 +1259,45 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
   },
   loadedLabel: {
     color: "#e5e5ed",
     fontSize: 11,
     fontWeight: "600",
-    maxWidth: 130,
+    maxWidth: 140,
   },
   loadedCount: {
     color: "rgba(255,255,255,0.4)",
     fontSize: 10,
   },
   loadedRemoveBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
     borderLeftWidth: 1,
     borderLeftColor: "rgba(255,255,255,0.08)",
+  },
+  emptyCard: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: radii.md,
+    padding: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  emptyCardTitle: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  emptyCardText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    textAlign: "center",
+    lineHeight: 16,
   },
   syncCard: {
     padding: 10,
@@ -1032,42 +1612,84 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "700",
   },
-  section: {
-    gap: 5,
+  previewBox: {
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: radii.md,
+    padding: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  sectionTitle: {
+  previewStage: {
+    height: 70,
+    backgroundColor: "rgba(20,20,30,0.8)",
+    borderRadius: radii.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  previewSubWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+    maxWidth: "95%",
+  },
+  previewSubText: {
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  textShadowOutline: {
+    backgroundColor: "transparent",
+  },
+  textShadowOutlineText: {
+    textShadowColor: "#000000",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  settingGroup: {
+    gap: 6,
+  },
+  settingGroupTitle: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    fontWeight: "800",
+    letterSpacing: 0.6,
   },
-  osRow: {
+  settingOptionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  settingPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
-    padding: 7,
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
     borderRadius: radii.sm,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  osLang: {
-    color: colors.accent,
-    fontWeight: "800",
-    fontSize: 10,
-    width: 24,
+  settingPillActive: {
+    backgroundColor: "rgba(246,196,67,0.15)",
+    borderColor: colors.accent,
   },
-  osCopy: {
-    flex: 1,
-  },
-  osName: {
-    color: "#fff",
+  settingPillText: {
+    color: "rgba(255,255,255,0.7)",
     fontSize: 11,
     fontWeight: "600",
   },
-  osMeta: {
-    color: "rgba(255,255,255,0.45)",
-    fontSize: 9,
-    marginTop: 1,
+  settingPillTextActive: {
+    color: colors.accent,
+    fontWeight: "800",
+  },
+  colorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.3)",
   },
   error: {
     color: "#ff8a80",
@@ -1078,4 +1700,3 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 });
-

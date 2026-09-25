@@ -33,7 +33,9 @@ import {
 import { getCachedStreams, prefetchStreams } from "../lib/streamCache";
 import { colors, radii, spacing } from "../lib/theme";
 import { toUserMessage } from "../lib/userFacingError";
-import { cueAtTime, makeSubtitleTrack } from "../lib/subtitles";
+import { cleanSearchTitle, cueAtTime, makeSubtitleTrack } from "../lib/subtitles";
+import { downloadSubtitle, searchSubtitles } from "../lib/subtitlesApi";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   getDownloadById,
   getDownloads,
@@ -66,6 +68,14 @@ const AUTO_MAX = 720;
 const PRELOAD_BUFFER_SEC = 2;
 const PRELOAD_TIMEOUT_MS = 18000;
 const SIDE_GESTURE_PX = 280;
+
+const SUB_SETTINGS_KEY = "@moviehunter_subtitle_settings";
+const DEFAULT_SUB_SETTINGS = {
+  fontSize: 16,
+  bgColor: "rgba(0,0,0,0.6)",
+  textColor: "#ffffff",
+  elevation: 0,
+};
 
 const DISPLAY_MODES = [
   {
@@ -182,9 +192,35 @@ export default function PlayScreen() {
   const [subtitles, setSubtitles] = useState([]);
   const [activeSubId, setActiveSubId] = useState("off");
   const [cueText, setCueText] = useState("");
-  /** Saved progress offer — null once user picks Resume or Start over */
+  const [subSettings, setSubSettings] = useState(DEFAULT_SUB_SETTINGS);
+
+  // Load saved subtitle appearance preferences
+  useEffect(() => {
+    AsyncStorage.getItem(SUB_SETTINGS_KEY)
+      .then((raw) => {
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            setSubSettings((prev) => ({ ...prev, ...parsed }));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSubSettingsChange = useCallback((next) => {
+    setSubSettings((prev) => {
+      const updated = typeof next === "function" ? next(prev) : { ...prev, ...next };
+      AsyncStorage.setItem(SUB_SETTINGS_KEY, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, []);
+
+  // Saved progress offer — null once user picks Resume or Start over
   const [resumeOffer, setResumeOffer] = useState(null);
   const [resumeReady, setResumeReady] = useState(false);
+  const [gestureHud, setGestureHud] = useState(null); // { type: 'brightness'|'volume', side: 'left'|'right', value: number }
+  const gestureHudTimer = useRef(null);
 
   const resumeAtRef = useRef(0);
   const fallbackTried = useRef(false);
@@ -258,7 +294,7 @@ export default function PlayScreen() {
 
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
-    p.timeUpdateEventInterval = 0.5;
+    p.timeUpdateEventInterval = 0.15; // responsive subtitle sync
     p.preservesPitch = true;
     p.volume = 1;
   });
@@ -275,16 +311,20 @@ export default function PlayScreen() {
         setVolume(volumeRef.current);
       }
     } catch {
-      /* use the default volume */
+      // use the default volume
     }
     Brightness.getBrightnessAsync()
       .then((value) => {
-        if (Number.isFinite(value)) {
-          brightnessRef.current = Math.max(0, Math.min(1, value));
+        if (Number.isFinite(value) && value >= 0 && value <= 1) {
+          brightnessRef.current = Math.max(0.02, value);
           brightnessReadyRef.current = true;
+        } else {
+          brightnessRef.current = 0.5;
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        brightnessRef.current = 0.5;
+      });
   }, [player]);
 
   const isCurrentSeries = kind === "series" || Number(se) > 0 || Number(ep) > 0;
@@ -535,7 +575,7 @@ export default function PlayScreen() {
         player.muted = false;
         player.pause();
       } catch {
-        /* ignore */
+        // ignore
       }
       setWaitingToPlay(false);
       return;
@@ -552,7 +592,7 @@ export default function PlayScreen() {
         player.pause();
       }
     } catch {
-      /* ignore */
+      // ignore
     }
   }, [clearPreloadTimers, player]);
 
@@ -580,7 +620,7 @@ export default function PlayScreen() {
       setWaitingToPlay(true);
       player.play();
     } catch {
-      /* ignore */
+      // ignore
     }
   }, [player]);
 
@@ -591,7 +631,7 @@ export default function PlayScreen() {
       try {
         if (!player.playing) return;
       } catch {
-        /* ignore */
+        // ignore
       }
       setControlsVisible(false);
     }, 8000);
@@ -673,7 +713,7 @@ export default function PlayScreen() {
           }).catch(() => {});
         }
       } catch {
-        /* ignore */
+        // ignore
       }
     });
     return () => sub.remove();
@@ -698,7 +738,7 @@ export default function PlayScreen() {
           userWantsPlayRef.current = false;
         }
       } catch {
-        /* ignore */
+        // ignore
       } finally {
         if (!cancelled) setResumeReady(true);
       }
@@ -729,7 +769,7 @@ export default function PlayScreen() {
           }).catch(() => {});
         }
       } catch {
-        /* ignore */
+        // ignore
       }
     };
   }, [player, title]);
@@ -759,7 +799,7 @@ export default function PlayScreen() {
         player.currentTime = time;
         setCurrentTime(time);
       } catch {
-        /* ignore */
+        // ignore
       }
       showControls();
     },
@@ -808,7 +848,7 @@ export default function PlayScreen() {
           stallMsRef.current = 0;
         }
       } catch {
-        /* ignore */
+        // ignore
       }
     }, 1000);
     return () => clearInterval(id);
@@ -1009,6 +1049,56 @@ export default function PlayScreen() {
     loadedUriRef.current = "";
   }, [subjectId, detailPath, se, ep, downloadId]);
 
+  // Auto-fetch English subtitle for online streams if none loaded yet
+  useEffect(() => {
+    if (status !== "ready" || downloadId) return;
+    let cancelled = false;
+
+    const autoFetch = async () => {
+      try {
+        const query = cleanSearchTitle(title, detailPath);
+        if (!query) return;
+
+        const params = {
+          query,
+          languages: "en",
+        };
+        if (Number(se) > 0) params.season = String(se);
+        if (Number(ep) > 0) params.episode = String(ep);
+        if (Number(se) > 0 || Number(ep) > 0) params.type = "episode";
+        else params.type = "movie";
+
+        const data = await searchSubtitles(params);
+        if (cancelled || !data?.ok || !data.results?.length) return;
+
+        const topMatch = data.results[0];
+        const dl = await downloadSubtitle(topMatch.file_id);
+        if (cancelled || !dl?.ok || !dl.vtt) return;
+
+        const track = makeSubtitleTrack({
+          vttText: dl.vtt,
+          label: dl.label || topMatch.file_name || "English",
+          srclang: String(topMatch.language || "en").slice(0, 8),
+          source: "subdl",
+          fileId: topMatch.file_id,
+        });
+
+        setSubtitles((prev) => {
+          const exists = prev.some((t) => t.fileId === topMatch.file_id);
+          return exists ? prev : [...prev, track];
+        });
+        setActiveSubId((prev) => (prev === "off" ? track.id : prev));
+      } catch {
+        // Ignore background auto-fetch failure
+      }
+    };
+
+    autoFetch();
+    return () => {
+      cancelled = true;
+    };
+  }, [status, downloadId, title, detailPath, se, ep]);
+
   const handleFirstFrame = useCallback(() => {
     // Don't reset position after seeks — only finish the initial preload once
     if (preloadedRef.current) return;
@@ -1056,7 +1146,7 @@ export default function PlayScreen() {
               player.play();
             }
           } catch {
-            /* ignore */
+            // ignore
           }
           preloadedRef.current = true;
           if (!resumeOfferRef.current) setWaitingToPlay(false);
@@ -1132,7 +1222,7 @@ export default function PlayScreen() {
           );
         }
       } catch {
-        /* Expo Go may limit orientation */
+        // Expo Go may limit orientation
       }
       if (!alive) return;
     })();
@@ -1187,7 +1277,7 @@ export default function PlayScreen() {
       try {
         NavigationBar.setHidden(immersive);
       } catch {
-        /* Expo Go may limit system UI APIs */
+        // Expo Go may limit system UI APIs
       }
     }
 
@@ -1202,7 +1292,7 @@ export default function PlayScreen() {
         try {
           NavigationBar.setHidden(false);
         } catch {
-          /* ignore */
+          // ignore
         }
       }
       RNStatusBar.setHidden(false, "fade");
@@ -1236,7 +1326,7 @@ export default function PlayScreen() {
       player.muted = false;
       player.play();
     } catch {
-      /* ignore */
+      // ignore
     }
   }, [resumeOffer, player, showControls]);
 
@@ -1254,7 +1344,7 @@ export default function PlayScreen() {
       player.muted = false;
       player.play();
     } catch {
-      /* ignore */
+      // ignore
     }
   }, [player, showControls]);
 
@@ -1288,7 +1378,7 @@ export default function PlayScreen() {
     try {
       player.playbackRate = next;
     } catch {
-      /* ignore */
+      // ignore
     }
     setPlaybackRate(next);
     playbackRateRef.current = next;
@@ -1325,7 +1415,7 @@ export default function PlayScreen() {
       player.preservesPitch = true;
       if (!hold.wasPlaying) player.pause();
     } catch {
-      /* ignore */
+      // ignore
     }
     holdSpeedRef.current = {
       ...hold,
@@ -1353,28 +1443,39 @@ export default function PlayScreen() {
       const start = sideGestureStart.current;
       if (!start.side) return;
       const dy = gestureState.dy || 0;
-      if (Math.abs(dy) < 8) return;
+      if (Math.abs(dy) < 6) return;
       sideGestureMoved.current = true;
-      const next = Math.max(
-        0,
-        Math.min(1, (start[start.side] || 0) + -dy / SIDE_GESTURE_PX)
-      );
-      if (start.side === "volume") {
-        volumeRef.current = next;
-        try {
-          player.volume = next;
-        } catch {
-          /* ignore */
-        }
-        setVolume(next);
-        flashChipHint(`Volume ${Math.round(next * 100)}%`);
+
+      if (gestureHudTimer.current) clearTimeout(gestureHudTimer.current);
+
+      if (start.side === "brightness") {
+        const next = Math.max(
+          0.02,
+          Math.min(1, (start.brightness ?? 0.5) + -dy / SIDE_GESTURE_PX)
+        );
+        brightnessRef.current = next;
+        Brightness.setBrightnessAsync(next).catch(() => {});
+        setGestureHud({ type: "brightness", side: "left", value: next });
         return;
       }
-      brightnessRef.current = next;
-      Brightness.setBrightnessAsync(next).catch(() => {});
-      flashChipHint(`Brightness ${Math.round(next * 100)}%`);
+
+      if (start.side === "volume") {
+        const next = Math.max(
+          0,
+          Math.min(1, (start.volume ?? 1) + -dy / SIDE_GESTURE_PX)
+        );
+        volumeRef.current = next;
+        try {
+          if (player.muted && next > 0) player.muted = false;
+          player.volume = next;
+        } catch {
+          // ignore
+        }
+        setVolume(next);
+        setGestureHud({ type: "volume", side: "right", value: next });
+      }
     },
-    [player, flashChipHint]
+    [player]
   );
 
   const sideResponders = useMemo(() => {
@@ -1395,16 +1496,26 @@ export default function PlayScreen() {
           updateSideGesture(gestureState),
         onPanResponderRelease: () => {
           sideGestureStart.current.side = "";
-          if (sideGestureMoved.current) showControls();
+          if (sideGestureMoved.current) {
+            if (gestureHudTimer.current) clearTimeout(gestureHudTimer.current);
+            gestureHudTimer.current = setTimeout(() => {
+              setGestureHud(null);
+            }, 800);
+            showControls();
+          }
         },
         onPanResponderTerminate: () => {
           sideGestureStart.current.side = "";
+          if (gestureHudTimer.current) clearTimeout(gestureHudTimer.current);
+          gestureHudTimer.current = setTimeout(() => {
+            setGestureHud(null);
+          }, 400);
         },
         onPanResponderTerminationRequest: () => false,
       });
     return {
-      left: create("volume"),
-      right: create("brightness"),
+      left: create("brightness"),
+      right: create("volume"),
     };
   }, [locked, startSideGesture, updateSideGesture, showControls]);
 
@@ -1428,7 +1539,7 @@ export default function PlayScreen() {
       });
       setTimeout(() => setSeekHint(null), 700);
     } catch {
-      /* ignore */
+      // ignore
     }
   };
 
@@ -1469,7 +1580,7 @@ export default function PlayScreen() {
           if (width > 0) barLayoutRef.current = { x, width };
         });
       } catch {
-        /* ignore */
+        // ignore
       }
       const { x, width } = barLayoutRef.current;
       const w = width > 1 ? width : barWidthRef.current || 1;
@@ -1486,7 +1597,7 @@ export default function PlayScreen() {
         player.currentTime = t;
         setCurrentTime(t);
       } catch {
-        /* ignore */
+        // ignore
       }
     },
     [player, duration]
@@ -1514,7 +1625,7 @@ export default function PlayScreen() {
           try {
             if (!player.playing) player.play();
           } catch {
-            /* ignore */
+            // ignore
           }
           scheduleHide();
         },
@@ -1645,15 +1756,74 @@ export default function PlayScreen() {
               </View>
             ) : null}
 
+            {gestureHud ? (
+              <View
+                style={[
+                  styles.gestureHudWrap,
+                  gestureHud.side === "left"
+                    ? styles.gestureHudLeft
+                    : styles.gestureHudRight,
+                ]}
+                pointerEvents="none"
+              >
+                <View style={styles.gestureHudBox}>
+                  <Ionicons
+                    name={
+                      gestureHud.type === "brightness"
+                        ? gestureHud.value > 0.6
+                          ? "sunny"
+                          : "sunny-outline"
+                        : gestureHud.value === 0
+                          ? "volume-mute"
+                          : gestureHud.value > 0.5
+                            ? "volume-high"
+                            : "volume-medium"
+                    }
+                    size={22}
+                    color={colors.accentLight || "#bd84db"}
+                  />
+                  <View style={styles.gestureHudTrack}>
+                    <View
+                      style={[
+                        styles.gestureHudFill,
+                        { height: `${Math.round(gestureHud.value * 100)}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.gestureHudText}>
+                    {`${Math.round(gestureHud.value * 100)}%`}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
             {cueText && !locked ? (
               <View
                 style={[
                   styles.subOverlay,
-                  { bottom: (controlsVisible ? 72 : 24) + (chromeBottom || 0) },
+                  {
+                    bottom:
+                      (controlsVisible ? 72 : 24) +
+                      (chromeBottom || 0) +
+                      (subSettings.elevation || 0),
+                  },
                 ]}
                 pointerEvents="none"
               >
-                <Text style={styles.subText}>{cueText}</Text>
+                <Text
+                  style={[
+                    styles.subText,
+                    {
+                      fontSize: subSettings.fontSize || 16,
+                      lineHeight: Math.round((subSettings.fontSize || 16) * 1.35),
+                      color: subSettings.textColor || "#ffffff",
+                      backgroundColor: subSettings.bgColor || "rgba(0,0,0,0.6)",
+                    },
+                    subSettings.bgColor === "transparent" && styles.subTextOutline,
+                  ]}
+                >
+                  {cueText}
+                </Text>
               </View>
             ) : null}
 
@@ -2087,6 +2257,8 @@ export default function PlayScreen() {
                 cueText={cueText}
                 subtitles={subtitles}
                 activeSubId={activeSubId}
+                subSettings={subSettings}
+                onSubSettingsChange={handleSubSettingsChange}
                 onSubtitlesChange={setSubtitles}
                 onActiveSubIdChange={setActiveSubId}
                 onSeek={seekForSubs}
@@ -2361,6 +2533,52 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 18,
   },
+  gestureHudWrap: {
+    position: "absolute",
+    top: "32%",
+    zIndex: 25,
+    elevation: 25,
+  },
+  gestureHudLeft: {
+    left: 36,
+  },
+  gestureHudRight: {
+    right: 36,
+  },
+  gestureHudBox: {
+    width: 54,
+    height: 156,
+    backgroundColor: "rgba(16, 16, 24, 0.88)",
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.16)",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+  },
+  gestureHudTrack: {
+    width: 6,
+    height: 80,
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
+    borderRadius: 3,
+    overflow: "hidden",
+    justifyContent: "flex-end",
+  },
+  gestureHudFill: {
+    width: "100%",
+    backgroundColor: colors.accentLight || "#bd84db",
+    borderRadius: 3,
+  },
+  gestureHudText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   subOverlay: {
     position: "absolute",
     left: 16,
@@ -2380,6 +2598,12 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     overflow: "hidden",
     maxWidth: "100%",
+  },
+  subTextOutline: {
+    backgroundColor: "transparent",
+    textShadowColor: "#000000",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 4,
   },
   unlockFab: {
     position: "absolute",
@@ -2509,7 +2733,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingTop: 12,
-    maxHeight: "70%",
+    maxHeight: "85%",
   },
   sheetTabs: {
     flexDirection: "row",

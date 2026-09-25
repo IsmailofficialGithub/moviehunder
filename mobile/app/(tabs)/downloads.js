@@ -169,25 +169,25 @@ function EpisodeRow({
           item.status === "queued" ||
           item.status === "paused" ||
           item.pending) && (
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${pct}%` }]} />
-          </View>
-        )}
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${pct}%` }]} />
+            </View>
+          )}
         <Text style={styles.epSize} numberOfLines={1}>
           {item.error
             ? item.error
             : [
-                total
-                  ? `${written}${item.totalBytes || item.sizeHint ? ` / ${total}` : ""}`
-                  : written !== "0 B"
-                    ? written
-                    : pct > 0
-                      ? `${pct}%`
-                      : "",
-                etaLabel,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              total
+                ? `${written}${item.totalBytes || item.sizeHint ? ` / ${total}` : ""}`
+                : written !== "0 B"
+                  ? written
+                  : pct > 0
+                    ? `${pct}%`
+                    : "",
+              etaLabel,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
         </Text>
         {watchPct > 0 ? (
           <Text style={styles.watchedText}>{watchPct}% watched</Text>
@@ -266,12 +266,12 @@ function MovieCard({
   const subtitleLine1 = isDownloading
     ? [qStr, sizeStr].filter(Boolean).join(" | ")
     : [
-        qStr,
-        sizeStr,
-        watchPct > 0 ? `${watchPct}% watched` : null,
-      ]
-        .filter(Boolean)
-        .join(" | ");
+      qStr,
+      sizeStr,
+      watchPct > 0 ? `${watchPct}% watched` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
 
   const onLongPress = () => {
     Alert.alert(
@@ -280,9 +280,9 @@ function MovieCard({
       [
         vaultMode && typeof onRestoreFromVault === "function"
           ? {
-              text: "Restore to Downloads",
-              onPress: () => onRestoreFromVault(item),
-            }
+            text: "Restore to Downloads",
+            onPress: () => onRestoreFromVault(item),
+          }
           : null,
         isDownloading
           ? { text: "Pause", onPress: () => onPause?.(item) }
@@ -525,7 +525,7 @@ function SeriesPack({
   );
   const avgPct = Math.round(
     (pack.episodes.reduce((n, e) => n + progressOf(e), 0) / Math.max(1, pack.episodes.length)) *
-      100
+    100
   );
   const remoteSeasons = catalog?.seasons || [];
   const hasCatalog = !vaultMode && remoteSeasons.length > 0;
@@ -555,7 +555,7 @@ function SeriesPack({
       ? "Hide more"
       : hasCatalog && !catalogOpen
         ? "Show more"
-        : "Download more";
+        : "more";
   const moreIcon = catalogBusy
     ? "cloud-download-outline"
     : hasCatalog && catalogOpen
@@ -650,34 +650,34 @@ function SeriesPack({
       {expanded ? (
         <View style={styles.epList}>
           {!vaultMode ? (
-          <View style={styles.packTools}>
-            <Text style={styles.packToolsLabel}>Episodes</Text>
-            <View style={styles.packToolsActions}>
-              <Pressable
-                onPress={onMorePress}
-                disabled={catalogBusy}
-                hitSlop={8}
-                style={styles.moreBtn}
-              >
-                <Ionicons
-                  name={moreIcon}
-                  size={14}
-                  color={colors.accent}
-                />
-                <Text style={styles.moreBtnText}>{moreLabel}</Text>
-              </Pressable>
+            <View style={styles.packTools}>
+              <Text style={styles.packToolsLabel}>Episodes</Text>
+              <View style={styles.packToolsActions}>
+                <Pressable
+                  onPress={onMorePress}
+                  disabled={catalogBusy}
+                  hitSlop={8}
+                  style={styles.moreBtn}
+                >
+                  <Ionicons
+                    name={moreIcon}
+                    size={14}
+                    color={colors.accent}
+                  />
+                  <Text style={styles.moreBtnText}>{moreLabel}</Text>
+                </Pressable>
+                <Pressable onPress={onDeleteAll} hitSlop={8}>
+                  <Text style={styles.deleteAll}>Delete all</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.packTools}>
+              <Text style={styles.packToolsLabel}>Sealed episodes</Text>
               <Pressable onPress={onDeleteAll} hitSlop={8}>
                 <Text style={styles.deleteAll}>Delete all</Text>
               </Pressable>
             </View>
-          </View>
-          ) : (
-          <View style={styles.packTools}>
-            <Text style={styles.packToolsLabel}>Sealed episodes</Text>
-            <Pressable onPress={onDeleteAll} hitSlop={8}>
-              <Text style={styles.deleteAll}>Delete all</Text>
-            </Pressable>
-          </View>
           )}
 
           {!vaultMode && catalog?.error ? (
@@ -847,8 +847,8 @@ export default function DownloadsScreen() {
 
   useEffect(() => {
     let alive = true;
-    hydrateDownloads().catch(() => {});
-    hydrateMusicDownloads().catch(() => {});
+    hydrateDownloads().catch(() => { });
+    hydrateMusicDownloads().catch(() => { });
     const unsub = subscribeDownloads((next) => {
       if (!alive) return;
       setList(next);
@@ -900,7 +900,7 @@ export default function DownloadsScreen() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      refreshStats().catch(() => {});
+      refreshStats().catch(() => { });
     }, 400);
     return () => clearTimeout(t);
   }, [list.length, songs.length, refreshStats]);
@@ -923,7 +923,7 @@ export default function DownloadsScreen() {
   useEffect(() => {
     if (!hasActiveDl) return;
     const id = setInterval(() => {
-      refreshStats().catch(() => {});
+      refreshStats().catch(() => { });
     }, 2500);
     return () => clearInterval(id);
   }, [hasActiveDl, refreshStats]);
@@ -1055,7 +1055,7 @@ export default function DownloadsScreen() {
         Alert.alert(
           "Import",
           failed[0]?.message ||
-            "File missing on disk. Re-download the title, then import again."
+          "File missing on disk. Re-download the title, then import again."
         );
       } else {
         Alert.alert(
@@ -1271,23 +1271,23 @@ export default function DownloadsScreen() {
   const emptyCopy =
     vaultMode
       ? {
-          title: "Vault is empty",
-          hint: "Tap Import, pick finished downloads, then Add. They leave Downloads and stay only here.",
-        }
+        title: "Vault is empty",
+        hint: "Tap Import, pick finished downloads, then Add. They leave Downloads and stay only here.",
+      }
       : tab === "movies"
         ? {
-            title: "No movie downloads",
-            hint: "Open a title and tap Download to pick a quality.",
-          }
+          title: "No movie downloads",
+          hint: "Open a title and tap Download to pick a quality.",
+        }
         : tab === "series"
           ? {
-              title: "No series downloads",
-              hint: "Open a show and tap Download season, or download episodes one by one.",
-            }
+            title: "No series downloads",
+            hint: "Open a show and tap Download season, or download episodes one by one.",
+          }
           : {
-              title: "No song downloads",
-              hint: "Open Songs, tap the download icon on a track, then find it here under Songs.",
-            };
+            title: "No song downloads",
+            hint: "Open Songs, tap the download icon on a track, then find it here under Songs.",
+          };
 
   return (
     <Screen title={vaultMode ? "Movie Safe" : "Downloads"}>
@@ -1306,9 +1306,8 @@ export default function DownloadsScreen() {
           <Text style={styles.storageText}>
             {vaultMode
               ? "Import downloads here · Lock when you leave"
-              : `Used ${formatBytes(usedBytes || stats.used)}${
-                  stats.free ? ` · Free ${formatBytes(stats.free)}` : ""
-                }${fileCount || stats.count ? ` · ${fileCount || stats.count} files` : ""}`}
+              : `Used ${formatBytes(usedBytes || stats.used)}${stats.free ? ` · Free ${formatBytes(stats.free)}` : ""
+              }${fileCount || stats.count ? ` · ${fileCount || stats.count} files` : ""}`}
           </Text>
         </View>
         {vaultMode ? (
@@ -1337,127 +1336,127 @@ export default function DownloadsScreen() {
             style={styles.settingsIconBtn}
             accessibilityLabel="Download settings"
           >
-            <Ionicons name="settings-outline" size={18} color={colors.textDim} />
+            <Ionicons name="settings-outline" size={18} color={colors.text} />
           </Pressable>
         )}
       </Pressable>
 
       {!vaultMode ? (
-      <View style={styles.tabs}>
-        <Pressable
-          style={[styles.tab, tab === "movies" && styles.tabOn]}
-          onPress={() => setTab("movies")}
-        >
-          <Ionicons
-            name="film-outline"
-            size={15}
-            color={tab === "movies" ? colors.accentInk : colors.muted}
-          />
-          <Text style={[styles.tabText, tab === "movies" && styles.tabTextOn]}>
-            Movies
-          </Text>
-          {movies.length ? (
-            <View style={[styles.countPill, tab === "movies" && styles.countPillOn]}>
-              <Text
-                style={[styles.countText, tab === "movies" && styles.countTextOn]}
-              >
-                {movies.length}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-        <Pressable
-          style={[styles.tab, tab === "series" && styles.tabOn]}
-          onPress={() => setTab("series")}
-        >
-          <Ionicons
-            name="tv-outline"
-            size={15}
-            color={tab === "series" ? colors.accentInk : colors.muted}
-          />
-          <Text style={[styles.tabText, tab === "series" && styles.tabTextOn]}>
-            Series
-          </Text>
-          {seriesPacks.length ? (
-            <View style={[styles.countPill, tab === "series" && styles.countPillOn]}>
-              <Text
-                style={[styles.countText, tab === "series" && styles.countTextOn]}
-              >
-                {seriesPacks.length}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-        <Pressable
-          style={[styles.tab, tab === "songs" && styles.tabOn]}
-          onPress={() => setTab("songs")}
-        >
-          <Ionicons
-            name="musical-notes-outline"
-            size={15}
-            color={tab === "songs" ? colors.accentInk : colors.muted}
-          />
-          <Text style={[styles.tabText, tab === "songs" && styles.tabTextOn]}>
-            Songs
-          </Text>
-          {songs.length ? (
-            <View style={[styles.countPill, tab === "songs" && styles.countPillOn]}>
-              <Text
-                style={[styles.countText, tab === "songs" && styles.countTextOn]}
-              >
-                {songs.length}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-      </View>
+        <View style={styles.tabs}>
+          <Pressable
+            style={[styles.tab, tab === "movies" && styles.tabOn]}
+            onPress={() => setTab("movies")}
+          >
+            <Ionicons
+              name="film-outline"
+              size={15}
+              color={tab === "movies" ? colors.accentInk : colors.muted}
+            />
+            <Text style={[styles.tabText, tab === "movies" && styles.tabTextOn]}>
+              Movies
+            </Text>
+            {movies.length ? (
+              <View style={[styles.countPill, tab === "movies" && styles.countPillOn]}>
+                <Text
+                  style={[styles.countText, tab === "movies" && styles.countTextOn]}
+                >
+                  {movies.length}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <Pressable
+            style={[styles.tab, tab === "series" && styles.tabOn]}
+            onPress={() => setTab("series")}
+          >
+            <Ionicons
+              name="tv-outline"
+              size={15}
+              color={tab === "series" ? colors.accentInk : colors.muted}
+            />
+            <Text style={[styles.tabText, tab === "series" && styles.tabTextOn]}>
+              Series
+            </Text>
+            {seriesPacks.length ? (
+              <View style={[styles.countPill, tab === "series" && styles.countPillOn]}>
+                <Text
+                  style={[styles.countText, tab === "series" && styles.countTextOn]}
+                >
+                  {seriesPacks.length}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <Pressable
+            style={[styles.tab, tab === "songs" && styles.tabOn]}
+            onPress={() => setTab("songs")}
+          >
+            <Ionicons
+              name="musical-notes-outline"
+              size={15}
+              color={tab === "songs" ? colors.accentInk : colors.muted}
+            />
+            <Text style={[styles.tabText, tab === "songs" && styles.tabTextOn]}>
+              Songs
+            </Text>
+            {songs.length ? (
+              <View style={[styles.countPill, tab === "songs" && styles.countPillOn]}>
+                <Text
+                  style={[styles.countText, tab === "songs" && styles.countTextOn]}
+                >
+                  {songs.length}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
       ) : (
-      <View style={styles.tabs}>
-        <Pressable
-          style={[styles.tab, tab === "movies" && styles.tabOn]}
-          onPress={() => setTab("movies")}
-        >
-          <Ionicons
-            name="film-outline"
-            size={15}
-            color={tab === "movies" ? colors.accentInk : colors.muted}
-          />
-          <Text style={[styles.tabText, tab === "movies" && styles.tabTextOn]}>
-            Movies
-          </Text>
-          {movies.length ? (
-            <View style={[styles.countPill, tab === "movies" && styles.countPillOn]}>
-              <Text
-                style={[styles.countText, tab === "movies" && styles.countTextOn]}
-              >
-                {movies.length}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-        <Pressable
-          style={[styles.tab, tab === "series" && styles.tabOn]}
-          onPress={() => setTab("series")}
-        >
-          <Ionicons
-            name="tv-outline"
-            size={15}
-            color={tab === "series" ? colors.accentInk : colors.muted}
-          />
-          <Text style={[styles.tabText, tab === "series" && styles.tabTextOn]}>
-            Series
-          </Text>
-          {seriesPacks.length ? (
-            <View style={[styles.countPill, tab === "series" && styles.countPillOn]}>
-              <Text
-                style={[styles.countText, tab === "series" && styles.countTextOn]}
-              >
-                {seriesPacks.length}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-      </View>
+        <View style={styles.tabs}>
+          <Pressable
+            style={[styles.tab, tab === "movies" && styles.tabOn]}
+            onPress={() => setTab("movies")}
+          >
+            <Ionicons
+              name="film-outline"
+              size={15}
+              color={tab === "movies" ? colors.accentInk : colors.muted}
+            />
+            <Text style={[styles.tabText, tab === "movies" && styles.tabTextOn]}>
+              Movies
+            </Text>
+            {movies.length ? (
+              <View style={[styles.countPill, tab === "movies" && styles.countPillOn]}>
+                <Text
+                  style={[styles.countText, tab === "movies" && styles.countTextOn]}
+                >
+                  {movies.length}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <Pressable
+            style={[styles.tab, tab === "series" && styles.tabOn]}
+            onPress={() => setTab("series")}
+          >
+            <Ionicons
+              name="tv-outline"
+              size={15}
+              color={tab === "series" ? colors.accentInk : colors.muted}
+            />
+            <Text style={[styles.tabText, tab === "series" && styles.tabTextOn]}>
+              Series
+            </Text>
+            {seriesPacks.length ? (
+              <View style={[styles.countPill, tab === "series" && styles.countPillOn]}>
+                <Text
+                  style={[styles.countText, tab === "series" && styles.countTextOn]}
+                >
+                  {seriesPacks.length}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
       )}
 
       {empty ? (
@@ -1501,9 +1500,9 @@ export default function DownloadsScreen() {
                     vaultMode
                       ? togglePack(pack.key)
                       : router.push({
-                          pathname: "/series-detail",
-                          params: { packKey: encodeURIComponent(pack.key) },
-                        })
+                        pathname: "/series-detail",
+                        params: { packKey: encodeURIComponent(pack.key) },
+                      })
                   }
                   onPlay={onPlay}
                   onPause={onPause}
@@ -1638,9 +1637,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    backgroundColor: "rgba(246, 240, 240, 0.06)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "rgba(246, 231, 231, 0.1)",
   },
   importBtn: {
     flexDirection: "row",

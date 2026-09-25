@@ -32,7 +32,7 @@ function toSubdlLang(languages = "en") {
     .join(",");
 }
 
-/** Strip api_key and host — keep SubDL path only (server-side). */
+// Strip api_key and host - keep SubDL path only (server-side).
 function normalizeSubdlPath(path) {
   let p = String(path || "").trim();
   if (!p) return "";
@@ -51,7 +51,7 @@ function normalizeSubdlPath(path) {
   return p.startsWith("/") ? p : `/${p}`;
 }
 
-/** Opaque token for clients — never exposes SubDL URLs or api_key. */
+// Opaque token for clients - never exposes SubDL URLs or api_key.
 export function encodeFileRef(path) {
   const rel = normalizeSubdlPath(path);
   if (!rel) throw new Error("Invalid subtitle path");
@@ -85,32 +85,8 @@ function resolveDownloadUrl(env, fileId) {
   return url.toString();
 }
 
-export async function searchSubdl(env, { query, season, episode, languages = "en", type } = {}) {
-  const key = getApiKey(env);
-  if (!key) {
-    const err = new Error("SubDL API key missing");
-    err.code = "NO_API_KEY";
-    throw err;
-  }
-
-  const params = new URLSearchParams();
-  params.set("api_key", key);
-  params.set("film_name", query);
-  params.set("languages", toSubdlLang(languages));
-  if (type === "episode" || type === "tv") params.set("type", "tv");
-  else if (type === "movie") params.set("type", "movie");
-  if (season && Number(season) > 0) params.set("season_number", String(season));
-  if (episode && Number(episode) > 0) params.set("episode_number", String(episode));
-
-  const res = await fetch(`${API}?${params}`, {
-    headers: { Accept: "application/json" },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.status === false) {
-    throw new Error(data.message || data.error || `SubDL search failed (${res.status})`);
-  }
-
-  const list = Array.isArray(data.subtitles) ? data.subtitles : [];
+function mapSubtitlesList(subtitles) {
+  const list = Array.isArray(subtitles) ? subtitles : [];
   return list
     .map((row, i) => {
       const rawPath = row.url || row.download_link || "";
@@ -137,6 +113,69 @@ export async function searchSubdl(env, { query, season, episode, languages = "en
     .slice(0, 25);
 }
 
+export async function searchSubdl(env, { query, season, episode, languages = "en", type } = {}) {
+  const key = getApiKey(env);
+  if (!key) {
+    const err = new Error("SubDL API key missing");
+    err.code = "NO_API_KEY";
+    throw err;
+  }
+
+  const cleanQ = String(query || "").trim();
+  if (!cleanQ) return [];
+
+  const params = new URLSearchParams();
+  params.set("api_key", key);
+  params.set("film_name", cleanQ);
+  params.set("languages", toSubdlLang(languages));
+  if (type === "episode" || type === "tv") params.set("type", "tv");
+  else if (type === "movie") params.set("type", "movie");
+  if (season && Number(season) > 0) params.set("season_number", String(season));
+  if (episode && Number(episode) > 0) params.set("episode_number", String(episode));
+
+  const res = await fetch(`${API}?${params}`, {
+    headers: { Accept: "application/json" },
+  });
+  const data = await res.json().catch(() => ({}));
+
+  // If results returned directly
+  if (res.ok && data.status !== false && Array.isArray(data.subtitles)) {
+    return mapSubtitlesList(data.subtitles);
+  }
+
+  const errMsg = String(data.message || data.error || "").toLowerCase();
+
+  // If SubDL reports movie/tv not found, handle gracefully as 0 results
+  if (errMsg.includes("can't find") || errMsg.includes("not found") || errMsg.includes("no result")) {
+    // If search had season/episode or type filters, retry with just the clean title
+    if ((season || episode || type) && cleanQ) {
+      const fbParams = new URLSearchParams();
+      fbParams.set("api_key", key);
+      fbParams.set("film_name", cleanQ);
+      fbParams.set("languages", toSubdlLang(languages));
+      try {
+        const fbRes = await fetch(`${API}?${fbParams}`, {
+          headers: { Accept: "application/json" },
+        });
+        const fbData = await fbRes.json().catch(() => ({}));
+        if (fbRes.ok && fbData.status !== false && Array.isArray(fbData.subtitles)) {
+          return mapSubtitlesList(fbData.subtitles);
+        }
+      } catch {
+        // Fallback network error, return empty
+      }
+    }
+    return [];
+  }
+
+  // Handle actual API errors (e.g. invalid key, quota reached)
+  if (!res.ok || data.status === false) {
+    throw new Error(data.message || data.error || `SubDL search failed (${res.status})`);
+  }
+
+  return mapSubtitlesList(data.subtitles);
+}
+
 function extractSubtitleText(buffer, preferredName = "") {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
@@ -160,7 +199,7 @@ function extractSubtitleText(buffer, preferredName = "") {
   return { text: decodeBytes(files[names[0]]), file_name };
 }
 
-/** Download by opaque file_id — api_key stays on server. */
+// Download by opaque file_id - api_key stays on server.
 export async function downloadSubdl(env, fileId) {
   if (!fileId) throw new Error("file_id is required");
   const downloadUrl = resolveDownloadUrl(env, fileId);

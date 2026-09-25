@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,242 +14,1087 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import ProgressBorder from "../components/ProgressBorder";
 import DownloadSheet from "../components/DownloadSheet";
+import { getDetail } from "../lib/api";
+import { colors, radii, spacing } from "../lib/theme";
 import {
-  canPlayPartial,
-  enqueueBestEffort,
-  etaSecondsOf,
   fetchSeasonCatalog,
   formatBytes,
-  formatEta,
   hydrateDownloads,
-  isEpisodeCovered,
-  isPartialOnly,
-  packEtaSeconds,
-  pauseDownload,
-  progressOf,
   removeDownload,
-  resumeDownload,
   subscribeDownloads,
 } from "../lib/downloads";
-import { toUserMessage } from "../lib/userFacingError";
-import { colors, radii, spacing } from "../lib/theme";
 import {
   progressPercent,
   subscribeWatchProgress,
   watchProgressKey,
 } from "../lib/watchProgress";
+import { toUserMessage } from "../lib/userFacingError";
 
 function isSeriesItem(d) {
   return d.kind === "series" || Number(d.se) > 0 || Number(d.ep) > 0;
 }
 
-function qualityLabel(item) {
-  if (item.height) return `${item.height}p`;
-  if (item.resolution && !/preparing|failed/i.test(item.resolution)) return item.resolution;
-  return null;
+function formatDuration(sec) {
+  if (!sec || Number.isNaN(Number(sec))) return "";
+  const s = Math.round(Number(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
-// Small inline status pill
-function StatusPill({ status, pending }) {
-  const isActive = !pending && (status === "downloading" || status === "queued");
-  const isFailed = !pending && status === "failed";
-  const isDone = !pending && status === "completed";
-  const bg = pending
-    ? colors.panelSoft
-    : isActive
-      ? colors.accentMuted
-      : isFailed
-        ? "rgba(248,113,113,0.15)"
-        : isDone
-          ? colors.accentMuted
-          : colors.panelSoft;
-  const fg = pending
-    ? colors.muted
-    : isActive
-      ? colors.accentLight
-      : isFailed
-        ? colors.danger
-        : isDone
-          ? colors.accentLight
-          : colors.muted;
-  const label = pending
-    ? "Preparing"
-    : status === "downloading"
-      ? "Downloading"
-      : status === "queued"
-        ? "Queued"
-        : status === "paused"
-          ? "Paused"
-          : status === "failed"
-            ? "Failed"
-            : "Ready";
-  return (
-    <View style={[sp.pill, { backgroundColor: bg }]}>
-      {isActive && <View style={[sp.activeDot, { backgroundColor: fg }]} />}
-      <Text style={[sp.pillText, { color: fg }]}>{label}</Text>
-    </View>
+export default function SeriesDetailScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams();
+  const packKey = params.packKey ? decodeURIComponent(String(params.packKey)) : "";
+  const [subjectId, detailPath] = packKey.split("|");
+
+  const scrollRef = useRef(null);
+  const [allDownloads, setAllDownloads] = useState([]);
+  const [watchEntries, setWatchEntries] = useState([]);
+  const [richMeta, setRichMeta] = useState(null);
+  const [selectedSeason, setSelectedSeason] = useState(null);
+  const [seasonPickerVisible, setSeasonPickerVisible] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Server catalog for downloading more seasons/episodes
+  const [catalog, setCatalog] = useState(null);
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [dlSheet, setDlSheet] = useState(null);
+
+  useEffect(() => subscribeWatchProgress(setWatchEntries), []);
+  useEffect(() => {
+    hydrateDownloads().catch(() => { });
+    return subscribeDownloads(setAllDownloads);
+  }, []);
+
+  // Fetch online details and server catalog for richer metadata & quick downloading
+  useEffect(() => {
+    if (!detailPath) return;
+    let cancelled = false;
+    getDetail(detailPath)
+      .then((data) => {
+        if (!cancelled && data) {
+          setRichMeta(data.meta || data.detail || null);
+        }
+      })
+      .catch(() => { });
+    fetchSeasonCatalog(detailPath)
+      .then((data) => {
+        if (!cancelled && data?.seasons?.length) {
+          setCatalog({ seasons: data.seasons });
+        }
+      })
+      .catch(() => { });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailPath]);
+
+  const episodes = useMemo(() => {
+    return allDownloads
+      .filter(
+        (d) =>
+          !d.inVault &&
+          isSeriesItem(d) &&
+          d.subjectId === subjectId &&
+          d.detailPath === detailPath
+      )
+      .sort((a, b) => {
+        const se = Number(a.se) - Number(b.se);
+        if (se !== 0) return se;
+        return Number(a.ep) - Number(b.ep);
+      });
+  }, [allDownloads, subjectId, detailPath]);
+
+  const pack = useMemo(() => {
+    if (!episodes.length) return null;
+    const first = episodes[0];
+    return {
+      title: first.title,
+      poster: first.poster,
+      subjectId,
+      detailPath,
+      episodes,
+    };
+  }, [episodes, subjectId, detailPath]);
+
+  const watchMap = useMemo(
+    () => new Map(watchEntries.map((e) => [e.key, e])),
+    [watchEntries]
   );
-}
 
-const sp = StyleSheet.create({
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: radii.pill,
-  },
-  activeDot: { width: 5, height: 5, borderRadius: 3 },
-  pillText: { fontSize: 11, fontWeight: "600" },
-});
+  // Group downloaded episodes by season
+  const seasons = useMemo(() => {
+    const map = new Map();
+    for (const ep of episodes) {
+      const s = Number(ep.se) || 1;
+      if (!map.has(s)) map.set(s, []);
+      map.get(s).push(ep);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([season, eps]) => ({
+        season,
+        episodes: eps.sort((a, b) => (Number(a.ep) || 0) - (Number(b.ep) || 0)),
+      }));
+  }, [episodes]);
 
-// Small icon button
-function IconBtn({ name, color, onPress, danger }) {
-  return (
-    <Pressable
-      style={[ib.btn, danger && ib.btnDanger]}
-      onPress={onPress}
-      hitSlop={8}
-      accessibilityLabel={name}
-    >
-      <Ionicons name={name} size={15} color={color || colors.accentLight} />
-    </Pressable>
+  // Set active season
+  const activeSeasonNum = selectedSeason ?? seasons[0]?.season ?? 1;
+  const currentSeason = seasons.find((s) => s.season === activeSeasonNum) || seasons[0];
+  const visibleEpisodes = currentSeason?.episodes || episodes;
+
+  const totalBytes = episodes.reduce(
+    (n, e) => n + (e.bytesWritten || e.sizeHint || 0),
+    0
   );
-}
 
-const ib = StyleSheet.create({
-  btn: {
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-    borderRadius: radii.pill,
-    width: 30,
-    height: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnDanger: { backgroundColor: "rgba(239, 68, 68, 0.12)" },
-});
+  const openPlay = (epItem) => {
+    if (!epItem) return;
+    router.push({
+      pathname: "/play",
+      params: {
+        subjectId: epItem.subjectId || subjectId,
+        detail_path: epItem.detailPath || detailPath,
+        se: String(epItem.se || "0"),
+        ep: String(epItem.ep || "0"),
+        title: `${epItem.title || pack?.title || "Series"} · S${epItem.se}E${epItem.ep}`,
+        poster: epItem.poster || pack?.poster || "",
+        kind: "series",
+        autoplay: "1",
+        downloadId: encodeURIComponent(epItem.id),
+      },
+    });
+  };
 
-function EpCard({ item, watchMap, onPlay, onPause, onResume, onDelete }) {
-  const watchPct = progressPercent(
-    watchMap?.get(watchProgressKey({ subjectId: item.subjectId, se: item.se, ep: item.ep }))
-  );
-  const dlPct = Math.round(progressOf(item) * 100);
-  const written = formatBytes(item.bytesWritten || 0);
-  const total = formatBytes(item.totalBytes || item.sizeHint || 0);
-  const playable = canPlayPartial(item);
-  const partial = isPartialOnly(item);
-  const active = !item.pending && (item.status === "downloading" || item.status === "queued");
-  const canResume = !item.pending && (item.status === "paused" || item.status === "failed");
-  const showPlay = playable && !item.pending && !active;
-  const etaLabel = formatEta(etaSecondsOf(item));
-  const q = qualityLabel(item);
-
-  const sizeStr = item.error
-    ? item.error
-    : [
-        total
-          ? `${written}${item.totalBytes || item.sizeHint ? ` / ${total}` : ""}`
-          : written !== "0 B"
-            ? written
-            : dlPct > 0
-              ? `${dlPct}%`
-              : null,
-        etaLabel,
+  const onDeleteEpisode = (item) => {
+    Alert.alert(
+      "Remove episode",
+      `Delete S${item.se}E${item.ep}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => removeDownload(item.id) },
       ]
-      .filter(Boolean)
-      .join("  ");
+    );
+  };
+
+  const onDeleteAll = () => {
+    if (!episodes.length) return;
+    Alert.alert(
+      "Delete all",
+      `Remove all ${episodes.length} downloaded episodes of "${pack?.title}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete all",
+          style: "destructive",
+          onPress: () => episodes.forEach((e) => removeDownload(e.id)),
+        },
+      ]
+    );
+  };
+
+  // Download all for active season
+  const onDownloadSeason = () => {
+    const sNum = Number(currentSeason?.season ?? activeSeasonNum ?? 1);
+    const first = currentSeason?.episodes?.[0];
+    setDlSheet({
+      mode: "season",
+      subjectId,
+      detailPath,
+      title: pack?.title || richMeta?.title || "Series",
+      poster: pack?.poster || richMeta?.poster || null,
+      se: String(first?.se ?? sNum),
+      ep: String(first?.ep ?? 1),
+      season: sNum,
+      kind: "series",
+    });
+  };
+
+  // Download all for a specific season from server catalog
+  const onDownloadSeasonDirect = (seasonNum) => {
+    const sNum = Number(seasonNum) || 1;
+    const row = (catalog?.seasons || []).find((s) => Number(s.season) === sNum);
+    const first = row?.episodes?.[0];
+    setDlSheet({
+      mode: "season",
+      subjectId,
+      detailPath,
+      title: pack?.title || richMeta?.title || "Series",
+      poster: pack?.poster || richMeta?.poster || null,
+      se: String(first?.se ?? sNum),
+      ep: String(first?.ep ?? 1),
+      season: sNum,
+      kind: "series",
+    });
+  };
+
+  // Download a single episode from server catalog
+  const onDownloadEpisode = (se, ep) => {
+    setDlSheet({
+      mode: "single",
+      subjectId,
+      detailPath,
+      title: pack?.title || richMeta?.title || "Series",
+      poster: pack?.poster || richMeta?.poster || null,
+      se: String(se),
+      ep: String(ep),
+      season: null,
+      kind: "series",
+    });
+  };
+
+  // Check if an episode is already downloaded
+  const isEpDownloaded = (se, ep) => {
+    return episodes.some(
+      (d) =>
+        Number(d.se) === Number(se) &&
+        Number(d.ep) === Number(ep) &&
+        (d.status === "completed" || d.status === "downloading" || d.status === "queued" || d.pending)
+    );
+  };
+
+  // Fetch more seasons from server and toggle catalog display
+  const onFetchMore = useCallback(async () => {
+    if (catalogBusy || !detailPath) return;
+    if (catalog?.seasons?.length && catalogOpen) {
+      setCatalogOpen(false);
+      return;
+    }
+    if (catalog?.seasons?.length && !catalogOpen) {
+      setCatalogOpen(true);
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: 320, animated: true });
+      }, 100);
+      return;
+    }
+    setCatalogBusy(true);
+    try {
+      const data = await fetchSeasonCatalog(detailPath);
+      setCatalog({ seasons: data.seasons || [] });
+      setCatalogOpen(true);
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: 320, animated: true });
+      }, 150);
+      if (!(data.seasons || []).length) {
+        Alert.alert("No more episodes", "Server returned no other seasons for this title.");
+      }
+    } catch (err) {
+      const msg = toUserMessage(err, "Couldn't load episodes. Check your connection.");
+      setCatalog((prev) => ({ seasons: prev?.seasons || [], error: msg }));
+      Alert.alert("Couldn't load", msg);
+    } finally {
+      setCatalogBusy(false);
+    }
+  }, [catalogBusy, catalog, catalogOpen, detailPath]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await hydrateDownloads();
+    setRefreshing(false);
+  };
+
+  // Auto-back when all episodes deleted
+  useEffect(() => {
+    if (allDownloads.length > 0 && episodes.length === 0) router.back();
+  }, [episodes.length, allDownloads.length]);
+
+  if (!pack && !episodes.length) return null;
+
+  const title = richMeta?.title || pack?.title || "Series";
+  const poster = richMeta?.poster || pack?.poster || "";
+  const description = richMeta?.description || richMeta?.overview || "";
+  const rating = richMeta?.imdb_rating || richMeta?.rating || null;
+  const releaseYear = richMeta?.release_date ? String(richMeta.release_date).slice(0, 4) : "";
+  const genres = richMeta?.genres || (richMeta?.genre ? [richMeta.genre] : []);
+
+  const metaBits = [
+    releaseYear,
+    seasons.length ? `${seasons.length} Season${seasons.length > 1 ? "s" : ""}` : "",
+    `${episodes.length} Episodes`,
+    totalBytes ? formatBytes(totalBytes) : "",
+  ].filter(Boolean);
+
+  const firstPlayEp = visibleEpisodes[0] || episodes[0];
 
   return (
-    <View style={ec.card}>
-      <View style={ec.topRow}>
+    <View style={styles.page}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 10) }]}>
         <Pressable
-          style={ec.thumbWrap}
-          onPress={() => (showPlay ? onPlay(item) : canResume ? onResume(item) : null)}
+          style={styles.backBtn}
+          onPress={() => {
+            if (typeof router.canGoBack === "function" && router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)/downloads");
+            }
+          }}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
-          {item.poster ? (
+          <Ionicons name="chevron-back" size={24} color={colors.accentLight || colors.accent} />
+        </Pressable>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <Pressable
+          style={styles.headerDeleteBtn}
+          onPress={onDeleteAll}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Delete all downloaded episodes"
+        >
+          <Ionicons name="trash" size={17} color={colors.danger} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accentLight}
+          />
+        }
+      >
+        <View style={styles.hero}>
+          {poster ? (
             <Image
-              source={{ uri: item.poster }}
-              style={ec.thumb}
+              source={{ uri: poster }}
+              style={styles.poster}
               contentFit="cover"
               cachePolicy="memory-disk"
             />
           ) : (
-            <View style={[ec.thumb, ec.thumbFallback]}>
-              <Ionicons name="film-outline" size={20} color={colors.muted} />
+            <View style={[styles.poster, styles.posterEmpty]}>
+              <Ionicons name="tv-outline" size={32} color={colors.muted} />
             </View>
           )}
-          <View style={ec.thumbPlayCircle}>
-            <Ionicons name={active ? "pause" : "play"} size={13} color="#ffffff" style={{ marginLeft: active ? 0 : 2 }} />
-          </View>
-          {watchPct > 0 ? (
-            <View style={ec.thumbWatchTrack}>
-              <View style={[ec.thumbWatchFill, { width: `${watchPct}%` }]} />
-            </View>
-          ) : null}
-          {(active || item.status === "paused" || item.pending) && dlPct > 0 ? (
-            <View style={ec.thumbDlTrack}>
-              <View style={[ec.thumbDlFill, { width: `${dlPct}%` }]} />
-            </View>
-          ) : null}
-        </Pressable>
 
-        <View style={ec.meta}>
-          <Text style={ec.epTitle} numberOfLines={1}>
-            {`S${item.se} · Episode ${item.ep}`}
-          </Text>
-          <View style={ec.badgeRow}>
-            {q ? (
-              <View style={ec.qBadge}>
-                <Text style={ec.qText}>{q}</Text>
+          <View style={styles.copy}>
+            <Text style={styles.title}>{title}</Text>
+            {metaBits.length > 0 && (
+              <Text style={styles.metaLine}>{metaBits.join(" · ")}</Text>
+            )}
+
+            {rating ? (
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={14} color={colors.gold} />
+                <Text style={styles.ratingText}>{rating}</Text>
+                <Text style={styles.ratingLabel}>IMDb</Text>
               </View>
             ) : null}
-            <StatusPill status={item.status} pending={item.pending} />
+
+            <Pressable
+              style={styles.playBtn}
+              onPress={() => openPlay(firstPlayEp)}
+              accessibilityRole="button"
+              accessibilityLabel={firstPlayEp ? `Play S${firstPlayEp.se}E${firstPlayEp.ep}` : "Play"}
+            >
+              <Ionicons name="play" size={16} color={colors.accentInk} />
+              <Text style={styles.playText}>
+                {firstPlayEp
+                  ? `Play S${firstPlayEp.se}E${firstPlayEp.ep}`
+                  : "Play"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.dlAllBtn}
+              onPress={onDownloadSeason}
+              accessibilityRole="button"
+              accessibilityLabel="Download All"
+            >
+              <Ionicons name="download-outline" size={16} color={colors.accentLight} />
+              <Text style={styles.dlAllText}>Download All</Text>
+            </Pressable>
           </View>
-          {sizeStr ? (
-            <Text style={ec.sizeText} numberOfLines={1}>{sizeStr}</Text>
-          ) : null}
         </View>
 
-        <View style={ec.actions}>
-          {showPlay ? (
-            <IconBtn name="play" color={colors.accentLight} onPress={() => onPlay(item)} />
-          ) : null}
-          {active ? (
-            <IconBtn name="pause" color={colors.muted} onPress={() => onPause(item)} />
-          ) : null}
-          {canResume ? (
-            <IconBtn name="refresh" color={colors.accentLight} onPress={() => onResume(item)} />
-          ) : null}
-          <IconBtn name="trash-bin-outline" color={colors.danger} onPress={() => onDelete(item)} danger />
-        </View>
-      </View>
+        {genres.length > 0 && (
+          <View style={styles.chips}>
+            {genres.map((g) => (
+              <View key={g} style={styles.genreChip}>
+                <Text style={styles.genreText}>{g}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
-      {item.description ? (
-        <Text style={ec.synopsis} numberOfLines={3}>{item.description}</Text>
-      ) : null}
+        {description ? (
+          <Pressable onPress={() => setDescExpanded((v) => !v)} style={{ marginTop: 2 }}>
+            <Text style={styles.desc} numberOfLines={descExpanded ? undefined : 3}>
+              {description}
+            </Text>
+            <View style={styles.descToggle}>
+              <Text style={styles.descToggleText}>
+                {descExpanded ? "Show less" : "Show more"}
+              </Text>
+              <Ionicons
+                name={descExpanded ? "chevron-up" : "chevron-down"}
+                size={14}
+                color={colors.accentLight}
+              />
+            </View>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.tabBar}>
+          <View style={styles.tabItemActive}>
+            <Text style={styles.tabLabelActive}>Episodes</Text>
+          </View>
+        </View>
+
+        <View style={styles.epsSection}>
+          <View style={styles.seasonBar}>
+            {seasons.length > 1 ? (
+              <Pressable
+                style={styles.seasonPickerBtn}
+                onPress={() => setSeasonPickerVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Select Season"
+              >
+                <Text style={styles.seasonPickerText}>
+                  {`Season ${currentSeason?.season ?? 1}`}
+                </Text>
+                <Ionicons name="caret-down" size={13} color="#ffffff" />
+              </Pressable>
+            ) : (
+              <Text style={styles.seasonSingleText}>
+                {`Season ${currentSeason?.season ?? 1}`}
+              </Text>
+            )}
+
+            <Pressable
+              style={[styles.moreBtn, catalogOpen && styles.moreBtnActive]}
+              onPress={onFetchMore}
+              disabled={catalogBusy}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Download More"
+            >
+              {catalogBusy ? (
+                <ActivityIndicator size="small" color={colors.accentLight} />
+              ) : (
+                <>
+                  <Ionicons
+                    name={catalogOpen ? "chevron-up" : "cloud-download-outline"}
+                    size={14}
+                    color={colors.accentLight}
+                  />
+                  <Text style={styles.moreBtnText}>
+                    {catalogOpen ? "Hide More" : "More"}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+
+          {catalogOpen && catalog?.seasons?.length ? (
+            <View style={styles.catalogCard}>
+              <View style={styles.catalogHead}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.catalogTitle}>Server Catalog</Text>
+                  <Text style={styles.catalogHint}>
+                    Tap "Download All" to save a season, or tap any episode chip to download.
+                  </Text>
+                </View>
+                <Pressable onPress={() => setCatalogOpen(false)} hitSlop={10}>
+                  <Text style={styles.hideMoreText}>Hide</Text>
+                </Pressable>
+              </View>
+              {catalog.seasons.map((s) => {
+                const missingCount = (s.episodes || []).filter(
+                  (e) => !isEpDownloaded(s.season, e.ep)
+                ).length;
+                return (
+                  <View key={s.season} style={styles.seasonBlock}>
+                    <View style={styles.seasonRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.seasonLabel}>{`Season ${s.season}`}</Text>
+                        <Text style={styles.seasonSub}>
+                          {`${s.episodes?.length || s.episode_count || 0} episodes${missingCount > 0 ? ` · ${missingCount} missing` : " · all downloaded"
+                            }`}
+                        </Text>
+                      </View>
+                      <Pressable
+                        style={[
+                          styles.dlSeasonBtn,
+                          missingCount === 0 && styles.dlSeasonBtnDisabled,
+                        ]}
+                        disabled={missingCount === 0}
+                        onPress={() => onDownloadSeasonDirect(s.season)}
+                      >
+                        <Ionicons
+                          name={missingCount === 0 ? "checkmark-circle" : "download-outline"}
+                          size={14}
+                          color={missingCount === 0 ? colors.muted : colors.accentInk}
+                        />
+                        <Text
+                          style={[
+                            styles.dlSeasonText,
+                            missingCount === 0 && styles.dlSeasonTextDisabled,
+                          ]}
+                        >
+                          {missingCount === 0 ? "Downloaded" : "Download All"}
+                        </Text>
+                      </Pressable>
+                    </View>
+                    <View style={styles.epChipRow}>
+                      {(s.episodes || []).map((e) => {
+                        const isDownloaded = isEpDownloaded(s.season, e.ep);
+                        return (
+                          <Pressable
+                            key={e.ep}
+                            style={[styles.epChip, isDownloaded && styles.epChipDone]}
+                            disabled={isDownloaded}
+                            onPress={() => onDownloadEpisode(s.season, e.ep)}
+                          >
+                            <Ionicons
+                              name={isDownloaded ? "checkmark" : "arrow-down"}
+                              size={11}
+                              color={isDownloaded ? colors.muted : colors.accentLight}
+                              style={{ marginRight: 3 }}
+                            />
+                            <Text
+                              style={[
+                                styles.epChipText,
+                                isDownloaded && styles.epChipTextDone,
+                              ]}
+                            >
+                              {`Ep ${e.ep}`}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+
+          <View style={styles.episodeList}>
+            {visibleEpisodes.map((epItem, idx) => {
+              const watchPct = progressPercent(
+                watchMap.get(
+                  watchProgressKey({
+                    subjectId: epItem.subjectId,
+                    se: epItem.se,
+                    ep: epItem.ep,
+                  })
+                )
+              );
+              const epNum = epItem.ep || idx + 1;
+              const rawName = String(epItem.name || epItem.title || "").trim();
+              const cleanName = rawName
+                .replace(/^episode\s*\d+\s*[-:]*\s*/i, "")
+                .replace(/·\s*s\d+e\d+.*$/i, "")
+                .trim();
+              const epTitle = cleanName
+                ? `${epNum}. ${cleanName}`
+                : `${epNum}. Episode ${epNum}`;
+              const epDuration = formatDuration(epItem.duration) || "48m";
+              const epBytes = epItem.bytesWritten || epItem.sizeHint || 0;
+              const epMetaText = [
+                epDuration,
+                epBytes ? formatBytes(epBytes) : null,
+                watchPct > 0 ? `${watchPct}% watched` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+
+              const epSynopsis =
+                epItem.description ||
+                epItem.overview ||
+                description ||
+                `Episode ${epNum} of ${title}.`;
+              const thumbUri = epItem.thumbnail || epItem.image || epItem.poster || poster;
+
+              return (
+                <View key={epItem.id || `${epItem.se}-${epItem.ep}-${idx}`} style={styles.episodeRow}>
+                  <View style={styles.episodeTop}>
+                    <Pressable
+                      style={styles.episodeThumbWrap}
+                      onPress={() => openPlay(epItem)}
+                    >
+                      {thumbUri ? (
+                        <Image
+                          source={{ uri: thumbUri }}
+                          style={styles.episodeThumb}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                        />
+                      ) : (
+                        <View style={[styles.episodeThumb, styles.posterEmpty]} />
+                      )}
+                      <View style={styles.thumbPlayCircle}>
+                        <Ionicons
+                          name="play"
+                          size={15}
+                          color="#ffffff"
+                          style={{ marginLeft: 2 }}
+                        />
+                      </View>
+                      {watchPct > 0 ? (
+                        <View style={styles.thumbWatchTrack}>
+                          <View
+                            style={[styles.thumbWatchFill, { width: `${watchPct}%` }]}
+                          />
+                        </View>
+                      ) : null}
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.episodeMeta}
+                      onPress={() => openPlay(epItem)}
+                    >
+                      <Text style={styles.episodeTitle} numberOfLines={2}>
+                        {epTitle}
+                      </Text>
+                      <Text style={styles.episodeDurationText}>
+                        {epMetaText}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.episodeDeleteBtn}
+                      onPress={() => onDeleteEpisode(epItem)}
+                      hitSlop={10}
+                      accessibilityLabel={`Delete ${epTitle}`}
+                    >
+                      <Ionicons name="remove-circle-outline" size={20} color="rgba(248, 113, 113, 0.9)" />
+                    </Pressable>
+                  </View>
+
+                  {epSynopsis ? (
+                    <Text style={styles.episodeSynopsis} numberOfLines={3}>
+                      {epSynopsis}
+                    </Text>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
+
+      <Modal
+        visible={seasonPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSeasonPickerVisible(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setSeasonPickerVisible(false)}
+        >
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Season</Text>
+              <Pressable
+                onPress={() => setSeasonPickerVisible(false)}
+                hitSlop={10}
+              >
+                <Ionicons name="close" size={22} color="#ffffff" />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {seasons.map((s) => {
+                const isSelected = s.season === activeSeasonNum;
+                return (
+                  <Pressable
+                    key={s.season}
+                    style={[styles.pickerItem, isSelected && styles.pickerItemActive]}
+                    onPress={() => {
+                      setSelectedSeason(s.season);
+                      setSeasonPickerVisible(false);
+                    }}
+                  >
+                    <Text
+                      style={[styles.pickerItemText, isSelected && styles.pickerItemTextActive]}
+                    >
+                      {`Season ${s.season}`}
+                    </Text>
+                    <Text style={styles.pickerItemSub}>
+                      {`${s.episodes.length} downloaded episode${s.episodes.length > 1 ? "s" : ""}`}
+                    </Text>
+                    {isSelected && (
+                      <Ionicons name="checkmark" size={18} color={colors.accentLight} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <DownloadSheet
+        visible={!!dlSheet}
+        onClose={() => setDlSheet(null)}
+        onStarted={() => {
+          setDlSheet(null);
+          hydrateDownloads().catch(() => { });
+        }}
+        subjectId={subjectId ? String(subjectId) : ""}
+        detailPath={detailPath}
+        title={pack?.title || richMeta?.title || "Series"}
+        poster={pack?.poster || richMeta?.poster || null}
+        se={dlSheet?.se || "0"}
+        ep={dlSheet?.ep || "0"}
+        kind="series"
+        mode={dlSheet?.mode || "single"}
+        season={dlSheet?.season}
+      />
     </View>
   );
 }
 
-const ec = StyleSheet.create({
-  card: {
+const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
+    paddingBottom: 10,
+    backgroundColor: colors.bg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    marginHorizontal: 8,
+  },
+  headerDeleteBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  body: {
+    padding: spacing.md,
+    paddingBottom: spacing.xl + 20,
+    gap: spacing.md,
+  },
+  hero: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  poster: {
+    width: 120,
+    height: 180,
+    borderRadius: 12,
+    backgroundColor: colors.panel,
+  },
+  posterEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  copy: {
+    flex: 1,
+    gap: 8,
+    justifyContent: "center",
+  },
+  title: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "800",
+    lineHeight: 26,
+  },
+  metaLine: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  ratingText: {
+    color: colors.text,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  ratingLabel: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  playBtn: {
+    marginTop: 4,
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  playText: {
+    color: colors.accentInk,
+    fontWeight: "800",
+  },
+  dlAllBtn: {
+    backgroundColor: colors.accentMuted,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  dlAllText: {
+    color: colors.accentLight,
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  genreChip: {
+    backgroundColor: colors.panelSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+  },
+  genreText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  desc: {
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  descToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  descToggleText: {
+    color: colors.accentLight,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  tabBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
+    marginTop: 6,
+    marginBottom: spacing.xs,
+  },
+  tabItemActive: {
+    paddingVertical: 10,
+    borderTopWidth: 3,
+    borderTopColor: colors.accentLight,
+  },
+  tabLabelActive: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  epsSection: {
     gap: 8,
   },
-  topRow: {
+  seasonBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.xs,
+  },
+  seasonPickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#222228",
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  seasonPickerText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  seasonSingleText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  moreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(189, 132, 219, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(189, 132, 219, 0.28)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radii.sm,
+  },
+  moreBtnActive: {
+    backgroundColor: "rgba(189, 132, 219, 0.24)",
+    borderColor: colors.accentLight,
+  },
+  moreBtnText: {
+    color: colors.accentLight,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  catalogCard: {
+    marginBottom: spacing.md,
+    backgroundColor: colors.panel,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    gap: 12,
+  },
+  catalogHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
+    paddingBottom: 8,
+  },
+  catalogTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 2,
+  },
+  catalogHint: {
+    fontSize: 12,
+    color: colors.muted,
+  },
+  hideMoreText: {
+    fontSize: 12,
+    color: colors.accentLight,
+    fontWeight: "700",
+    paddingLeft: 8,
+  },
+  seasonBlock: {
+    gap: 8,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+  },
+  seasonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  seasonLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  seasonSub: {
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 1,
+  },
+  dlSeasonBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.accent,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: radii.pill,
+  },
+  dlSeasonBtnDisabled: {
+    backgroundColor: colors.panelSoft,
+  },
+  dlSeasonText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.accentInk,
+  },
+  dlSeasonTextDisabled: {
+    color: colors.muted,
+  },
+  epChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  epChip: {
+    backgroundColor: colors.accentMuted,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: radii.pill,
+  },
+  epChipDone: {
+    backgroundColor: colors.panelSoft,
+    borderColor: colors.line,
+    opacity: 0.6,
+  },
+  epChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.accentLight,
+  },
+  epChipTextDone: {
+    color: colors.muted,
+  },
+  episodeList: {
+    gap: 16,
+  },
+  episodeRow: {
+    gap: 8,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+  },
+  episodeTop: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  thumbWrap: {
-    width: 112,
-    height: 64,
+  episodeThumbWrap: {
+    width: 124,
+    height: 70,
     borderRadius: 6,
     overflow: "hidden",
     backgroundColor: colors.panel,
@@ -255,19 +1102,15 @@ const ec = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  thumb: {
+  episodeThumb: {
     width: "100%",
     height: "100%",
   },
-  thumbFallback: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
   thumbPlayCircle: {
     position: "absolute",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: "rgba(0, 0, 0, 0.65)",
     borderWidth: 1.5,
     borderColor: "rgba(255, 255, 255, 0.85)",
@@ -284,659 +1127,90 @@ const ec = StyleSheet.create({
   },
   thumbWatchFill: {
     height: 3,
-    backgroundColor: "#E50914",
-  },
-  thumbDlTrack: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-  },
-  thumbDlFill: {
-    height: 2,
     backgroundColor: colors.accentLight,
   },
-  meta: {
+  episodeMeta: {
     flex: 1,
     justifyContent: "center",
-    gap: 4,
+    gap: 3,
   },
-  epTitle: {
-    fontSize: 13,
-    fontWeight: "700",
+  episodeTitle: {
     color: colors.text,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  qBadge: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radii.pill,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-  },
-  qText: {
-    fontSize: 10,
+    fontSize: 14,
     fontWeight: "700",
-    color: colors.accentLight,
+    lineHeight: 18,
   },
-  sizeText: {
-    fontSize: 11,
-    color: colors.muted,
-  },
-  synopsis: {
-    color: "#9a9aa3",
+  episodeDurationText: {
+    color: "#8c8c96",
     fontSize: 12,
-    lineHeight: 16,
+    fontWeight: "500",
   },
-  actions: {
-    flexDirection: "row",
-    gap: 6,
-    alignItems: "center",
-  },
-});
-
-export default function SeriesDetailScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams();
-  const packKey = params.packKey ? decodeURIComponent(String(params.packKey)) : "";
-  const [subjectId, detailPath] = packKey.split("|");
-
-  const [allDownloads, setAllDownloads] = useState([]);
-  const [watchEntries, setWatchEntries] = useState([]);
-  const [catalog, setCatalog] = useState(null);
-  const [catalogBusy, setCatalogBusy] = useState(false);
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const [dlSheet, setDlSheet] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => subscribeWatchProgress(setWatchEntries), []);
-  useEffect(() => {
-    hydrateDownloads().catch(() => {});
-    return subscribeDownloads(setAllDownloads);
-  }, []);
-
-  const episodes = useMemo(() => {
-    return allDownloads
-      .filter(
-        (d) =>
-          !d.inVault &&
-          isSeriesItem(d) &&
-          d.subjectId === subjectId &&
-          d.detailPath === detailPath
-      )
-      .sort((a, b) => {
-        const se = Number(a.se) - Number(b.se);
-        return se !== 0 ? se : Number(a.ep) - Number(b.ep);
-      });
-  }, [allDownloads, subjectId, detailPath]);
-
-  const pack = useMemo(() => {
-    if (!episodes.length) return null;
-    return {
-      title: episodes[0].title,
-      poster: episodes.find((e) => e.poster)?.poster || null,
-      subjectId,
-      detailPath,
-    };
-  }, [episodes, subjectId, detailPath]);
-
-  const watchMap = useMemo(
-    () => new Map(watchEntries.map((e) => [e.key, e])),
-    [watchEntries]
-  );
-
-  const ready = episodes.filter((e) => e.status === "completed" && !e.pending).length;
-  const activeCount = episodes.filter(
-    (e) => e.pending || e.status === "downloading" || e.status === "queued"
-  ).length;
-  const totalBytes = episodes.reduce((n, e) => n + (e.bytesWritten || e.sizeHint || 0), 0);
-  const packEta = formatEta(packEtaSeconds(episodes));
-
-  const onPlay = (item) =>
-    router.push({
-      pathname: "/play",
-      params: {
-        subjectId: item.subjectId,
-        detail_path: item.detailPath,
-        se: item.se,
-        ep: item.ep,
-        title: `${item.title} - S${item.se}E${item.ep}`,
-        poster: item.poster || "",
-        kind: "series",
-        autoplay: "1",
-        downloadId: encodeURIComponent(item.id),
-      },
-    });
-
-  const onPause = (item) => pauseDownload(item.id);
-
-  const onResume = async (item) => {
-    if (item.pending || !item.sourceUrl) {
-      try {
-        await removeDownload(item.id);
-        await enqueueBestEffort({
-          subjectId: item.subjectId,
-          detailPath: item.detailPath,
-          title: item.title,
-          poster: item.poster,
-          se: item.se,
-          ep: item.ep,
-          kind: item.kind,
-          preferredHeight: item.height || 720,
-        });
-      } catch (err) {
-        Alert.alert("Retry failed", toUserMessage(err, "Couldn't restart download."));
-      }
-      return;
-    }
-    resumeDownload(item.id);
-  };
-
-  const onDelete = (item) =>
-    Alert.alert(
-      "Remove episode",
-      `Delete S${item.se}E${item.ep}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => removeDownload(item.id) },
-      ]
-    );
-
-  const onDeleteAll = () => {
-    if (!episodes.length) return;
-    Alert.alert(
-      "Delete all",
-      `Remove all ${episodes.length} episodes of "${pack?.title}"?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete all",
-          style: "destructive",
-          onPress: () => episodes.forEach((e) => removeDownload(e.id)),
-        },
-      ]
-    );
-  };
-
-  const onDownloadAll = () =>
-    setDlSheet({
-      mode: "season",
-      subjectId,
-      detailPath,
-      title: pack?.title || "",
-      poster: pack?.poster || null,
-      se: "1",
-      ep: "1",
-      season: 1,
-      kind: "series",
-    });
-
-  const onFetchMore = useCallback(async () => {
-    if (catalogBusy || !detailPath) return;
-    setCatalogBusy(true);
-    try {
-      const data = await fetchSeasonCatalog(detailPath);
-      setCatalog({ seasons: data.seasons || [] });
-      setCatalogOpen(true);
-      if (!(data.seasons || []).length)
-        Alert.alert("No episodes", "Server returned no seasons for this title.");
-    } catch (err) {
-      const msg = toUserMessage(err, "Couldn't load episodes. Check your connection.");
-      setCatalog((prev) => ({ seasons: prev?.seasons || [], error: msg }));
-      Alert.alert("Couldn't load", msg);
-    } finally {
-      setCatalogBusy(false);
-    }
-  }, [catalogBusy, detailPath]);
-
-  const onDownloadSeason = (season) => {
-    const row = (catalog?.seasons || []).find((s) => String(s.season) === String(season));
-    const first = row?.episodes?.[0];
-    setDlSheet({
-      mode: "season",
-      subjectId,
-      detailPath,
-      title: pack?.title || "",
-      poster: pack?.poster || null,
-      se: String(first?.se ?? season),
-      ep: String(first?.ep ?? 1),
-      season,
-      kind: "series",
-    });
-  };
-
-  const onDownloadEpisode = (se, ep) =>
-    setDlSheet({
-      mode: "single",
-      subjectId,
-      detailPath,
-      title: pack?.title || "",
-      poster: pack?.poster || null,
-      se: String(se),
-      ep: String(ep),
-      season: null,
-      kind: "series",
-    });
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await hydrateDownloads();
-    setRefreshing(false);
-  };
-
-  // Auto-back when all episodes deleted
-  useEffect(() => {
-    if (allDownloads.length > 0 && episodes.length === 0) router.back();
-  }, [episodes.length, allDownloads.length]);
-
-  if (!pack && !episodes.length) return null;
-
-  const title = pack?.title || "Series";
-
-  // Top navigation bar
-  return (
-    <View style={s.root}>
-      <View style={[s.header, { paddingTop: Math.max(insets.top, 10) }]}>
-        <Pressable
-          style={s.backBtn}
-          onPress={() => {
-            if (typeof router.canGoBack === "function" && router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/(tabs)/downloads");
-            }
-          }}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="chevron-back" size={24} color={colors.accentLight || colors.accent} />
-        </Pressable>
-        <Text style={s.headerTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Pressable
-          style={s.headerDeleteBtn}
-          onPress={onDeleteAll}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Delete all episodes"
-        >
-          <Ionicons name="trash-bin-outline" size={18} color={colors.danger} />
-        </Pressable>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentLight} />
-        }
-      >
-        <View style={s.hero}>
-          {pack?.poster ? (
-            <Image
-              source={{ uri: pack.poster }}
-              style={s.poster}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-            />
-          ) : (
-            <View style={[s.poster, s.posterFallback]}>
-              <Ionicons name="tv-outline" size={28} color={colors.muted} />
-            </View>
-          )}
-          <View style={s.heroText}>
-            <View style={s.statRow}>
-              <View style={s.statChip}>
-                <Ionicons name="film-outline" size={11} color={colors.muted} />
-                <Text style={s.statChipText}>{episodes.length} ep</Text>
-              </View>
-              {ready > 0 && (
-                <View style={[s.statChip, s.statChipAccent]}>
-                  <Ionicons name="checkmark-circle" size={11} color={colors.accentLight} />
-                  <Text style={[s.statChipText, { color: colors.accentLight }]}>{ready} ready</Text>
-                </View>
-              )}
-              {activeCount > 0 && (
-                <View style={[s.statChip, s.statChipAccent]}>
-                  <View style={s.activeDot} />
-                  <Text style={[s.statChipText, { color: colors.accentLight }]}>{activeCount} active</Text>
-                </View>
-              )}
-              {totalBytes > 0 && (
-                <View style={s.statChip}>
-                  <Text style={s.statChipText}>{formatBytes(totalBytes)}</Text>
-                </View>
-              )}
-              {packEta ? (
-                <View style={s.statChip}>
-                  <Ionicons name="time-outline" size={11} color={colors.muted} />
-                  <Text style={s.statChipText}>{packEta}</Text>
-                </View>
-              ) : null}
-            </View>
-          </View>
-        </View>
-
-        <View style={s.actions}>
-          <Pressable style={s.btnPrimary} onPress={onDownloadAll}>
-            <Ionicons name="cloud-download-outline" size={13} color={colors.accentInk} />
-            <Text style={s.btnPrimaryText}>Download All</Text>
-          </Pressable>
-          <Pressable
-            style={[s.btnSecondary, catalogBusy && s.btnDisabled]}
-            disabled={catalogBusy}
-            onPress={
-              catalog && catalogOpen
-                ? () => setCatalogOpen(false)
-                : catalog && !catalogOpen
-                  ? () => setCatalogOpen(true)
-                  : onFetchMore
-            }
-          >
-            <Ionicons
-              name={
-                catalogBusy
-                  ? "ellipsis-horizontal"
-                  : catalog && catalogOpen
-                    ? "chevron-up"
-                    : "add-circle-outline"
-              }
-              size={13}
-              color={colors.accentLight}
-            />
-            <Text style={s.btnSecondaryText}>
-              {catalogBusy
-                ? "Fetching…"
-                : catalog && catalogOpen
-                  ? "Hide catalog"
-                  : catalog
-                    ? "Show catalog"
-                    : "More episodes"}
-            </Text>
-          </Pressable>
-        </View>
-
-        {catalog && catalogOpen ? (
-          <View style={s.catalogCard}>
-            <Text style={s.catalogHint}>
-              Tap a season to download all missing episodes · tap an episode chip to download individually
-            </Text>
-            {catalog.error ? <Text style={s.catalogError}>{catalog.error}</Text> : null}
-            {(catalog.seasons || []).map((season) => {
-              const se = season.season;
-              const count = season.episode_count || (season.episodes || []).length || 0;
-              const missing = (season.episodes || []).filter(
-                (ep) => !isEpisodeCovered({ subjectId, detailPath, se: ep.se ?? se, ep: ep.ep })
-              ).length;
-              return (
-                <View key={`se-${se}`} style={s.seasonBlock}>
-                  <View style={s.seasonRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.seasonLabel}>Season {se}</Text>
-                      <Text style={s.seasonSub}>
-                        {count} ep
-                        {missing > 0 ? `  ·  ${missing} missing` : "  ·  all queued"}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={[s.dlSeasonBtn, missing === 0 && s.dlSeasonBtnOff]}
-                      disabled={missing === 0}
-                      onPress={() => onDownloadSeason(se)}
-                    >
-                      <Ionicons name="download-outline" size={13} color={missing === 0 ? colors.muted : colors.accentInk} />
-                      <Text style={[s.dlSeasonText, missing === 0 && { color: colors.muted }]}>Download</Text>
-                    </Pressable>
-                  </View>
-                  <View style={s.epChipRow}>
-                    {(season.episodes || []).map((ep) => {
-                      const covered = isEpisodeCovered({
-                        subjectId,
-                        detailPath,
-                        se: ep.se ?? se,
-                        ep: ep.ep,
-                      });
-                      return (
-                        <Pressable
-                          key={`ec-${se}-${ep.ep}`}
-                          style={[s.epChip, covered && s.epChipDone]}
-                          disabled={covered}
-                          onPress={() => onDownloadEpisode(ep.se ?? se, ep.ep)}
-                        >
-                          <Text style={[s.epChipText, covered && s.epChipTextDone]}>
-                            {ep.ep}
-                          </Text>
-                          {covered ? (
-                            <Ionicons name="checkmark" size={10} color={colors.accentLight} />
-                          ) : (
-                            <Ionicons name="download-outline" size={10} color={colors.accentLight} />
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        ) : null}
-
-        <View style={s.epHeader}>
-          <Text style={s.epHeaderText}>DOWNLOADED</Text>
-          <Text style={s.epHeaderCount}>{episodes.length}</Text>
-        </View>
-
-        {episodes.map((item) => (
-          <EpCard
-            key={item.id}
-            item={item}
-            watchMap={watchMap}
-            onPlay={onPlay}
-            onPause={onPause}
-            onResume={onResume}
-            onDelete={onDelete}
-          />
-        ))}
-      </ScrollView>
-
-      <DownloadSheet
-        visible={!!dlSheet}
-        onClose={() => setDlSheet(null)}
-        onStarted={() => setDlSheet(null)}
-        subjectId={dlSheet?.subjectId || ""}
-        detailPath={dlSheet?.detailPath || ""}
-        title={dlSheet?.title || ""}
-        poster={dlSheet?.poster || null}
-        se={dlSheet?.se || "1"}
-        ep={dlSheet?.ep || "1"}
-        kind="series"
-        season={dlSheet?.season ?? null}
-        mode={dlSheet?.mode || "single"}
-      />
-    </View>
-  );
-}
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-
-  // Top Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingBottom: 10,
-    backgroundColor: colors.bg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line,
-    gap: 10,
-  },
-  backBtn: {
+  episodeDeleteBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
+  episodeSynopsis: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  modalBackdrop: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-    letterSpacing: -0.2,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    justifyContent: "flex-end",
   },
-  headerDeleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  scroll: { paddingBottom: 48 },
-
-  // Hero
-  hero: {
-    flexDirection: "row",
-    gap: spacing.md,
-    padding: spacing.md,
-    paddingBottom: 12,
-  },
-  poster: {
-    width: 72,
-    height: 104,
-    borderRadius: radii.md,
-    backgroundColor: colors.panel,
-  },
-  posterFallback: { alignItems: "center", justifyContent: "center" },
-  heroText: { flex: 1, justifyContent: "center", gap: 8 },
-  statRow: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
-  statChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: colors.panelSoft,
-    borderRadius: radii.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  statChipAccent: { backgroundColor: colors.accentMuted },
-  statChipText: { fontSize: 11, fontWeight: "500", color: colors.muted },
-  activeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.accentLight,
-  },
-
-  // Action buttons
-  actions: {
-    flexDirection: "row",
-    gap: 8,
+  pickerSheet: {
+    backgroundColor: "#16161c",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     paddingHorizontal: spacing.md,
-    paddingBottom: 12,
-  },
-  btnPrimary: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    backgroundColor: colors.accent,
-    paddingVertical: 6,
-    paddingHorizontal: 13,
-    borderRadius: radii.pill,
-  },
-  btnPrimaryText: { fontSize: 12, fontWeight: "700", color: colors.accentInk },
-  btnSecondary: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    paddingTop: 16,
+    paddingBottom: 32,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
-    paddingVertical: 6,
-    paddingHorizontal: 13,
-    borderRadius: radii.pill,
+    borderColor: "rgba(255, 255, 255, 0.08)",
   },
-  btnSecondaryText: { fontSize: 12, fontWeight: "600", color: colors.textDim },
-  btnDisabled: { opacity: 0.5 },
-
-  // Catalog card
-  catalogCard: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    backgroundColor: colors.panel,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    gap: 14,
-  },
-  catalogHint: { fontSize: 12, color: colors.muted, lineHeight: 17 },
-  catalogError: { fontSize: 12, color: colors.danger },
-  seasonBlock: { gap: 10 },
-  seasonRow: { flexDirection: "row", alignItems: "center" },
-  seasonLabel: { fontSize: 13, fontWeight: "700", color: colors.text },
-  seasonSub: { fontSize: 11, color: colors.muted, marginTop: 2 },
-  dlSeasonBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.accent,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: radii.pill,
-  },
-  dlSeasonBtnOff: { backgroundColor: colors.panelSoft },
-  dlSeasonText: { fontSize: 11, fontWeight: "700", color: colors.accentInk },
-  epChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
-  epChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    paddingVertical: 3,
-    paddingHorizontal: 7,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.accentBorder,
-    backgroundColor: colors.accentMuted,
-  },
-  epChipDone: {
-    borderColor: colors.line,
-    backgroundColor: colors.panelSoft,
-  },
-  epChipText: { fontSize: 11, fontWeight: "600", color: colors.accentLight },
-  epChipTextDone: { color: colors.muted },
-
-  // Ep section header
-  epHeader: {
+  pickerHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+    paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line,
-    backgroundColor: colors.panel,
+    borderBottomColor: colors.line,
   },
-  epHeaderText: { fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 },
-  epHeaderCount: {
-    fontSize: 11,
+  pickerTitle: {
+    color: "#ffffff",
+    fontSize: 16,
     fontWeight: "700",
-    color: colors.accentLight,
-    backgroundColor: colors.accentMuted,
-    borderRadius: radii.pill,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+  },
+  pickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+  },
+  pickerItemActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 8,
+  },
+  pickerItemText: {
+    color: "#8c8c96",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  pickerItemTextActive: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  pickerItemSub: {
+    color: colors.muted,
+    fontSize: 12,
+    marginLeft: "auto",
+    marginRight: 10,
   },
 });
