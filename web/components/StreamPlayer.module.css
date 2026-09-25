@@ -1618,3 +1618,305 @@
     display: grid !important;
   }
 }
+
+.mainNav {
+  display: flex;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mainNavBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.mainNavBtn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.mainNavBtnActive {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f6c443;
+  font-weight: 700;
+}
+
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.searchCard {
+  background: rgba(18, 18, 24, 0.85);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.searchHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #f6c443;
+}
+
+.searchCardTitle {
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.keywordInputWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 7px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  height: 34px;
+  transition: border-color 0.15s ease;
+}
+
+.keywordInputWrap:focus-within {
+  border-color: rgba(246, 196, 67, 0.5);
+}
+
+.keywordInput {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #fff;
+  font-size: 0.76rem;
+  font-family: inherit;
+}
+
+.keywordClearBtn {
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.keywordClearBtn:hover {
+  color: #fff;
+}
+
+.langRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.langLabel {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.langScroll {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.langChip {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+}
+
+.langChip:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.langChipActive {
+  background: rgba(246, 196, 67, 0.18);
+  border-color: #f6c443;
+  color: #f6c443;
+}
+
+.searchSubmitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #f6c443;
+  color: #111;
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.08s ease;
+  font-family: inherit;
+}
+
+.searchSubmitBtn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.searchSubmitBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.loadedSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionHeader {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.emptyCard {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.emptyCardTitle {
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+}
+
+.emptyCardText {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.74rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.previewBox {
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.previewStage {
+  height: 64px;
+  background: rgba(20, 20, 30, 0.8);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.previewSubWrap {
+  padding: 6px 14px;
+  border-radius: 6px;
+  max-width: 95%;
+  text-align: center;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.settingGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settingGroupTitle {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.settingOptionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settingPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.73rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+}
+
+.settingPill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.settingPillActive {
+  background: rgba(246, 196, 67, 0.15);
+  border-color: #f6c443;
+  color: #f6c443;
+  font-weight: 800;
+}
+
+.colorDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.cueOutline {
+  background: transparent !important;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6);
+}
