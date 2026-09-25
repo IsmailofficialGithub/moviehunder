@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +15,7 @@ import EmptyState from "../../components/EmptyState";
 import PosterCard from "../../components/PosterCard";
 import SafeSearchMeme from "../../components/SafeSearchMeme";
 import Screen from "../../components/Screen";
-import { searchSuggest, searchTitles } from "../../lib/api";
+import { getRanking, searchSuggest, searchTitles } from "../../lib/api";
 import {
   checkSafeSearch,
   filterSafeCatalogItems,
@@ -35,7 +36,16 @@ import {
   setCachedSearch,
   setLastSearchQuery,
 } from "../../lib/searchCache";
-import { colors, radii, spacing } from "../../lib/theme";
+// Quick discovery genres when search input is empty
+const DISCOVERY_GENRES = [
+  { id: "trending", label: "🔥 Trending", query: "Trending" },
+  { id: "action", label: "⚔️ Action", query: "Action" },
+  { id: "anime", label: "⚡ Anime", query: "Anime" },
+  { id: "romance", label: "💖 Romance", query: "Romance" },
+  { id: "comedy", label: "🍿 Comedy", query: "Comedy" },
+  { id: "horror", label: "👻 Horror", query: "Horror" },
+  { id: "kdrama", label: "🇰🇷 K-Drama", query: "K-Drama" },
+];
 
 export default function SearchScreen() {
   const params = useLocalSearchParams();
@@ -48,6 +58,8 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [discoverTitles, setDiscoverTitles] = useState([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const suggestTimer = useRef(null);
@@ -56,6 +68,26 @@ export default function SearchScreen() {
   const searchReq = useRef(0);
 
   useEffect(() => subscribeSearchHistory(setHistory), []);
+
+  // Load top titles to display as discovery items when search query is empty
+  useEffect(() => {
+    let cancelled = false;
+    setDiscoverLoading(true);
+    getRanking()
+      .then((data) => {
+        if (cancelled) return;
+        const all = (data?.sections || []).flatMap((s) => s.movies || []);
+        const valid = all.filter((m) => m && (m.poster_url || m.poster || m.cover));
+        setDiscoverTitles(valid.slice(0, 18));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setDiscoverLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /** Run title search API + save word history (only on submit / pick / deep-link). */
   const runSearch = useCallback(async (raw, { saveHistory = true } = {}) => {
@@ -331,6 +363,44 @@ export default function SearchScreen() {
           title="No items found"
           hint={`Nothing matched “${q.trim()}”`}
         />
+      ) : !searched && !q.trim() ? (
+        <FlatList
+          data={discoverTitles}
+          keyExtractor={(item, i) => item.slug || `${item.name}-${i}`}
+          numColumns={3}
+          contentContainerStyle={styles.grid}
+          columnWrapperStyle={styles.row}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            <View style={styles.discoveryHeader}>
+              <Text style={styles.discoverySectionTitle}>Explore by Genre</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.genrePillsRow}
+              >
+                {DISCOVERY_GENRES.map((g) => (
+                  <Pressable
+                    key={g.id}
+                    style={styles.genrePill}
+                    onPress={() => runSearch(g.query)}
+                  >
+                    <Text style={styles.genrePillText}>{g.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Text style={styles.discoverySectionTitle}>Top Searches Today</Text>
+              {discoverLoading && !discoverTitles.length ? (
+                <ActivityIndicator color={colors.accent} style={{ marginVertical: 20 }} />
+              ) : null}
+            </View>
+          }
+          renderItem={({ item }) => (
+            <View style={styles.cell}>
+              <PosterCard item={item} width={104} />
+            </View>
+          )}
+        />
       ) : (
         <FlatList
           data={movies}
@@ -339,15 +409,6 @@ export default function SearchScreen() {
           contentContainerStyle={styles.grid}
           columnWrapperStyle={styles.row}
           keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
-            !q.trim() && !history.length ? (
-              <Text style={styles.hint}>
-                Type for suggestions, then tap Search
-              </Text>
-            ) : q.trim() && !searched ? (
-              <Text style={styles.hint}>Tap Search to find titles</Text>
-            ) : null
-          }
           renderItem={({ item }) => (
             <View style={styles.cell}>
               <PosterCard item={item} width={104} onPress={clearQuery} />
@@ -470,5 +531,32 @@ const styles = StyleSheet.create({
     marginTop: 28,
     paddingHorizontal: spacing.lg,
     fontSize: 14,
+  },
+  discoveryHeader: {
+    marginBottom: spacing.md,
+  },
+  discoverySectionTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+    letterSpacing: -0.2,
+  },
+  genrePillsRow: {
+    gap: 8,
+    paddingBottom: spacing.md,
+  },
+  genrePill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.panelSoft,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  genrePillText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

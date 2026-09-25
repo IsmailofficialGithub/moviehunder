@@ -1208,6 +1208,32 @@ async function handleDetail(slug) {
     return isBlockedCatalogItem(normalized) ? null : normalized;
   };
 
+  const movieGenreWords = String(movieDict.genre || "")
+    .toLowerCase()
+    .split(/[,/|]/)
+    .map((w) => w.trim())
+    .filter(Boolean);
+  const isAnimeTitle = /anime|animation/i.test(movieDict.genre || "");
+  const isRomanceTitle = /romance|romantic/i.test(movieDict.genre || "");
+  const isHorrorTitle = /horror|zombie/i.test(movieDict.genre || "");
+
+  // Score candidate items for genre and type relevance
+  const scoreRelatedItem = (item) => {
+    let score = 0;
+    const itemGenre = String(item.genre || "").toLowerCase();
+    if (isAnimeTitle) {
+      if (/anime|animation/i.test(itemGenre) || /anime/i.test(item.name || "")) score += 15;
+      else score -= 10;
+    }
+    if (isRomanceTitle && /romance/i.test(itemGenre)) score += 10;
+    if (isHorrorTitle && /horror|zombie/i.test(itemGenre)) score += 10;
+    for (const w of movieGenreWords) {
+      if (itemGenre.includes(w)) score += 4;
+    }
+    if (movieDict.subjectType && item.subject_type === movieDict.subjectType) score += 2;
+    return score;
+  };
+
   const relatedSeen = new Set();
   let related = relatedRaw
     .map(normalizeRelated)
@@ -1216,40 +1242,39 @@ async function handleDetail(slug) {
       relatedSeen.add(item.slug);
       return true;
     })
-    .slice(0, 18);
+    .sort((a, b) => scoreRelatedItem(b) - scoreRelatedItem(a));
 
-  if (!related.length) {
+  // If top items don't match the category or we have fewer than 8 matching items, pull from matching catalogs
+  const bestMatches = related.filter((item) => scoreRelatedItem(item) > 0);
+  if (bestMatches.length < 8) {
     try {
-      const catalog = (await fetchHomeData()).flatMap(
-        (section) => section.movies || []
-      );
-      const genreWords = String(movieDict.genre || "")
-        .toLowerCase()
-        .split(/[,/|]/)
-        .map((word) => word.trim())
-        .filter(Boolean);
-      const sameType = catalog.filter(
-        (item) =>
-          item.slug !== slug &&
-          ((movieDict.subjectType &&
-            item.subject_type === movieDict.subjectType) ||
-            genreWords.some((word) =>
-              String(item.genre || "").toLowerCase().includes(word)
-            ))
-      );
-      const fallback = sameType.length ? sameType : catalog;
-      related = fallback
-        .filter((item) => item.slug !== slug)
-        .filter((item) => {
-          if (relatedSeen.has(item.slug)) return false;
+      let catalog = [];
+      if (isAnimeTitle) {
+        const animSections = await fetchAnimationData().catch(() => []);
+        catalog = animSections.flatMap((s) => s.movies || []);
+      } else if (movieDict.subjectType === 1) {
+        const movieSections = await fetchMoviesData().catch(() => []);
+        catalog = movieSections.flatMap((s) => s.movies || []);
+      } else {
+        const homeSections = await fetchHomeData().catch(() => []);
+        catalog = homeSections.flatMap((s) => s.movies || []);
+      }
+
+      for (const item of catalog) {
+        if (!item?.slug || item.slug === slug || relatedSeen.has(item.slug)) continue;
+        const norm = normalizeRelated(item);
+        if (norm && scoreRelatedItem(norm) >= 0) {
           relatedSeen.add(item.slug);
-          return true;
-        })
-        .slice(0, 18);
+          bestMatches.push(norm);
+          if (bestMatches.length >= 18) break;
+        }
+      }
     } catch {
-      /* Related suggestions are optional. */
+      // Related suggestions fallback error ignored
     }
   }
+
+  related = (bestMatches.length ? bestMatches : related).slice(0, 18);
 
   // Collect stream URLs from raw data
   const mp4Urls = nuxt.filter((v) => typeof v === "string" && v.includes(".mp4"));

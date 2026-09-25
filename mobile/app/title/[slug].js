@@ -18,7 +18,15 @@ import EmptyState from "../../components/EmptyState";
 import ProgressBorder from "../../components/ProgressBorder";
 import PosterCard from "../../components/PosterCard";
 import TitleSkeleton from "../../components/TitleSkeleton";
-import { getDetail, getEpisodes, searchTitles } from "../../lib/api";
+import {
+  getAnimation,
+  getDetail,
+  getEpisodes,
+  getHome,
+  getMovies,
+  getTvSeries,
+  searchTitles,
+} from "../../lib/api";
 import {
   hydrateDownloads,
   progressOf as downloadProgressOf,
@@ -58,6 +66,38 @@ function usableSeasons(episodes) {
 
 const EPISODE_PREVIEW_COUNT = 12;
 
+// In-memory catalog cache for category-matched related recommendations
+const smartCatalogCache = {
+  anim: null,
+  movies: null,
+  tv: null,
+  home: null,
+};
+
+async function fetchCategoryCatalog(kind) {
+  try {
+    if (kind === "anim") {
+      if (!smartCatalogCache.anim) smartCatalogCache.anim = await getAnimation();
+      return smartCatalogCache.anim;
+    }
+    if (kind === "movies") {
+      if (!smartCatalogCache.movies) smartCatalogCache.movies = await getMovies();
+      return smartCatalogCache.movies;
+    }
+    if (kind === "tv") {
+      if (!smartCatalogCache.tv) smartCatalogCache.tv = await getTvSeries();
+      return smartCatalogCache.tv;
+    }
+    if (kind === "home") {
+      if (!smartCatalogCache.home) smartCatalogCache.home = await getHome();
+      return smartCatalogCache.home;
+    }
+  } catch {
+    // Graceful fallback on network error
+  }
+  return null;
+}
+
 export default function TitleScreen() {
   const { slug: raw } = useLocalSearchParams();
   const slug = decodeURIComponent(String(raw || ""));
@@ -81,9 +121,8 @@ export default function TitleScreen() {
   const [activeTab, setActiveTab] = useState("episodes");
   const [seasonPickerVisible, setSeasonPickerVisible] = useState(false);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [categoryMovies, setCategoryMovies] = useState([]);
-  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [fallbackRelated, setFallbackRelated] = useState([]);
+  const [fallbackLoading, setFallbackLoading] = useState(false);
 
   useEffect(() => subscribeWatchProgress(setWatchEntries), []);
   useEffect(() => {
@@ -276,86 +315,145 @@ export default function TitleScreen() {
     meta.badge,
   ].filter(Boolean);
 
-  // Category filter options for More Like This
-  const categoryFilters = useMemo(() => {
-    const raw = genres.length
-      ? genres
-      : [isSeries ? "TV Series" : "Movies", "Drama", "Action"];
-    return ["All", ...raw.filter((g) => g.toLowerCase() !== "all")];
-  }, [genres, isSeries]);
-
   const validServerRelated = useMemo(() => {
     return (Array.isArray(meta.related) ? meta.related : []).filter(
       (item) =>
         item &&
         (item.poster_url || item.poster || item.cover) &&
         !item.staffId &&
-        !item.staffType
+        !item.staffType &&
+        item.slug !== slug &&
+        String(item.subject_id || "") !== String(subjectId || "")
     );
-  }, [meta.related]);
+  }, [meta.related, slug, subjectId]);
 
-  // In-memory cache for category search results to prevent infinite loops and repeated fetches
-  const categoryCacheRef = useRef({});
+  // Filter server items so they strictly match the title's category/genre
+  const relevantServerRelated = useMemo(() => {
+    const gl = String(meta.genre || "").toLowerCase();
+    const isAnime = /anime|animation/i.test(gl);
+    const isRomance = /romance|romantic/i.test(gl);
+    const isHorror = /horror|zombie/i.test(gl);
+    const isAction = /action|adventure/i.test(gl);
 
-  // Dynamically fetch related movies when category changes or More Like This tab is active
+    return validServerRelated.filter((item) => {
+      const itemGl = String(item.genre || "").toLowerCase();
+      if (isAnime) return /anime|animation/i.test(itemGl) || /anime/i.test(item.name || "");
+      if (isRomance) return /romance/i.test(itemGl);
+      if (isHorror) return /horror|zombie/i.test(itemGl);
+      if (isAction) return /action|adventure/i.test(itemGl);
+      const itemGenres = itemGl.split(/[,/|]/).map((g) => g.trim()).filter(Boolean);
+      const titleGenres = gl.split(/[,/|]/).map((g) => g.trim()).filter(Boolean);
+      return itemGenres.some((g) => titleGenres.includes(g));
+    });
+  }, [validServerRelated, meta.genre]);
+
+  const fetchedFallbackRef = useRef(false);
+
+  // If server items don't match the category or are insufficient, fetch curated category catalog
   useEffect(() => {
-    // If not on "more" tab and server related items already exist, defer
-    if (activeTab !== "more" && validServerRelated.length > 0) return;
+    if (relevantServerRelated.length >= 8 || fetchedFallbackRef.current) return;
+    if (activeTab !== "more") return;
 
-    const firstGenre = genres[0] || (isSeries ? "series" : "movie");
-    const query = selectedCategory === "All" ? firstGenre : selectedCategory;
-
-    if (!query) return;
-
-    // Check if result is already in memory cache
-    const cacheKey = `${slug || ""}:${query}`;
-    if (categoryCacheRef.current[cacheKey]) {
-      setCategoryMovies(categoryCacheRef.current[cacheKey]);
-      setCategoryLoading(false);
-      return;
-    }
-
+    fetchedFallbackRef.current = true;
     let cancelled = false;
-    setCategoryLoading(true);
-    searchTitles(query)
-      .then((res) => {
-        if (cancelled) return;
-        const list = (res?.movies || res?.items || []).filter(
-          (m) =>
-            m &&
-            (m.poster_url || m.poster || m.cover) &&
-            m.slug !== slug &&
-            String(m.subject_id || "") !== String(subjectId || "")
-        );
-        categoryCacheRef.current[cacheKey] = list;
-        setCategoryMovies(list);
-      })
-      .catch(() => {
-        if (!cancelled) setCategoryMovies([]);
-      })
-      .finally(() => {
-        if (!cancelled) setCategoryLoading(false);
-      });
+    setFallbackLoading(true);
+
+    const gl = String(meta.genre || "").toLowerCase();
+    const primary = gl.split(/[,/|]/)[0]?.trim() || "";
+    const isAnime = /anime|animation/i.test(gl);
+    const isKDrama = /k-drama|korean/i.test(gl);
+
+    (async () => {
+      let catalogList = [];
+      try {
+        if (isAnime) {
+          const animData = await fetchCategoryCatalog("anim");
+          const animeSec =
+            animData?.sections?.find((s) => /anime/i.test(s.section)) ||
+            animData?.sections?.[0];
+          catalogList = animeSec?.movies || [];
+        } else if (isKDrama) {
+          const homeData = await fetchCategoryCatalog("home");
+          const kdSec = homeData?.sections?.find((s) => /k-drama/i.test(s.section));
+          catalogList = kdSec?.movies || [];
+        } else if (/romance/i.test(primary) || /romance/i.test(gl)) {
+          const moviesData = await fetchCategoryCatalog("movies");
+          const rSec = moviesData?.sections?.find((s) => /romance/i.test(s.section));
+          catalogList = rSec?.movies || [];
+        } else if (/action/i.test(primary) || (/action/i.test(gl) && !/horror/i.test(primary))) {
+          const moviesData = await fetchCategoryCatalog("movies");
+          const aSec = moviesData?.sections?.find((s) => /^action/i.test(String(s.section).trim()));
+          catalogList = aSec?.movies || [];
+        } else if (/horror|zombie/i.test(gl)) {
+          const moviesData = await fetchCategoryCatalog("movies");
+          const hSec = moviesData?.sections?.find((s) => /horror|zombie/i.test(s.section));
+          catalogList = hSec?.movies || [];
+        } else if (/comedy|comedies/i.test(gl)) {
+          const moviesData = await fetchCategoryCatalog("movies");
+          const cSec = moviesData?.sections?.find((s) => /comed/i.test(s.section));
+          catalogList = cSec?.movies || [];
+        } else if (isSeries) {
+          const tvData = await fetchCategoryCatalog("tv");
+          const sSec = tvData?.sections?.find((s) => /popular/i.test(s.section));
+          catalogList = sSec?.movies || [];
+        } else {
+          const moviesData = await fetchCategoryCatalog("movies");
+          const mSec = moviesData?.sections?.find((s) => /trending|popular/i.test(s.section));
+          catalogList = mSec?.movies || [];
+        }
+
+        // Fallback to search query if section was empty
+        if (!catalogList.length) {
+          const query = genres[0] || (isSeries ? "series" : "movie");
+          const res = await searchTitles(query).catch(() => null);
+          catalogList = res?.movies || res?.items || [];
+        }
+      } catch {
+        catalogList = [];
+      }
+
+      if (cancelled) return;
+
+      const seen = new Set();
+      const merged = [];
+
+      // Add any genuinely matching server items first
+      for (const item of relevantServerRelated) {
+        if (item?.slug && item.slug !== slug && !seen.has(item.slug)) {
+          seen.add(item.slug);
+          merged.push(item);
+        }
+      }
+
+      // Fill with the category catalog items
+      for (const item of catalogList) {
+        if (
+          item &&
+          item.slug &&
+          item.slug !== slug &&
+          String(item.subject_id || "") !== String(subjectId || "") &&
+          (item.poster_url || item.poster || item.cover) &&
+          !seen.has(item.slug)
+        ) {
+          seen.add(item.slug);
+          merged.push(item);
+        }
+      }
+
+      setFallbackRelated(merged.slice(0, 18));
+      setFallbackLoading(false);
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [selectedCategory, activeTab, genres, isSeries, slug, subjectId, validServerRelated.length]);
+  }, [activeTab, genres, isSeries, slug, subjectId, relevantServerRelated]);
 
   const displayRelated = useMemo(() => {
-    if (selectedCategory === "All" && validServerRelated.length > 0) {
-      const seen = new Set();
-      const merged = [];
-      for (const m of [...validServerRelated, ...categoryMovies]) {
-        if (m.slug && !seen.has(m.slug) && m.slug !== slug) {
-          seen.add(m.slug);
-          merged.push(m);
-        }
-      }
-      return merged;
-    }
-    return categoryMovies;
-  }, [selectedCategory, validServerRelated, categoryMovies, slug]);
+    if (fallbackRelated.length > 0) return fallbackRelated;
+    if (relevantServerRelated.length > 0) return relevantServerRelated;
+    return validServerRelated;
+  }, [fallbackRelated, relevantServerRelated, validServerRelated]);
 
   const openDownload = (se = "0", ep = "0") => {
     if (!subjectId) {
@@ -799,42 +897,9 @@ export default function TitleScreen() {
 
           {activeTab === "more" ? (
             <View style={styles.moreLikeSection}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoryFilterRow}
-              >
-                {categoryFilters.map((cat) => {
-                  const isSelected = selectedCategory === cat;
-                  return (
-                    <Pressable
-                      key={cat}
-                      style={[
-                        styles.categoryFilterChip,
-                        isSelected && styles.categoryFilterChipActive,
-                      ]}
-                      onPress={() => setSelectedCategory(cat)}
-                      hitSlop={6}
-                    >
-                      <Text
-                        style={[
-                          styles.categoryFilterText,
-                          isSelected && styles.categoryFilterTextActive,
-                        ]}
-                      >
-                        {cat}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-
-              {categoryLoading ? (
+              {fallbackLoading ? (
                 <View style={styles.categoryLoader}>
                   <ActivityIndicator size="small" color={colors.accentLight} />
-                  <Text style={styles.categoryLoaderText}>
-                    Searching {selectedCategory} titles…
-                  </Text>
                 </View>
               ) : displayRelated.length ? (
                 <View style={styles.moreLikeGrid}>
@@ -852,7 +917,7 @@ export default function TitleScreen() {
                 </View>
               ) : (
                 <Text style={styles.emptyTabText}>
-                  No related {selectedCategory} titles found.
+                  No related titles found.
                 </Text>
               )}
             </View>
@@ -1487,30 +1552,6 @@ const styles = StyleSheet.create({
   // More Like This Grid (3 Columns)
   moreLikeSection: {
     marginTop: 4,
-  },
-  categoryFilterRow: {
-    gap: 8,
-    paddingBottom: 14,
-  },
-  categoryFilterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: radii.pill,
-    backgroundColor: "#1f1f25",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-  },
-  categoryFilterChipActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  categoryFilterText: {
-    color: "#8c8c96",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  categoryFilterTextActive: {
-    color: "#ffffff",
   },
   categoryLoader: {
     flexDirection: "row",

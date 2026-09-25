@@ -78,7 +78,18 @@ function matchesSection(section, patterns) {
   return patterns.some((p) => p.test(name));
 }
 
-/** Home order: Trending → Coming Soon → Cinema → Hot Shorts → rest. */
+// Premium Netflix-grade row hierarchy:
+// 1. Trending (hero/featured)
+// 2. Popular Series / Top Series
+// 3. Popular Movie / Top Movies
+// 4. Action & Thriller
+// 5. Anime / English Dubbed Animation
+// 6. Romance
+// 7. K-Drama
+// 8. Superhero Series
+// 9. Horror Movies
+// 10. Rest of catalog
+// Trailing (Bottom): Cinema, Hot Shorts, Coming Soon
 function orderHomeRows(sections) {
   const rows = (sections || []).filter(
     (s) => sectionName(s) !== "banner" && s.movies?.length
@@ -90,17 +101,45 @@ function orderHomeRows(sections) {
     return rows.splice(idx, 1)[0];
   };
 
-  const trending = takeFirst([/^trending now$/, /trending/]);
-  const comingSoon = takeFirst([/coming\s*soon/]);
+  // High-priority top rows
+  const trending = takeFirst([/^trending now$/, /^trending$/, /trending/]);
+  const popularSeries = takeFirst([/popular series/, /top series/, /trending dramas/]);
+  const popularMovies = takeFirst([/popular movie/, /top movie/, /trending movie/]);
+  const actionThriller = takeFirst([/action\s*&\s*thriller/, /^action$/, /action/]);
+  const anime = takeFirst([/anime/, /animation/]);
+  const romance = takeFirst([/romance/]);
+  const kdrama = takeFirst([/k-drama/, /korea/]);
+  const superhero = takeFirst([/superhero/]);
+  const horror = takeFirst([/horror/]);
+
+  // Trailing exploration rows (placed at bottom)
   const cinema = takeFirst([/^cinema$/, /cinema/]);
   const shorts = takeFirst([/hot\s*short/, /short\s*tv/]);
+  const comingSoon = takeFirst([/coming\s*soon/]);
 
-  // Drop duplicate trending rows so they don't appear again below
+  // Drop duplicate trending rows
   const rest = rows.filter((s) => !matchesSection(s, [/^trending now$/, /^trending$/]));
+
+  const curatedTop = [
+    popularSeries,
+    popularMovies,
+    actionThriller,
+    anime,
+    romance,
+    kdrama,
+    superhero,
+    horror,
+  ].filter(Boolean);
+
+  const bottomExploration = [
+    cinema,
+    shorts,
+    comingSoon,
+  ].filter(Boolean);
 
   return {
     trending,
-    ordered: [comingSoon, cinema, shorts, ...rest].filter(Boolean),
+    ordered: [...curatedTop, ...rest, ...bottomExploration],
   };
 }
 
