@@ -44,6 +44,7 @@ import {
   packKeyFromItem,
   subscribeDownloads,
   subtitleFileNameFor,
+  downloadSubtitleForDownload,
 } from "../lib/downloads";
 import { getEpisodes } from "../lib/api";
 
@@ -957,6 +958,27 @@ export default function PlayScreen() {
                 break;
               }
             }
+
+            // If no subtitle file was found locally yet, try downloading in background
+            downloadSubtitleForDownload(item)
+              .then(async (fetchedUri) => {
+                if (!fetchedUri || cancelled) return;
+                const vttText = await FileSystem.readAsStringAsync(fetchedUri, {
+                  encoding: FileSystem.EncodingType.UTF8,
+                });
+                const offlineTrack = makeSubtitleTrack({
+                  vttText,
+                  label: item.subtitleLabel || "English (Offline)",
+                  srclang: "en",
+                  source: "download",
+                });
+                setSubtitles((prev) => {
+                  const filtered = prev.filter((t) => t.source !== "download");
+                  return [offlineTrack, ...filtered];
+                });
+                setActiveSubId((prev) => (prev === "off" ? offlineTrack.id : prev));
+              })
+              .catch(() => {});
           } catch {
             // ignore offline subtitle error
           }

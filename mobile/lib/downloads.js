@@ -188,11 +188,17 @@ export async function hydrateDownloads() {
       }
     } catch {
       // empty store
-    } finally {
       hydrated = true;
       hydratePromise = null;
       emit(true);
       pumpQueue();
+
+      // Check if any completed or active downloads are missing offline subtitles
+      for (const row of items.values()) {
+        if (!row.subtitleUri && row.status !== "failed" && !row.pending) {
+          downloadSubtitleForDownload(row).catch(() => {});
+        }
+      }
     }
   })();
   return hydratePromise;
@@ -334,42 +340,104 @@ export async function downloadSubtitleForDownload(item) {
     await ensureRoot();
     const fileName = subtitleFileNameFor(item);
     const subUri = `${ROOT}${fileName}`;
-    const info = await FileSystem.getInfoAsync(subUri);
-    if (info.exists && info.size > 80) {
+    const mediaVttUri = item.fileUri ? item.fileUri.replace(/\.[a-zA-Z0-9]+$/, ".vtt") : "";
+
+    // 1. If already downloaded and valid on disk, update item record and return
+    const info = await FileSystem.getInfoAsync(subUri).catch(() => ({}));
+    if (info.exists && (info.size == null || info.size > 80)) {
       if (item.id && !items.get(item.id)?.subtitleUri) {
         patch(item.id, { subtitleUri: subUri });
       }
       return subUri;
     }
 
+    if (mediaVttUri) {
+      const mInfo = await FileSystem.getInfoAsync(mediaVttUri).catch(() => ({}));
+      if (mInfo.exists && (mInfo.size == null || mInfo.size > 80)) {
+        if (item.id && !items.get(item.id)?.subtitleUri) {
+          patch(item.id, { subtitleUri: mediaVttUri });
+        }
+        return mediaVttUri;
+      }
+    }
+
     const query = cleanSearchTitle(item.title, item.detailPath);
     if (!query) return null;
 
-    const params = {
-      query,
-      languages: "en",
-    };
-    if (Number(item.se) > 0) params.season = String(item.se);
-    if (Number(item.ep) > 0) params.episode = String(item.ep);
-    if (Number(item.se) > 0 || Number(item.ep) > 0) params.type = "episode";
-    else params.type = "movie";
+    let results = [];
+    const isEpisode = Number(item.se) > 0 || Number(item.ep) > 0;
 
-    const searchData = await searchSubtitles(params);
-    const results = Array.isArray(searchData?.results) ? searchData.results : [];
+    // 2. Try search with season & episode if it is a TV series episode
+    if (isEpisode) {
+      const searchData = await searchSubtitles({
+        query,
+        season: String(item.se || 1),
+        episode: String(item.ep || 1),
+        type: "episode",
+        languages: "en",
+      }).catch(() => ({}));
+      if (Array.isArray(searchData?.results) && searchData.results.length) {
+        results = searchData.results;
+      }
+    }
+
+    // 3. If no results, try formatted series query e.g. "Game of Thrones S01E01"
+    if (!results.length && isEpisode) {
+      const seTag = `S${String(item.se || 1).padStart(2, "0")}E${String(item.ep || 1).padStart(2, "0")}`;
+      const searchData = await searchSubtitles({
+        query: `${query} ${seTag}`,
+        languages: "en",
+      }).catch(() => ({}));
+      if (Array.isArray(searchData?.results) && searchData.results.length) {
+        results = searchData.results;
+      }
+    }
+
+    // 4. Try standard movie / base title query
+    if (!results.length) {
+      const searchData = await searchSubtitles({
+        query,
+        type: isEpisode ? undefined : "movie",
+        languages: "en",
+      }).catch(() => ({}));
+      if (Array.isArray(searchData?.results) && searchData.results.length) {
+        if (isEpisode) {
+          // If we found general show results, try matching the specific episode
+          const epMatch = searchData.results.find(
+            (r) =>
+              String(r.season) === String(item.se) &&
+              String(r.episode) === String(item.ep)
+          );
+          results = epMatch ? [epMatch] : searchData.results;
+        } else {
+          results = searchData.results;
+        }
+      }
+    }
+
     if (!results.length) return null;
 
     const topMatch = results[0];
     const dlData = await downloadSubtitle(topMatch.file_id);
     if (!dlData?.ok || !dlData.vtt) return null;
 
+    // Save in flick-dl/
     await FileSystem.writeAsStringAsync(subUri, dlData.vtt, {
       encoding: FileSystem.EncodingType.UTF8,
     });
 
+    // Also save alongside the media file for direct player discovery
+    if (mediaVttUri && mediaVttUri !== subUri) {
+      await FileSystem.writeAsStringAsync(mediaVttUri, dlData.vtt, {
+        encoding: FileSystem.EncodingType.UTF8,
+      }).catch(() => {});
+    }
+
+    const label = dlData.label || topMatch.file_name || "English Subtitles";
     if (item.id) {
       patch(item.id, {
         subtitleUri: subUri,
-        subtitleLabel: dlData.label || topMatch.file_name || "English Subtitles",
+        subtitleLabel: label,
       });
     }
 
@@ -579,11 +647,12 @@ async function startTask(id) {
 
   patch(id, { status: "downloading", error: undefined }, { emitNow: true });
 
+  const latest = items.get(id) || item;
+
   // Pre-fetch subtitles in background while user is connected
   downloadSubtitleForDownload(latest).catch(() => {});
 
   const callback = (data) => onProgress(id, data);
-  const latest = items.get(id) || item;
 
 
   let task;
@@ -785,6 +854,10 @@ export async function enqueueDownload({
   schedulePersist();
   emit(true);
   pumpQueue();
+
+  // Immediately download subtitles in background when enqueued
+  downloadSubtitleForDownload(item).catch(() => {});
+
   return item;
 }
 
