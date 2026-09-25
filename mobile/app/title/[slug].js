@@ -1,5 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -257,10 +257,13 @@ export default function TitleScreen() {
       .filter(Boolean)
       .slice(0, 24);
   }, [meta.top_cast, meta.related]);
-  const genres = String(meta.genre || "")
-    .split(/[,/|]/)
-    .map((g) => g.trim())
-    .filter(Boolean);
+  const genreString = String(meta.genre || "");
+  const genres = useMemo(() => {
+    return genreString
+      .split(/[,/|]/)
+      .map((g) => g.trim())
+      .filter(Boolean);
+  }, [genreString]);
   const durationLabel = formatDuration(meta.duration);
   const description = meta.description || "No description available.";
   const descriptionNeedsToggle =
@@ -291,14 +294,28 @@ export default function TitleScreen() {
     );
   }, [meta.related]);
 
-  // Dynamically fetch related movies when category changes
-  useEffect(() => {
-    let cancelled = false;
-    const query =
-      selectedCategory === "All"
-        ? (genres[0] || (isSeries ? "series" : "movie"))
-        : selectedCategory;
+  // In-memory cache for category search results to prevent infinite loops and repeated fetches
+  const categoryCacheRef = useRef({});
 
+  // Dynamically fetch related movies when category changes or More Like This tab is active
+  useEffect(() => {
+    // If not on "more" tab and server related items already exist, defer
+    if (activeTab !== "more" && validServerRelated.length > 0) return;
+
+    const firstGenre = genres[0] || (isSeries ? "series" : "movie");
+    const query = selectedCategory === "All" ? firstGenre : selectedCategory;
+
+    if (!query) return;
+
+    // Check if result is already in memory cache
+    const cacheKey = `${slug || ""}:${query}`;
+    if (categoryCacheRef.current[cacheKey]) {
+      setCategoryMovies(categoryCacheRef.current[cacheKey]);
+      setCategoryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     setCategoryLoading(true);
     searchTitles(query)
       .then((res) => {
@@ -310,6 +327,7 @@ export default function TitleScreen() {
             m.slug !== slug &&
             String(m.subject_id || "") !== String(subjectId || "")
         );
+        categoryCacheRef.current[cacheKey] = list;
         setCategoryMovies(list);
       })
       .catch(() => {
@@ -322,7 +340,7 @@ export default function TitleScreen() {
     return () => {
       cancelled = true;
     };
-  }, [selectedCategory, genres, isSeries, slug, subjectId]);
+  }, [selectedCategory, activeTab, genres, isSeries, slug, subjectId, validServerRelated.length]);
 
   const displayRelated = useMemo(() => {
     if (selectedCategory === "All" && validServerRelated.length > 0) {
