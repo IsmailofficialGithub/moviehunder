@@ -136,6 +136,7 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="title/[slug]" options={{ headerShown: false }} />
                 <Stack.Screen name="shorts/[slug]" options={{ headerShown: false }} />
+                <Stack.Screen name="series-detail" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="play"
                   options={{

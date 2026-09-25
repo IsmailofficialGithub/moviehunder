@@ -1,7 +1,9 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,7 +18,7 @@ import EmptyState from "../../components/EmptyState";
 import ProgressBorder from "../../components/ProgressBorder";
 import PosterCard from "../../components/PosterCard";
 import TitleSkeleton from "../../components/TitleSkeleton";
-import { getDetail, getEpisodes } from "../../lib/api";
+import { getDetail, getEpisodes, searchTitles } from "../../lib/api";
 import {
   hydrateDownloads,
   progressOf as downloadProgressOf,
@@ -76,6 +78,12 @@ export default function TitleScreen() {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState(null);
   const [downloadItems, setDownloadItems] = useState([]);
+  const [activeTab, setActiveTab] = useState("episodes");
+  const [seasonPickerVisible, setSeasonPickerVisible] = useState(false);
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [categoryMovies, setCategoryMovies] = useState([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
 
   useEffect(() => subscribeWatchProgress(setWatchEntries), []);
   useEffect(() => {
@@ -159,6 +167,25 @@ export default function TitleScreen() {
   const related = Array.isArray(meta.related) ? meta.related.slice(0, 18) : [];
   const visibleRelated = relatedExpanded ? related : related.slice(0, 6);
   const subjectId = meta.id || episodes?.subject_id;
+
+  // Netflix tab options
+  const tabs = useMemo(() => {
+    if (isSeries) {
+      return [
+        { key: "episodes", label: "Episodes" },
+        { key: "collection", label: "Collection" },
+        { key: "more", label: "More Like This" },
+      ];
+    }
+    return [
+      { key: "more", label: "More Like This" },
+      { key: "details", label: "Details" },
+    ];
+  }, [isSeries]);
+
+  useEffect(() => {
+    setActiveTab(isSeries ? "episodes" : "more");
+  }, [isSeries]);
   const watchMap = useMemo(
     () => new Map(watchEntries.map((entry) => [entry.key, entry])),
     [watchEntries]
@@ -196,28 +223,40 @@ export default function TitleScreen() {
   const movieDownload = downloadFor("0", "0");
   const movieDownloadPct = Math.round(downloadProgressOf(movieDownload) * 100);
   const castPeople = useMemo(() => {
-    const list = Array.isArray(meta.top_cast) ? meta.top_cast : [];
+    const list = Array.isArray(meta.top_cast) && meta.top_cast.length
+      ? meta.top_cast
+      : Array.isArray(meta.related)
+        ? meta.related.filter((item) => item?.staffId || item?.staffType || (!item?.subject_type && item?.name))
+        : [];
+
     return list
       .map((person, i) => {
         const name = castName(person);
         if (!name) return null;
         const avatar =
-          typeof person?.avatarUrl === "string" &&
-          /^https?:\/\//i.test(person.avatarUrl)
-            ? person.avatarUrl
-            : null;
+          (typeof person?.avatarUrl === "string" && /^https?:\/\//i.test(person.avatarUrl) && person.avatarUrl) ||
+          (typeof person?.avatar === "string" && /^https?:\/\//i.test(person.avatar) && person.avatar) ||
+          (typeof person?.image === "string" && /^https?:\/\//i.test(person.image) && person.image) ||
+          (typeof person?.avatar_url === "string" && /^https?:\/\//i.test(person.avatar_url) && person.avatar_url) ||
+          (typeof person?.profile_path === "string" && /^https?:\/\//i.test(person.profile_path) && person.profile_path) ||
+          (typeof person?.cover?.url === "string" && /^https?:\/\//i.test(person.cover.url) && person.cover.url) ||
+          null;
         const role =
-          typeof person?.character === "string" ? person.character : "";
+          typeof person?.character === "string"
+            ? person.character
+            : typeof person?.role === "string"
+              ? person.role
+              : "";
         return {
-          key: `cast-${i}-${String(person?.staffId || name)}`,
+          key: `cast-${i}-${String(person?.staffId || person?.id || name)}`,
           name,
           avatar,
           role,
         };
       })
       .filter(Boolean)
-      .slice(0, 16);
-  }, [meta.top_cast]);
+      .slice(0, 24);
+  }, [meta.top_cast, meta.related]);
   const genres = String(meta.genre || "")
     .split(/[,/|]/)
     .map((g) => g.trim())
@@ -234,6 +273,72 @@ export default function TitleScreen() {
     meta.badge,
   ].filter(Boolean);
 
+  // Category filter options for More Like This
+  const categoryFilters = useMemo(() => {
+    const raw = genres.length
+      ? genres
+      : [isSeries ? "TV Series" : "Movies", "Drama", "Action"];
+    return ["All", ...raw.filter((g) => g.toLowerCase() !== "all")];
+  }, [genres, isSeries]);
+
+  const validServerRelated = useMemo(() => {
+    return (Array.isArray(meta.related) ? meta.related : []).filter(
+      (item) =>
+        item &&
+        (item.poster_url || item.poster || item.cover) &&
+        !item.staffId &&
+        !item.staffType
+    );
+  }, [meta.related]);
+
+  // Dynamically fetch related movies when category changes
+  useEffect(() => {
+    let cancelled = false;
+    const query =
+      selectedCategory === "All"
+        ? (genres[0] || (isSeries ? "series" : "movie"))
+        : selectedCategory;
+
+    setCategoryLoading(true);
+    searchTitles(query)
+      .then((res) => {
+        if (cancelled) return;
+        const list = (res?.movies || res?.items || []).filter(
+          (m) =>
+            m &&
+            (m.poster_url || m.poster || m.cover) &&
+            m.slug !== slug &&
+            String(m.subject_id || "") !== String(subjectId || "")
+        );
+        setCategoryMovies(list);
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryMovies([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCategoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategory, genres, isSeries, slug, subjectId]);
+
+  const displayRelated = useMemo(() => {
+    if (selectedCategory === "All" && validServerRelated.length > 0) {
+      const seen = new Set();
+      const merged = [];
+      for (const m of [...validServerRelated, ...categoryMovies]) {
+        if (m.slug && !seen.has(m.slug) && m.slug !== slug) {
+          seen.add(m.slug);
+          merged.push(m);
+        }
+      }
+      return merged;
+    }
+    return categoryMovies;
+  }, [selectedCategory, validServerRelated, categoryMovies, slug]);
+
   const openDownload = (se = "0", ep = "0") => {
     if (!subjectId) {
       Alert.alert("Unavailable", "Download isn’t available for this title.");
@@ -247,7 +352,7 @@ export default function TitleScreen() {
     });
   };
 
-  /** Series hero: pick quality, then queue the whole active season. */
+  // Series hero: pick quality, then queue the whole active season.
   const openSeasonDownload = () => {
     if (!subjectId) {
       Alert.alert("Unavailable", "Download isn’t available for this title.");
@@ -463,77 +568,156 @@ export default function TitleScreen() {
             </View>
           ) : null}
 
-          {isSeries ? (
-            <View style={styles.epsBlock}>
-              <Text style={styles.blockTitle}>
-                Episodes · {visibleEpisodes.length}/{episodeList.length}
+          {description ? (
+            <View style={{ marginTop: 2 }}>
+              <Text style={styles.desc} numberOfLines={descriptionExpanded ? undefined : 2}>
+                {description}
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {seasons.map((s) => (
-                  <Pressable
-                    key={`season-${s.season}`}
-                    onPress={() => {
-                      setSeason(s.season);
-                      setEpisodesExpanded(false);
-                    }}
-                    style={[
-                      styles.chip,
-                      String(s.season) === String(activeSeason?.season) &&
-                        styles.chipOn,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        String(s.season) === String(activeSeason?.season) &&
-                          styles.chipTextOn,
-                      ]}
-                    >
-                      Season {s.season}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <View style={styles.epGrid}>
-                {visibleEpisodes.map((ep) => {
-                  const watchPct = progressPercent(
-                    watchEntryFor(ep.se, ep.ep)
-                  );
+            </View>
+          ) : null}
+
+          <View style={styles.tabBar}>
+            {tabs.map((t) => {
+              const active = activeTab === t.key;
+              return (
+                <Pressable
+                  key={t.key}
+                  style={[styles.tabItem, active && styles.tabItemActive]}
+                  onPress={() => setActiveTab(t.key)}
+                >
+                  <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                    {t.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {isSeries && activeTab === "episodes" ? (
+            <View style={styles.epsSection}>
+              <View style={styles.seasonBar}>
+                <Pressable
+                  style={styles.seasonPickerBtn}
+                  onPress={() => setSeasonPickerVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Select Season"
+                >
+                  <Text style={styles.seasonPickerText}>
+                    {`Season ${activeSeason?.season ?? season ?? 1}`}
+                  </Text>
+                  <Ionicons name="caret-down" size={13} color="#ffffff" />
+                </Pressable>
+
+                <Pressable
+                  style={styles.infoBtn}
+                  onPress={() => setInfoModalVisible(true)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Information"
+                >
+                  <Ionicons name="information-circle-outline" size={24} color="#8c8c96" />
+                </Pressable>
+              </View>
+
+              <View style={styles.episodeList}>
+                {visibleEpisodes.map((ep, idx) => {
+                  const watchPct = progressPercent(watchEntryFor(ep.se, ep.ep));
                   const download = downloadFor(ep.se, ep.ep);
-                  const downloadPct = Math.round(downloadProgressOf(download) * 100);
+                  const isDownloaded = download?.status === "completed";
+                  const isDownloading =
+                    download &&
+                    (download.status === "downloading" ||
+                      download.status === "queued" ||
+                      download.pending);
+                  const epNum = ep.ep || idx + 1;
+                  const rawName = String(ep.name || "").trim();
+                  const cleanName = rawName.replace(/^episode\s*\d+\s*[-:]*\s*/i, "").trim();
+                  const epTitle = cleanName ? `${epNum}. ${cleanName}` : `${epNum}. Episode ${epNum}`;
+                  const epDuration =
+                    formatDuration(ep.duration) ||
+                    formatDuration(meta.duration) ||
+                    "48m";
+                  const epSynopsis =
+                    ep.description ||
+                    ep.overview ||
+                    meta.description ||
+                    `Episode ${epNum} of ${meta.title || "this series"}.`;
+                  const thumbUri = ep.thumbnail || ep.image || meta.poster;
+
                   return (
-                    <ProgressBorder
-                      key={`${ep.se}-${ep.ep}`}
-                      percent={watchPct}
-                      style={styles.epProgressBorder}
-                    >
-                      <View style={styles.epCell}>
+                    <View key={`${ep.se}-${ep.ep}-${idx}`} style={styles.episodeRow}>
+                      <View style={styles.episodeTop}>
                         <Pressable
-                          style={styles.epBtn}
+                          style={styles.episodeThumbWrap}
                           onPress={() => openPlay(ep.se, ep.ep)}
                         >
-                          <Text style={styles.epText} numberOfLines={1}>
-                            Ep {ep.ep}
-                            {watchPct > 0 ? ` · ${watchPct}%` : ""}
-                            {download ? ` · DL${downloadPct}%` : ""}
+                          {thumbUri ? (
+                            <Image
+                              source={{ uri: thumbUri }}
+                              style={styles.episodeThumb}
+                              contentFit="cover"
+                              cachePolicy="memory-disk"
+                            />
+                          ) : (
+                            <View style={[styles.episodeThumb, styles.posterEmpty]} />
+                          )}
+                          <View style={styles.thumbPlayCircle}>
+                            <Ionicons
+                              name="play"
+                              size={15}
+                              color="#ffffff"
+                              style={{ marginLeft: 2 }}
+                            />
+                          </View>
+                          {watchPct > 0 ? (
+                            <View style={styles.thumbWatchTrack}>
+                              <View
+                                style={[styles.thumbWatchFill, { width: `${watchPct}%` }]}
+                              />
+                            </View>
+                          ) : null}
+                        </Pressable>
+
+                        <Pressable
+                          style={styles.episodeMeta}
+                          onPress={() => openPlay(ep.se, ep.ep)}
+                        >
+                          <Text style={styles.episodeTitle} numberOfLines={2}>
+                            {epTitle}
+                          </Text>
+                          <Text style={styles.episodeDurationText}>
+                            {epDuration}
                           </Text>
                         </Pressable>
+
                         <Pressable
-                          style={styles.epDl}
+                          style={styles.episodeDlBtn}
                           onPress={() => openDownload(ep.se, ep.ep)}
-                          hitSlop={4}
+                          hitSlop={8}
+                          accessibilityLabel={`Download ${epTitle}`}
                         >
-                          <Ionicons
-                            name="download-outline"
-                            size={14}
-                            color={colors.accent}
-                          />
+                          {isDownloaded ? (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={22}
+                              color={colors.accentLight}
+                            />
+                          ) : isDownloading ? (
+                            <ActivityIndicator size="small" color={colors.accentLight} />
+                          ) : (
+                            <Ionicons name="download-outline" size={22} color="#ffffff" />
+                          )}
                         </Pressable>
                       </View>
-                    </ProgressBorder>
+
+                      <Text style={styles.episodeSynopsis} numberOfLines={3}>
+                        {epSynopsis}
+                      </Text>
+                    </View>
                   );
                 })}
               </View>
+
               {hasMoreEpisodes ? (
                 <Pressable
                   style={styles.episodesToggle}
@@ -547,110 +731,290 @@ export default function TitleScreen() {
                   <Ionicons
                     name={episodesExpanded ? "chevron-up" : "chevron-down"}
                     size={16}
-                    color={colors.accent}
+                    color={colors.accentLight}
                   />
                 </Pressable>
               ) : null}
             </View>
           ) : null}
 
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Overview</Text>
-            <Text style={styles.desc} numberOfLines={descriptionExpanded ? undefined : 3}>
-              {description}
-            </Text>
-            {descriptionNeedsToggle ? (
-              <Pressable
-                style={styles.descriptionToggle}
-                onPress={() => setDescriptionExpanded((value) => !value)}
-              >
-                <Text style={styles.descriptionToggleText}>
-                  {descriptionExpanded ? "Show less" : "Show more"}
-                </Text>
-                <Ionicons
-                  name={descriptionExpanded ? "chevron-up" : "chevron-down"}
-                  size={15}
-                  color={colors.accent}
-                />
-              </Pressable>
-            ) : null}
-          </View>
-
-          {castPeople.length ? (
-            <View style={styles.block}>
-              <Text style={styles.blockTitle}>Cast</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.castRow}
-              >
-                {castPeople.map((person) => (
-                  <View key={person.key} style={styles.castCard}>
-                    {person.avatar ? (
-                      <Image
-                        source={{ uri: person.avatar }}
-                        style={styles.avatar}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                      />
-                    ) : (
-                      <View style={[styles.avatar, styles.avatarEmpty]}>
-                        <Ionicons
-                          name="person"
-                          size={22}
-                          color={colors.muted}
-                        />
+          {isSeries && activeTab === "collection" ? (
+            <View style={styles.collectionBlock}>
+              {seasons.map((s) => {
+                const epCount = (s.episodes || []).length || s.episode_count || 0;
+                return (
+                  <View key={`coll-${s.season}`} style={styles.collectionCard}>
+                    <View style={styles.collectionCardHead}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.collectionSeasonTitle}>
+                          {`Season ${s.season}`}
+                        </Text>
+                        <Text style={styles.collectionSeasonSub}>
+                          {`${epCount} Episodes · Full Season HD`}
+                        </Text>
                       </View>
-                    )}
-                    <Text style={styles.castName} numberOfLines={2}>
-                      {person.name}
-                    </Text>
-                    {person.role ? (
-                      <Text style={styles.castRole} numberOfLines={1}>
-                        {person.role}
-                      </Text>
-                    ) : null}
+                      <Pressable
+                        style={styles.collectionDlBtn}
+                        onPress={() => {
+                          const first = s.episodes?.[0];
+                          setDlSheet({
+                            mode: "season",
+                            se: String(first?.se ?? s.season),
+                            ep: String(first?.ep ?? 1),
+                            season: s.season,
+                          });
+                        }}
+                      >
+                        <Ionicons
+                          name="cloud-download-outline"
+                          size={15}
+                          color={colors.accentInk}
+                        />
+                        <Text style={styles.collectionDlText}>Download</Text>
+                      </Pressable>
+                    </View>
                   </View>
-                ))}
-              </ScrollView>
+                );
+              })}
             </View>
           ) : null}
 
-          {related.length ? (
-            <View style={styles.block}>
-              <View style={styles.relatedHead}>
-                <Text style={styles.blockTitle}>Related</Text>
-                {related.length > 6 ? (
-                  <Pressable
-                    onPress={() => setRelatedExpanded((value) => !value)}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.relatedToggle}>
-                      {relatedExpanded ? "Show less" : "Show more"}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
+          {activeTab === "more" ? (
+            <View style={styles.moreLikeSection}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.relatedRow}
+                contentContainerStyle={styles.categoryFilterRow}
               >
-                {visibleRelated.map((item) => (
-                  <PosterCard
-                    key={item.slug}
-                    item={{
-                      ...item,
-                      poster_url: item.poster_url || item.poster,
-                    }}
-                    width={104}
-                  />
-                ))}
+                {categoryFilters.map((cat) => {
+                  const isSelected = selectedCategory === cat;
+                  return (
+                    <Pressable
+                      key={cat}
+                      style={[
+                        styles.categoryFilterChip,
+                        isSelected && styles.categoryFilterChipActive,
+                      ]}
+                      onPress={() => setSelectedCategory(cat)}
+                      hitSlop={6}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryFilterText,
+                          isSelected && styles.categoryFilterTextActive,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </ScrollView>
+
+              {categoryLoading ? (
+                <View style={styles.categoryLoader}>
+                  <ActivityIndicator size="small" color={colors.accentLight} />
+                  <Text style={styles.categoryLoaderText}>
+                    Searching {selectedCategory} titles…
+                  </Text>
+                </View>
+              ) : displayRelated.length ? (
+                <View style={styles.moreLikeGrid}>
+                  {displayRelated.map((item) => (
+                    <View key={item.slug || item.subject_id} style={styles.moreGridItem}>
+                      <PosterCard
+                        item={{
+                          ...item,
+                          poster_url: item.poster_url || item.poster || item.cover,
+                        }}
+                        width={106}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyTabText}>
+                  No related {selectedCategory} titles found.
+                </Text>
+              )}
+            </View>
+          ) : null}
+
+          {activeTab === "details" ? (
+            <View style={styles.detailsTabSection}>
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Overview</Text>
+                <Text style={styles.desc}>{description}</Text>
+              </View>
+              {castPeople.length ? (
+                <View style={styles.block}>
+                  <Text style={styles.blockTitle}>Cast</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.castRow}
+                  >
+                    {castPeople.map((person) => (
+                      <View key={person.key} style={styles.castCard}>
+                        {person.avatar ? (
+                          <Image
+                            source={{ uri: person.avatar }}
+                            style={styles.avatar}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                          />
+                        ) : (
+                          <View style={[styles.avatar, styles.avatarEmpty]}>
+                            <Ionicons name="person" size={22} color={colors.muted} />
+                          </View>
+                        )}
+                        <Text style={styles.castName} numberOfLines={2}>
+                          {person.name}
+                        </Text>
+                        {person.role ? (
+                          <Text style={styles.castRole} numberOfLines={1}>
+                            {person.role}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
             </View>
           ) : null}
         </ScrollView>
       )}
+
+      <Modal
+        visible={seasonPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSeasonPickerVisible(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setSeasonPickerVisible(false)}
+        >
+          <View style={styles.seasonSheet}>
+            <View style={styles.seasonSheetHeader}>
+              <Text style={styles.seasonSheetTitle}>Seasons</Text>
+              <Pressable
+                onPress={() => setSeasonPickerVisible(false)}
+                hitSlop={10}
+              >
+                <Ionicons name="close" size={22} color="#ffffff" />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {seasons.map((s) => {
+                const isSelected = String(s.season) === String(activeSeason?.season);
+                const epCount = (s.episodes || []).length || s.episode_count || 0;
+                return (
+                  <Pressable
+                    key={`picker-${s.season}`}
+                    style={[styles.seasonSheetItem, isSelected && styles.seasonSheetItemActive]}
+                    onPress={() => {
+                      setSeason(s.season);
+                      setEpisodesExpanded(false);
+                      setSeasonPickerVisible(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.seasonSheetItemText,
+                        isSelected && styles.seasonSheetItemTextActive,
+                      ]}
+                    >
+                      {`Season ${s.season}`}
+                    </Text>
+                    {epCount > 0 ? (
+                      <Text style={styles.seasonSheetItemCount}>
+                        {`${epCount} episodes`}
+                      </Text>
+                    ) : null}
+                    {isSelected ? (
+                      <Ionicons name="checkmark" size={18} color="#E50914" />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={infoModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setInfoModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setInfoModalVisible(false)}
+        >
+          <View style={styles.infoSheet}>
+            <View style={styles.infoSheetHeader}>
+              <Text style={styles.infoSheetTitle}>{meta.title || slug}</Text>
+              <Pressable onPress={() => setInfoModalVisible(false)} hitSlop={10}>
+                <Ionicons name="close" size={22} color="#ffffff" />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 450 }} contentContainerStyle={{ gap: 14 }}>
+              <Text style={styles.infoSynopsis}>{description}</Text>
+              {genres.length > 0 && (
+                <View style={styles.infoGenreRow}>
+                  <Text style={styles.infoLabel}>Genres: </Text>
+                  <Text style={styles.infoVal}>{genres.join(", ")}</Text>
+                </View>
+              )}
+              {meta.country ? (
+                <View style={styles.infoGenreRow}>
+                  <Text style={styles.infoLabel}>Country: </Text>
+                  <Text style={styles.infoVal}>{meta.country}</Text>
+                </View>
+              ) : null}
+              {meta.release_date ? (
+                <View style={styles.infoGenreRow}>
+                  <Text style={styles.infoLabel}>Released: </Text>
+                  <Text style={styles.infoVal}>{meta.release_date}</Text>
+                </View>
+              ) : null}
+              {castPeople.length > 0 ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={styles.infoLabel}>Cast</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 12, marginTop: 8 }}
+                  >
+                    {castPeople.map((p) => (
+                      <View key={p.key} style={styles.infoCastCard}>
+                        {p.avatar ? (
+                          <Image
+                            source={{ uri: p.avatar }}
+                            style={styles.infoCastAvatar}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                          />
+                        ) : (
+                          <View style={[styles.infoCastAvatar, styles.avatarEmpty]}>
+                            <Ionicons name="person" size={16} color={colors.muted} />
+                          </View>
+                        )}
+                        <Text style={styles.infoCastName} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
       <DownloadSheet
         visible={!!dlSheet}
         onClose={closeDlSheet}
@@ -920,68 +1284,365 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 12,
   },
-  epsBlock: {
-    gap: spacing.sm,
+  // Netflix Tab Bar
+  tabBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
+    marginTop: 8,
+    marginBottom: spacing.md,
+    gap: 22,
   },
-  chip: {
+  tabItem: {
+    paddingVertical: 10,
+    borderTopWidth: 3,
+    borderTopColor: "transparent",
+  },
+  tabItemActive: {
+    borderTopColor: "#E50914",
+  },
+  tabLabel: {
+    color: "#8c8c96",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  tabLabelActive: {
+    color: "#ffffff",
+  },
+
+  // Season Bar
+  seasonBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+  },
+  seasonPickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#222228",
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  seasonPickerText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  infoBtn: {
+    padding: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Episode List (Netflix Style)
+  epsSection: {
+    gap: 4,
+  },
+  episodeList: {
+    gap: 16,
+  },
+  episodeRow: {
+    gap: 8,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+  },
+  episodeTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  episodeThumbWrap: {
+    width: 124,
+    height: 70,
+    borderRadius: 6,
+    overflow: "hidden",
+    backgroundColor: colors.panel,
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  episodeThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbPlayCircle: {
+    position: "absolute",
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thumbWatchTrack: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  thumbWatchFill: {
+    height: 3,
+    backgroundColor: "#E50914",
+  },
+  episodeMeta: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 3,
+  },
+  episodeTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  episodeDurationText: {
+    color: "#8c8c96",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  episodeDlBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  episodeSynopsis: {
+    color: "#9a9aa3",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  // Collection
+  collectionBlock: {
+    gap: 12,
+  },
+  collectionCard: {
+    backgroundColor: colors.panel,
+    borderRadius: radii.md,
+    padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.panel,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 8,
   },
-  chipOn: {
+  collectionCardHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  collectionSeasonTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  collectionSeasonSub: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 3,
+  },
+  collectionDlBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+  },
+  collectionDlText: {
+    color: colors.accentInk,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // More Like This Grid (3 Columns)
+  moreLikeSection: {
+    marginTop: 4,
+  },
+  categoryFilterRow: {
+    gap: 8,
+    paddingBottom: 14,
+  },
+  categoryFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+    backgroundColor: "#1f1f25",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  categoryFilterChipActive: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
-  chipText: {
-    color: colors.text,
-    fontWeight: "600",
+  categoryFilterText: {
+    color: "#8c8c96",
+    fontSize: 12,
+    fontWeight: "700",
   },
-  chipTextOn: {
-    color: colors.accentInk,
+  categoryFilterTextActive: {
+    color: "#ffffff",
   },
-  epGrid: {
+  categoryLoader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: spacing.lg,
+  },
+  categoryLoaderText: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  moreLikeGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 4,
+    justifyContent: "space-between",
   },
-  epCell: {
+  moreGridItem: {
+    width: "31%",
+    marginBottom: 8,
+  },
+  emptyTabText: {
+    color: colors.muted,
+    fontSize: 13,
+    textAlign: "center",
+    paddingVertical: spacing.lg,
+  },
+
+  // Details Tab
+  detailsTabSection: {
+    gap: spacing.md,
+  },
+
+  // Modals (Season Picker & Info)
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    justifyContent: "flex-end",
+  },
+  seasonSheet: {
+    backgroundColor: "#16161a",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  seasonSheetHeader: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.panel,
-    borderRadius: 8,
-    overflow: "hidden",
-    height: 34,
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
+    marginBottom: 8,
   },
-  epProgressBorder: {
-    borderRadius: 9,
-  },
-  epBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 0,
-    minWidth: 46,
-    height: 34,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  epDl: {
-    paddingHorizontal: 6,
-    paddingVertical: 0,
-    height: 34,
-    justifyContent: "center",
-    borderLeftWidth: 1,
-    borderLeftColor: colors.line,
-  },
-  epText: {
+  seasonSheetTitle: {
     color: colors.text,
-    fontWeight: "600",
-    fontSize: 11,
-    maxWidth: 78,
+    fontSize: 16,
+    fontWeight: "700",
   },
+  seasonSheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+  },
+  seasonSheetItemActive: {
+    backgroundColor: "rgba(229, 9, 20, 0.08)",
+    borderRadius: radii.sm,
+  },
+  seasonSheetItemText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  seasonSheetItemTextActive: {
+    color: "#ffffff",
+    fontWeight: "800",
+  },
+  seasonSheetItemCount: {
+    color: colors.muted,
+    fontSize: 12,
+    marginRight: 8,
+  },
+
+  infoSheet: {
+    backgroundColor: "#16161a",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: spacing.md,
+    paddingBottom: spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  infoSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
+  },
+  infoSheetTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 10,
+  },
+  infoSynopsis: {
+    color: "#d1d1d6",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  infoGenreRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  infoLabel: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  infoVal: {
+    color: colors.text,
+    fontSize: 13,
+  },
+  infoCastCard: {
+    alignItems: "center",
+    width: 64,
+  },
+  infoCastAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.panel,
+    marginBottom: 4,
+  },
+  infoCastName: {
+    color: colors.text,
+    fontSize: 10,
+    textAlign: "center",
+  },
+
   episodesToggle: {
     flexDirection: "row",
     alignItems: "center",
@@ -992,7 +1653,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panelSoft,
   },
   episodesToggleText: {
-    color: colors.accent,
+    color: colors.accentLight,
     fontWeight: "800",
     fontSize: 12,
   },

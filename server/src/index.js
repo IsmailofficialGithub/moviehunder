@@ -1158,12 +1158,16 @@ async function handleDetail(slug) {
     if (Array.isArray(resolved.reviews) && resolved.reviews.length) {
       userReviews = resolved.reviews;
     }
-    for (const value of Object.values(resolved)) {
+    for (const [key, value] of Object.entries(resolved)) {
       if (!Array.isArray(value)) continue;
+      // Skip cast and crew arrays so actors are not mixed into related movies
+      if (/cast|staff|actor|director|writer/i.test(key)) continue;
       for (const item of value) {
         if (
           item &&
           typeof item === "object" &&
+          !item.staffId &&
+          !item.staffType &&
           (item.detailPath || item.slug) &&
           (item.title || item.name)
         ) {
@@ -1179,14 +1183,20 @@ async function handleDetail(slug) {
     const relatedSlug = item.detailPath || item.slug;
     const relatedName = item.title || item.name;
     if (!relatedSlug || !relatedName || relatedSlug === slug) return null;
+    const poster =
+      item.cover?.url ||
+      item.thumbnail ||
+      item.image?.url ||
+      item.poster ||
+      item.poster_url ||
+      item.posterUrl ||
+      null;
+    // Filter out cast/staff items or items without posters
+    if (!poster || item.staffId || item.staffType) return null;
+
     const normalized = {
       name: String(relatedName),
-      poster_url:
-        item.cover?.url ||
-        item.thumbnail ||
-        item.image?.url ||
-        item.poster ||
-        null,
+      poster_url: poster,
       slug: String(relatedSlug),
       badge: item.corner || item.badge || null,
       year: item.releaseDate || item.year || null,

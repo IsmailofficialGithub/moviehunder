@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import ProgressBorder from "../components/ProgressBorder";
 import DownloadSheet from "../components/DownloadSheet";
@@ -112,20 +113,21 @@ function IconBtn({ name, color, onPress, danger }) {
       hitSlop={8}
       accessibilityLabel={name}
     >
-      <Ionicons name={name} size={14} color={color || colors.accentLight} />
+      <Ionicons name={name} size={15} color={color || colors.accentLight} />
     </Pressable>
   );
 }
 
 const ib = StyleSheet.create({
   btn: {
-    backgroundColor: colors.panelSoft,
-    borderRadius: radii.sm,
-    padding: 7,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderRadius: radii.pill,
+    width: 30,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
   },
-  btnDanger: { backgroundColor: "rgba(248,113,113,0.12)" },
+  btnDanger: { backgroundColor: "rgba(239, 68, 68, 0.12)" },
 });
 
 function EpCard({ item, watchMap, onPlay, onPause, onResume, onDelete }) {
@@ -160,94 +162,187 @@ function EpCard({ item, watchMap, onPlay, onPause, onResume, onDelete }) {
 
   return (
     <View style={ec.card}>
-      <ProgressBorder percent={watchPct} style={ec.labelWrap}>
-        <Text style={ec.epLabel}>
-          S{item.se}
-          {"\n"}E{item.ep}
-        </Text>
-      </ProgressBorder>
-
-      <View style={ec.meta}>
-        <View style={ec.badgeRow}>
-          {q ? (
-            <View style={ec.qBadge}>
-              <Text style={ec.qText}>{q}</Text>
+      <View style={ec.topRow}>
+        <Pressable
+          style={ec.thumbWrap}
+          onPress={() => (showPlay ? onPlay(item) : canResume ? onResume(item) : null)}
+        >
+          {item.poster ? (
+            <Image
+              source={{ uri: item.poster }}
+              style={ec.thumb}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
+          ) : (
+            <View style={[ec.thumb, ec.thumbFallback]}>
+              <Ionicons name="film-outline" size={20} color={colors.muted} />
+            </View>
+          )}
+          <View style={ec.thumbPlayCircle}>
+            <Ionicons name={active ? "pause" : "play"} size={13} color="#ffffff" style={{ marginLeft: active ? 0 : 2 }} />
+          </View>
+          {watchPct > 0 ? (
+            <View style={ec.thumbWatchTrack}>
+              <View style={[ec.thumbWatchFill, { width: `${watchPct}%` }]} />
             </View>
           ) : null}
-          <StatusPill status={item.status} pending={item.pending} />
+          {(active || item.status === "paused" || item.pending) && dlPct > 0 ? (
+            <View style={ec.thumbDlTrack}>
+              <View style={[ec.thumbDlFill, { width: `${dlPct}%` }]} />
+            </View>
+          ) : null}
+        </Pressable>
+
+        <View style={ec.meta}>
+          <Text style={ec.epTitle} numberOfLines={1}>
+            {`S${item.se} · Episode ${item.ep}`}
+          </Text>
+          <View style={ec.badgeRow}>
+            {q ? (
+              <View style={ec.qBadge}>
+                <Text style={ec.qText}>{q}</Text>
+              </View>
+            ) : null}
+            <StatusPill status={item.status} pending={item.pending} />
+          </View>
+          {sizeStr ? (
+            <Text style={ec.sizeText} numberOfLines={1}>{sizeStr}</Text>
+          ) : null}
         </View>
 
-        {(active || item.status === "paused" || item.pending) ? (
-          <View style={ec.track}>
-            <View style={[ec.fill, { width: `${dlPct}%` }]} />
-          </View>
-        ) : null}
-
-        {sizeStr ? (
-          <Text style={ec.sizeText} numberOfLines={1}>{sizeStr}</Text>
-        ) : null}
-
-        {watchPct > 0 ? (
-          <Text style={ec.watchText}>{watchPct}% watched</Text>
-        ) : null}
-
-        {partial && !active ? (
-          <Text style={ec.partialText}>Partial · may stop early</Text>
-        ) : null}
+        <View style={ec.actions}>
+          {showPlay ? (
+            <IconBtn name="play" color={colors.accentLight} onPress={() => onPlay(item)} />
+          ) : null}
+          {active ? (
+            <IconBtn name="pause" color={colors.muted} onPress={() => onPause(item)} />
+          ) : null}
+          {canResume ? (
+            <IconBtn name="refresh" color={colors.accentLight} onPress={() => onResume(item)} />
+          ) : null}
+          <IconBtn name="trash-bin-outline" color={colors.danger} onPress={() => onDelete(item)} danger />
+        </View>
       </View>
 
-      <View style={ec.actions}>
-        {showPlay ? (
-          <IconBtn name="play" color={colors.accentLight} onPress={() => onPlay(item)} />
-        ) : null}
-        {active ? (
-          <IconBtn name="pause" color={colors.muted} onPress={() => onPause(item)} />
-        ) : null}
-        {canResume ? (
-          <IconBtn name="refresh" color={colors.accentLight} onPress={() => onResume(item)} />
-        ) : null}
-        <IconBtn name="trash-outline" color={colors.danger} onPress={() => onDelete(item)} danger />
-      </View>
+      {item.description ? (
+        <Text style={ec.synopsis} numberOfLines={3}>{item.description}</Text>
+      ) : null}
     </View>
   );
 }
 
 const ec = StyleSheet.create({
   card: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: spacing.md,
-    paddingVertical: 11,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
+    gap: 8,
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
-  labelWrap: { width: 42 },
-  epLabel: { fontSize: 12, fontWeight: "700", color: colors.text, textAlign: "center", lineHeight: 16 },
-  meta: { flex: 1, gap: 5 },
-  badgeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  thumbWrap: {
+    width: 112,
+    height: 64,
+    borderRadius: 6,
+    overflow: "hidden",
+    backgroundColor: colors.panel,
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  thumb: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thumbPlayCircle: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thumbWatchTrack: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  thumbWatchFill: {
+    height: 3,
+    backgroundColor: "#E50914",
+  },
+  thumbDlTrack: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+  },
+  thumbDlFill: {
+    height: 2,
+    backgroundColor: colors.accentLight,
+  },
+  meta: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 4,
+  },
+  epTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   qBadge: {
     backgroundColor: colors.accentMuted,
     borderRadius: radii.pill,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
-  qText: { fontSize: 11, fontWeight: "700", color: colors.accentLight },
-  track: {
-    height: 2,
-    backgroundColor: colors.line,
-    borderRadius: 1,
-    overflow: "hidden",
+  qText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.accentLight,
   },
-  fill: { height: "100%", backgroundColor: colors.accentLight, borderRadius: 1 },
-  sizeText: { fontSize: 11, color: colors.muted },
-  watchText: { fontSize: 11, color: colors.accentLight },
-  partialText: { fontSize: 11, color: colors.muted, fontStyle: "italic" },
-  actions: { flexDirection: "row", gap: 6, alignItems: "center" },
+  sizeText: {
+    fontSize: 11,
+    color: colors.muted,
+  },
+  synopsis: {
+    color: "#9a9aa3",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+  },
 });
 
 export default function SeriesDetailScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const packKey = params.packKey ? decodeURIComponent(String(params.packKey)) : "";
   const [subjectId, detailPath] = packKey.split("|");
@@ -444,20 +539,36 @@ export default function SeriesDetailScreen() {
 
   const title = pack?.title || "Series";
 
+  // Top navigation bar
   return (
     <View style={s.root}>
-      <View style={s.header}>
-        <Pressable style={s.backBtn} onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
-        </Pressable>
-        <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
+      <View style={[s.header, { paddingTop: Math.max(insets.top, 10) }]}>
         <Pressable
-          style={s.headerTrash}
+          style={s.backBtn}
+          onPress={() => {
+            if (typeof router.canGoBack === "function" && router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)/downloads");
+            }
+          }}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron-back" size={24} color={colors.accentLight || colors.accent} />
+        </Pressable>
+        <Text style={s.headerTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <Pressable
+          style={s.headerDeleteBtn}
           onPress={onDeleteAll}
           hitSlop={12}
+          accessibilityRole="button"
           accessibilityLabel="Delete all episodes"
         >
-          <Ionicons name="trash-outline" size={16} color={colors.danger} />
+          <Ionicons name="trash-bin-outline" size={18} color={colors.danger} />
         </Pressable>
       </View>
 
@@ -481,7 +592,6 @@ export default function SeriesDetailScreen() {
             </View>
           )}
           <View style={s.heroText}>
-            <Text style={s.heroTitle} numberOfLines={3}>{title}</Text>
             <View style={s.statRow}>
               <View style={s.statChip}>
                 <Ionicons name="film-outline" size={11} color={colors.muted} />
@@ -516,7 +626,7 @@ export default function SeriesDetailScreen() {
 
         <View style={s.actions}>
           <Pressable style={s.btnPrimary} onPress={onDownloadAll}>
-            <Ionicons name="cloud-download-outline" size={15} color={colors.accentInk} />
+            <Ionicons name="cloud-download-outline" size={13} color={colors.accentInk} />
             <Text style={s.btnPrimaryText}>Download All</Text>
           </Pressable>
           <Pressable
@@ -538,7 +648,7 @@ export default function SeriesDetailScreen() {
                     ? "chevron-up"
                     : "add-circle-outline"
               }
-              size={15}
+              size={13}
               color={colors.accentLight}
             />
             <Text style={s.btnSecondaryText}>
@@ -656,21 +766,22 @@ export default function SeriesDetailScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
 
-  // Header
+  // Top Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.xl,
-    paddingBottom: 12,
+    paddingBottom: 10,
+    backgroundColor: colors.bg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
-    gap: 8,
+    gap: 10,
   },
   backBtn: {
-    backgroundColor: colors.panelSoft,
-    borderRadius: radii.sm,
-    padding: 6,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -681,10 +792,11 @@ const s = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.2,
   },
-  headerTrash: {
-    backgroundColor: "rgba(248,113,113,0.12)",
-    borderRadius: radii.sm,
-    padding: 6,
+  headerDeleteBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -699,20 +811,13 @@ const s = StyleSheet.create({
     paddingBottom: 12,
   },
   poster: {
-    width: 80,
-    height: 116,
+    width: 72,
+    height: 104,
     borderRadius: radii.md,
     backgroundColor: colors.panel,
   },
   posterFallback: { alignItems: "center", justifyContent: "center" },
   heroText: { flex: 1, justifyContent: "center", gap: 8 },
-  heroTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.text,
-    lineHeight: 24,
-    letterSpacing: -0.3,
-  },
   statRow: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
   statChip: {
     flexDirection: "row",
@@ -737,32 +842,32 @@ const s = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
+    paddingBottom: 12,
   },
   btnPrimary: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: colors.accent,
-    paddingVertical: 10,
-    borderRadius: radii.md,
+    paddingVertical: 6,
+    paddingHorizontal: 13,
+    borderRadius: radii.pill,
   },
-  btnPrimaryText: { fontSize: 13, fontWeight: "700", color: colors.accentInk },
+  btnPrimaryText: { fontSize: 12, fontWeight: "700", color: colors.accentInk },
   btnSecondary: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    backgroundColor: colors.accentMuted,
+    gap: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
     borderWidth: 1,
-    borderColor: colors.accentBorder,
-    paddingVertical: 10,
-    borderRadius: radii.md,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    paddingVertical: 6,
+    paddingHorizontal: 13,
+    borderRadius: radii.pill,
   },
-  btnSecondaryText: { fontSize: 13, fontWeight: "700", color: colors.accentLight },
+  btnSecondaryText: { fontSize: 12, fontWeight: "600", color: colors.textDim },
   btnDisabled: { opacity: 0.5 },
 
   // Catalog card
