@@ -282,7 +282,7 @@ export default function DetailClient({ slug, detail, episodes }) {
 
           {meta.imdb_rating ? (
             <div className={styles.ratingBadge}>
-              <Star size={13} fill="#f6c443" color="#f6c443" />
+              <Star size={13} fill="var(--gold, #f5c518)" color="var(--gold, #f5c518)" />
               <span className={styles.ratingScore}>{meta.imdb_rating}</span>
               <span className={styles.ratingSource}>IMDb</span>
             </div>
@@ -310,7 +310,7 @@ export default function DetailClient({ slug, detail, episodes }) {
                 <BtnSpinner />
               ) : (
                 <>
-                  <Play size={16} fill="#111" color="#111" />
+                  <Play size={16} fill="currentColor" color="currentColor" />
                   <span>
                     {isSeries
                       ? `Play S${selectedSe}E${selectedEp}`
@@ -555,7 +555,7 @@ export default function DetailClient({ slug, detail, episodes }) {
                         goPlay(s.season, firstEp);
                       }}
                     >
-                      <Play size={12} fill="#111" />
+                      <Play size={12} fill="currentColor" color="currentColor" />
                       <span>Play Season</span>
                     </button>
                   </div>
