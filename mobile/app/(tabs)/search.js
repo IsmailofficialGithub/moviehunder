@@ -36,6 +36,8 @@ import {
   setCachedSearch,
   setLastSearchQuery,
 } from "../../lib/searchCache";
+import { colors, radii, spacing } from "../../lib/theme";
+
 // Quick discovery genres when search input is empty
 const DISCOVERY_GENRES = [
   { id: "trending", label: "🔥 Trending", query: "Trending" },
