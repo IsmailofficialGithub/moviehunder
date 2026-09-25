@@ -1,37 +1,35 @@
 {
-  "latest_version": "0.0.4",
-  "min_supported_version": "0.0.4",
+  "latest_version": "0.0.5",
+  "min_supported_version": "0.0.5",
   "update_type": "soft",
   "env": {
     "api_base": "",
     "play_relay": "",
     "app_client_key": ""
   },
-  "release_notes": "Offline series management with dedicated episode navigation, playback controls, remote dynamic environment config, and Google Play DEX code optimization.\n\nAdded\n- Dedicated Series Details screen for offline downloads with grouped episodes and bulk download actions\n- Next and Previous episode playback controls for both streaming and offline downloaded media\n- Auto-play next movie in downloads when finishing offline movie playback\n- Remote environment configuration (.env) hydrated dynamically from version.json without needing app rebuilds\n- Two-tier update engine: seamless background OTA soft updates and in-app APK installer\n- Hidden adult content toggle unlocked via security keyword\n\nChanged\n- Downloads tab groups series titles on top with badge counts and navigation to the new series episode viewer\n- Improved player controls layout and bottom navigation bar styling\n\nFixed\n- Google Play Console DEX code optimization warning resolved via R8 minification and resource shrinking\n- ProGuard rules configured for React Native and Hermes runtime stability\n- Removed deprecated Android edgeToEdgeEnabled property",
+  "release_notes": "Enhanced subtitle management with online SubDL search, appearance customization, offline subtitle downloading, and intuitive swipe controls.\n\nAdded\n- Online subtitle search powered by SubDL with custom title query input and language filters\n- Subtitle appearance settings: font size, text colors, background box styles, and elevation positioning\n- Automatic subtitle download alongside offline movies and TV series episodes\n- Swipe gestures in media player: left-side vertical swipe for brightness and right-side vertical swipe for volume\n- Batch 'Download All' and episode selection options on Series Details page and Season headers\n\nChanged\n- Modernized delete icons for single episode and bulk season removals in offline downloads\n- Improved subtitle synchronization and audio-dialogue alignment tools\n\nFixed\n- SubDL search error handling to prevent 502 Bad Gateway when titles are not matched\n- Offline subtitle loading and character encoding display",
   "release_metadata": {
-    "summary": "Offline series management with dedicated episode navigation, playback controls, remote dynamic environment config, and Google Play DEX code optimization.",
+    "summary": "Enhanced subtitle management with online SubDL search, appearance customization, offline subtitle downloading, and intuitive swipe controls.",
     "added": [
-      "Dedicated Series Details screen for offline downloads with grouped episodes and bulk download actions",
-      "Next and Previous episode playback controls for both streaming and offline downloaded media",
-      "Auto-play next movie in downloads when finishing offline movie playback",
-      "Remote environment configuration (.env) hydrated dynamically from version.json without needing app rebuilds",
-      "Two-tier update engine: seamless background OTA soft updates and in-app APK installer",
-      "Hidden adult content toggle unlocked via security keyword"
+      "Online subtitle search powered by SubDL with custom title query input and language filters",
+      "Subtitle appearance settings: font size, text colors, background box styles, and elevation positioning",
+      "Automatic subtitle download alongside offline movies and TV series episodes",
+      "Swipe gestures in media player: left-side vertical swipe for brightness and right-side vertical swipe for volume",
+      "Batch 'Download All' and episode selection options on Series Details page and Season headers"
     ],
     "changed": [
-      "Downloads tab groups series titles on top with badge counts and navigation to the new series episode viewer",
-      "Improved player controls layout and bottom navigation bar styling"
+      "Modernized delete icons for single episode and bulk season removals in offline downloads",
+      "Improved subtitle synchronization and audio-dialogue alignment tools"
     ],
     "fixed": [
-      "Google Play Console DEX code optimization warning resolved via R8 minification and resource shrinking",
-      "ProGuard rules configured for React Native and Hermes runtime stability",
-      "Removed deprecated Android edgeToEdgeEnabled property"
+      "SubDL search error handling to prevent 502 Bad Gateway when titles are not matched",
+      "Offline subtitle loading and character encoding display"
     ],
     "removed": []
   },
   "android": {
-    "version_code": 4,
-    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.4/moviehunter-0.0.4.apk",
+    "version_code": 5,
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.5/moviehunter-0.0.5.apk",
     "force": false
   }
 }
