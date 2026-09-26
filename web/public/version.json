@@ -1,35 +1,32 @@
 {
-  "latest_version": "0.0.5",
-  "min_supported_version": "0.0.5",
+  "latest_version": "0.0.6",
+  "min_supported_version": "0.0.6",
   "update_type": "soft",
   "env": {
     "api_base": "",
     "play_relay": "",
     "app_client_key": ""
   },
-  "release_notes": "Enhanced subtitle management with online SubDL search, appearance customization, offline subtitle downloading, and intuitive swipe controls.\n\nAdded\n- Online subtitle search powered by SubDL with custom title query input and language filters\n- Subtitle appearance settings: font size, text colors, background box styles, and elevation positioning\n- Automatic subtitle download alongside offline movies and TV series episodes\n- Swipe gestures in media player: left-side vertical swipe for brightness and right-side vertical swipe for volume\n- Batch 'Download All' and episode selection options on Series Details page and Season headers\n\nChanged\n- Modernized delete icons for single episode and bulk season removals in offline downloads\n- Improved subtitle synchronization and audio-dialogue alignment tools\n\nFixed\n- SubDL search error handling to prevent 502 Bad Gateway when titles are not matched\n- Offline subtitle loading and character encoding display",
+  "release_notes": "Full in-app installer fix with Android package installation permissions and hold-to-2x player upgrades.\n\nAdded\n- In-app package installer permissions (REQUEST_INSTALL_PACKAGES) for seamless direct updating without opening browser\n- Non-blocking system installer process launcher to ensure download and install never hangs at 100%\n- Web player hold click for 2x playback speed\n\nChanged\n- Updated in-app download progress indicator to show 'Starting installer…' at completion\n\nFixed\n- Resolved 100% download hang when installing app updates on Android\n- Fixed Android PackageInstaller intent timeouts",
   "release_metadata": {
-    "summary": "Enhanced subtitle management with online SubDL search, appearance customization, offline subtitle downloading, and intuitive swipe controls.",
+    "summary": "Full in-app installer fix with Android package installation permissions and hold-to-2x player upgrades.",
     "added": [
-      "Online subtitle search powered by SubDL with custom title query input and language filters",
-      "Subtitle appearance settings: font size, text colors, background box styles, and elevation positioning",
-      "Automatic subtitle download alongside offline movies and TV series episodes",
-      "Swipe gestures in media player: left-side vertical swipe for brightness and right-side vertical swipe for volume",
-      "Batch 'Download All' and episode selection options on Series Details page and Season headers"
+      "In-app package installer permissions (REQUEST_INSTALL_PACKAGES) for seamless direct updating without opening browser",
+      "Non-blocking system installer process launcher to ensure download and install never hangs at 100%",
+      "Web player hold click for 2x playback speed"
     ],
     "changed": [
-      "Modernized delete icons for single episode and bulk season removals in offline downloads",
-      "Improved subtitle synchronization and audio-dialogue alignment tools"
+      "Updated in-app download progress indicator to show 'Starting installer…' at completion"
     ],
     "fixed": [
-      "SubDL search error handling to prevent 502 Bad Gateway when titles are not matched",
-      "Offline subtitle loading and character encoding display"
+      "Resolved 100% download hang when installing app updates on Android",
+      "Fixed Android PackageInstaller intent timeouts"
     ],
     "removed": []
   },
   "android": {
-    "version_code": 5,
-    "apk_url": "",
+    "version_code": 6,
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.6/moviehunter-0.0.6.apk",
     "force": false
   }
 }
