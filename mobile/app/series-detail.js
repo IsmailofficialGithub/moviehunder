@@ -134,15 +134,9 @@ export default function SeriesDetailScreen() {
     [watchEntries]
   );
 
-  // Group downloaded and catalog episodes by season
+  // Group downloaded episodes by season
   const seasons = useMemo(() => {
     const map = new Map();
-    if (catalog?.seasons?.length) {
-      for (const s of catalog.seasons) {
-        const sNum = Number(s.season) || 1;
-        if (!map.has(sNum)) map.set(sNum, []);
-      }
-    }
     for (const ep of episodes) {
       const s = Number(ep.se) || 1;
       if (!map.has(s)) map.set(s, []);
@@ -155,62 +149,12 @@ export default function SeriesDetailScreen() {
         downloadedCount: eps.length,
         episodes: eps.sort((a, b) => (Number(a.ep) || 0) - (Number(b.ep) || 0)),
       }));
-  }, [episodes, catalog]);
+  }, [episodes]);
 
   // Set active season
   const activeSeasonNum = selectedSeason ?? seasons[0]?.season ?? 1;
   const currentSeason = seasons.find((s) => s.season === activeSeasonNum) || seasons[0];
-
-  const visibleEpisodes = useMemo(() => {
-    const downloadedForSeason =
-      currentSeason?.episodes ||
-      episodes.filter((e) => Number(e.se) === activeSeasonNum);
-    const catSeason = (catalog?.seasons || []).find(
-      (s) => Number(s.season) === activeSeasonNum
-    );
-    if (!catSeason?.episodes?.length) {
-      return downloadedForSeason;
-    }
-    const dlMap = new Map();
-    for (const d of downloadedForSeason) {
-      dlMap.set(Number(d.ep), d);
-    }
-    return catSeason.episodes.map((catEp, idx) => {
-      const epNum = Number(catEp.ep ?? catEp.episode ?? idx + 1);
-      const existing = dlMap.get(epNum);
-      if (existing) return existing;
-      return {
-        id: `catalog-${activeSeasonNum}-${epNum}`,
-        subjectId,
-        detailPath,
-        se: String(catEp.se ?? activeSeasonNum),
-        ep: String(epNum),
-        title: catEp.name || catEp.title || `Episode ${epNum}`,
-        name: catEp.name || catEp.title,
-        duration: catEp.duration,
-        thumbnail:
-          catEp.thumbnail ||
-          catEp.image ||
-          pack?.poster ||
-          richMeta?.poster,
-        poster: catEp.poster || pack?.poster || richMeta?.poster,
-        description: catEp.description || catEp.overview,
-        status: "not_downloaded",
-        bytesWritten: 0,
-        totalBytes: 0,
-        sizeHint: null,
-      };
-    });
-  }, [
-    activeSeasonNum,
-    currentSeason,
-    episodes,
-    catalog,
-    subjectId,
-    detailPath,
-    pack,
-    richMeta,
-  ]);
+  const visibleEpisodes = currentSeason?.episodes || episodes;
 
   const totalBytes = episodes.reduce(
     (n, e) => n + (Number(e.bytesWritten) || Number(e.sizeHint) || 0),
@@ -237,7 +181,7 @@ export default function SeriesDetailScreen() {
   };
 
   const onDeleteEpisode = (item) => {
-    if (!item?.id || item.status === "not_downloaded") return;
+    if (!item?.id) return;
     Alert.alert(
       "Remove episode",
       `Delete S${item.se}E${item.ep}?`,
@@ -669,7 +613,6 @@ export default function SeriesDetailScreen() {
                 : `${epNum}. Episode ${epNum}`;
               const epDuration = formatDuration(epItem.duration) || "48m";
 
-              const isNotDownloaded = epItem.status === "not_downloaded";
               const isCompleted = epItem.status === "completed" && !epItem.pending;
               const isDownloading = !epItem.pending && epItem.status === "downloading";
               const isQueued = !epItem.pending && epItem.status === "queued";
@@ -799,16 +742,7 @@ export default function SeriesDetailScreen() {
                       )}
                     </Pressable>
 
-                    {isNotDownloaded ? (
-                      <Pressable
-                        style={styles.episodeActionBtn}
-                        onPress={() => onDownloadEpisode(epItem.se, epItem.ep)}
-                        hitSlop={8}
-                        accessibilityLabel={`Download ${epTitle}`}
-                      >
-                        <Ionicons name="download-outline" size={22} color={colors.accentLight} />
-                      </Pressable>
-                    ) : isDownloading ? (
+                    {isDownloading ? (
                       <View style={styles.episodeActions}>
                         <Pressable
                           style={styles.episodeActionBtn}

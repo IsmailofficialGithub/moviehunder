@@ -163,17 +163,22 @@ export async function syncDownloadNotification(list = []) {
   const isSeries = isSeriesItem(top);
   const seNum = Number(top.se) || 0;
   const epNum = Number(top.ep) || 0;
-  const epLabel = isSeries
+  const epTag = isSeries
     ? seNum > 0
-      ? ` · S${seNum}E${epNum}`
-      : ` · Ep ${epNum}`
+      ? `S${seNum}E${epNum}`
+      : `Ep ${epNum}`
     : "";
 
   const titleText = active.length > 1
-    ? `Downloading (${active.length} active)`
-    : `Downloading: ${top.title || "Movie"}${epLabel}`;
+    ? `Downloading (${active.length}) · ${pct}%`
+    : isSeries
+      ? `Downloading ${epTag} · ${pct}%`
+      : `Downloading · ${pct}%`;
 
-  const bodyText = `${pct > 0 ? `${pct}% · ` : ""}${speed ? `${speed} · ` : ""}${top.title}${epLabel}`;
+  const itemTitle = (top.title || "Movie").trim();
+  const bodyText = active.length > 1 && isSeries
+    ? `${itemTitle} ${epTag}${speed ? ` · ${speed}` : ""}`
+    : `${itemTitle}${speed ? ` · ${speed}` : ""}`;
   const key = `${top.id}|${pct}|${active.length}|${speed}`;
   if (key === lastKey) return;
   lastKey = key;
@@ -231,17 +236,12 @@ export async function notifyDownloadComplete(item) {
     const epNum = Number(item.ep) || 0;
     const epLabel = isSeries
       ? seNum > 0
-        ? `S${seNum}E${epNum}`
-        : `Episode ${epNum}`
+        ? ` · S${seNum}E${epNum}`
+        : ` · Ep ${epNum}`
       : "";
 
-    const titleText = isSeries
-      ? `${item.title} · ${epLabel}`
-      : "Download Complete";
-
-    const bodyText = isSeries
-      ? `Episode ${epNum || ""} is ready to watch offline.`
-      : `“${item.title}” is ready to watch offline.`;
+    const titleText = "Download Complete";
+    const bodyText = `${(item.title || "Movie").trim()}${epLabel}`;
 
     const packKey =
       item.subjectId && item.detailPath
