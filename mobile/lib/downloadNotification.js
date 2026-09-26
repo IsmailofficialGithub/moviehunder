@@ -15,6 +15,7 @@ let ready = false;
 let lastKey = "";
 let lastThrottleTime = 0;
 let responseSub = null;
+const completedNotifiedIds = new Set();
 
 function loadNotifications() {
   if (IS_EXPO_GO) return null;
@@ -28,12 +29,61 @@ function loadNotifications() {
   return Notifications;
 }
 
+function isSeriesItem(item) {
+  return (
+    item?.kind === "series" ||
+    (item?.se != null && String(item.se) !== "0" && String(item.se) !== "") ||
+    (item?.ep != null && String(item.ep) !== "0" && String(item.ep) !== "")
+  );
+}
+
+export function handleDownloadNotificationResponse(response) {
+  try {
+    const data = response?.notification?.request?.content?.data;
+    if (data?.type !== "download") return;
+
+    const isSeries = !!data.isSeries || (data.se != null && String(data.se) !== "0");
+    const packKey =
+      data.packKey ||
+      (data.subjectId && data.detailPath
+        ? `${data.subjectId}|${data.detailPath}`
+        : "");
+
+    if (isSeries && packKey) {
+      router.push({
+        pathname: "/series-detail",
+        params: { packKey: encodeURIComponent(packKey) },
+      });
+      return;
+    }
+
+    router.push({
+      pathname: "/(tabs)/downloads",
+      params: { tab: isSeries ? "series" : "movies" },
+    });
+  } catch {
+    // ignore navigation errors
+  }
+}
+
 export async function setupDownloadNotifications() {
   if (ready || IS_EXPO_GO) return;
   const N = loadNotifications();
   if (!N) return;
 
   try {
+    N.setNotificationHandler({
+      handleNotification: async (notif) => {
+        const isProgress = notif?.request?.identifier === PROGRESS_NOTIF_ID;
+        return {
+          shouldShowBanner: !isProgress,
+          shouldShowList: true,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        };
+      },
+    });
+
     const perm = await N.getPermissionsAsync();
     if (perm.status !== "granted") {
       await N.requestPermissionsAsync();
@@ -53,16 +103,20 @@ export async function setupDownloadNotifications() {
 
     if (!responseSub) {
       responseSub = N.addNotificationResponseReceivedListener((response) => {
-        try {
-          const data = response?.notification?.request?.content?.data;
-          if (data?.type === "download") {
-            router.push("/(tabs)/downloads");
-          }
-        } catch {
-          // ignore navigation errors
-        }
+        handleDownloadNotificationResponse(response);
       });
     }
+
+    // Handle cold start: notification clicked while app was closed
+    setTimeout(() => {
+      N.getLastNotificationResponseAsync()
+        .then((response) => {
+          if (response) {
+            handleDownloadNotificationResponse(response);
+          }
+        })
+        .catch(() => {});
+    }, 450);
 
     ready = true;
   } catch {
@@ -106,14 +160,28 @@ export async function syncDownloadNotification(list = []) {
   const pct = total > 0 ? Math.min(100, Math.round((written / total) * 100)) : 0;
   const speed = top.bytesPerSec ? `${(top.bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s` : "";
 
+  const isSeries = isSeriesItem(top);
+  const seNum = Number(top.se) || 0;
+  const epNum = Number(top.ep) || 0;
+  const epLabel = isSeries
+    ? seNum > 0
+      ? ` · S${seNum}E${epNum}`
+      : ` · Ep ${epNum}`
+    : "";
+
   const titleText = active.length > 1
     ? `Downloading (${active.length} active)`
-    : `Downloading: ${top.title || "Movie"}`;
+    : `Downloading: ${top.title || "Movie"}${epLabel}`;
 
-  const bodyText = `${pct > 0 ? `${pct}% · ` : ""}${speed ? `${speed} · ` : ""}${top.title}`;
-  const key = `${top.id}|${pct}|${active.length}`;
+  const bodyText = `${pct > 0 ? `${pct}% · ` : ""}${speed ? `${speed} · ` : ""}${top.title}${epLabel}`;
+  const key = `${top.id}|${pct}|${active.length}|${speed}`;
   if (key === lastKey) return;
   lastKey = key;
+
+  const packKey =
+    top.subjectId && top.detailPath
+      ? `${top.subjectId}|${top.detailPath}`
+      : "";
 
   try {
     await N.scheduleNotificationAsync({
@@ -121,7 +189,17 @@ export async function syncDownloadNotification(list = []) {
       content: {
         title: titleText,
         body: bodyText,
-        data: { type: "download", id: top.id },
+        data: {
+          type: "download",
+          id: top.id,
+          subjectId: top.subjectId,
+          detailPath: top.detailPath,
+          se: top.se,
+          ep: top.ep,
+          kind: top.kind,
+          isSeries,
+          packKey,
+        },
         sticky: true,
         autoDismiss: false,
         sound: null,
@@ -142,14 +220,50 @@ export async function syncDownloadNotification(list = []) {
 
 export async function notifyDownloadComplete(item) {
   if (IS_EXPO_GO || !item?.title) return;
+  if (item?.id && completedNotifiedIds.has(item.id)) return;
+  if (item?.id) completedNotifiedIds.add(item.id);
+
   const N = loadNotifications();
   if (!N) return;
   try {
+    const isSeries = isSeriesItem(item);
+    const seNum = Number(item.se) || 0;
+    const epNum = Number(item.ep) || 0;
+    const epLabel = isSeries
+      ? seNum > 0
+        ? `S${seNum}E${epNum}`
+        : `Episode ${epNum}`
+      : "";
+
+    const titleText = isSeries
+      ? `${item.title} · ${epLabel}`
+      : "Download Complete";
+
+    const bodyText = isSeries
+      ? `Episode ${epNum || ""} is ready to watch offline.`
+      : `“${item.title}” is ready to watch offline.`;
+
+    const packKey =
+      item.subjectId && item.detailPath
+        ? `${item.subjectId}|${item.detailPath}`
+        : "";
+
     await N.scheduleNotificationAsync({
+      identifier: `complete-${item.id}`,
       content: {
-        title: "Download Complete",
-        body: `“${item.title}” is ready to watch offline.`,
-        data: { type: "download", id: item.id },
+        title: titleText,
+        body: bodyText,
+        data: {
+          type: "download",
+          id: item.id,
+          subjectId: item.subjectId,
+          detailPath: item.detailPath,
+          se: item.se,
+          ep: item.ep,
+          kind: item.kind,
+          isSeries,
+          packKey,
+        },
         sound: null,
         ...(Platform.OS === "android"
           ? {
