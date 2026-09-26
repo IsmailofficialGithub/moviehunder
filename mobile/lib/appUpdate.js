@@ -223,10 +223,14 @@ export async function openInstallPermissionSettings() {
     Constants.easConfig?.projectId ||
     "com.moviehunter.app";
   try {
-    await IntentLauncher.startActivityAsync(
-      "android.settings.MANAGE_UNKNOWN_APP_SOURCES",
-      { data: `package:${pkg}` }
-    );
+    // Race with a timeout so execution is never hung waiting for Settings to close
+    await Promise.race([
+      IntentLauncher.startActivityAsync(
+        "android.settings.MANAGE_UNKNOWN_APP_SOURCES",
+        { data: `package:${pkg}` }
+      ),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
     return true;
   } catch {
     try {
@@ -265,14 +269,14 @@ export async function downloadAndInstallApk(apkUrl, onProgress) {
       await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
     }
   } catch {
-    /* ignore */
+    // ignore
   }
 
   const dest = `${dir}moviehunter-update.apk`;
   try {
     await FileSystem.deleteAsync(dest, { idempotent: true });
   } catch {
-    /* ignore */
+    // ignore
   }
 
   const downloadHeaders = {
@@ -311,7 +315,7 @@ export async function downloadAndInstallApk(apkUrl, onProgress) {
       try {
         await FileSystem.deleteAsync(result.uri, { idempotent: true });
       } catch {
-        /* ignore */
+        // ignore
       }
       return {
         ok: false,
@@ -324,22 +328,22 @@ export async function downloadAndInstallApk(apkUrl, onProgress) {
 
     const contentUri = await FileSystem.getContentUriAsync(result.uri);
 
-    try {
-      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-        data: contentUri,
-        flags: INSTALL_FLAGS,
-        type: "application/vnd.android.package-archive",
-      });
-    } catch {
-      // Older / OEM fallback
-      await IntentLauncher.startActivityAsync(
-        "android.intent.action.INSTALL_PACKAGE",
-        {
+    // Race startActivityAsync with a timeout so pendingPromise on Android does not hang forever at 100%
+    const launchInstaller = (action) =>
+      Promise.race([
+        IntentLauncher.startActivityAsync(action, {
           data: contentUri,
           flags: INSTALL_FLAGS,
           type: "application/vnd.android.package-archive",
-        }
-      );
+        }),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ]);
+
+    try {
+      await launchInstaller("android.intent.action.VIEW");
+    } catch {
+      // Older / OEM fallback
+      await launchInstaller("android.intent.action.INSTALL_PACKAGE");
     }
 
     return { ok: true };

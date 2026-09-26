@@ -223,7 +223,11 @@ export function AppUpdateGate({
         <View style={styles.progressBlock}>
           <ActivityIndicator color={colors.secondary} />
           <Text style={styles.progressText}>
-            {pct > 0 ? `Downloading ${pct}%` : "Starting download…"}
+            {pct >= 100
+              ? "Starting installer…"
+              : pct > 0
+              ? `Downloading ${pct}%`
+              : "Starting download…"}
           </Text>
           <View style={styles.barTrack}>
             <View style={[styles.barFill, { width: `${pct}%` }]} />

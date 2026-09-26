@@ -29,7 +29,7 @@
   },
   "android": {
     "version_code": 5,
-    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.5/moviehunter-0.0.5.apk",
+    "apk_url": "",
     "force": false
   }
 }
