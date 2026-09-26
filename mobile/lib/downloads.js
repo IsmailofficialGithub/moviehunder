@@ -188,6 +188,7 @@ export async function hydrateDownloads() {
       }
     } catch {
       // empty store
+    } finally {
       hydrated = true;
       hydratePromise = null;
       emit(true);
@@ -1256,6 +1257,8 @@ export async function getStorageStats() {
 export function formatBytes(n) {
   const num = typeof n === "number" ? n : Number(n);
   if (!Number.isFinite(num) || num <= 0) return "0 B";
+  // Cap at reasonable storage boundary to prevent exponential notation from string concatenation
+  if (num > 100 * 1024 * 1024 * 1024 * 1024) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let v = num;
   let i = 0;

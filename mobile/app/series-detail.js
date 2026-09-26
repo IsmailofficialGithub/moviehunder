@@ -18,10 +18,16 @@ import DownloadSheet from "../components/DownloadSheet";
 import { getDetail } from "../lib/api";
 import { colors, radii, spacing } from "../lib/theme";
 import {
+  etaSecondsOf,
   fetchSeasonCatalog,
   formatBytes,
+  formatEta,
   hydrateDownloads,
+  pauseDownload,
+  progressOf,
   removeDownload,
+  resumeDownload,
+  retryDownload,
   subscribeDownloads,
 } from "../lib/downloads";
 import {
@@ -128,9 +134,15 @@ export default function SeriesDetailScreen() {
     [watchEntries]
   );
 
-  // Group downloaded episodes by season
+  // Group downloaded and catalog episodes by season
   const seasons = useMemo(() => {
     const map = new Map();
+    if (catalog?.seasons?.length) {
+      for (const s of catalog.seasons) {
+        const sNum = Number(s.season) || 1;
+        if (!map.has(sNum)) map.set(sNum, []);
+      }
+    }
     for (const ep of episodes) {
       const s = Number(ep.se) || 1;
       if (!map.has(s)) map.set(s, []);
@@ -140,39 +152,92 @@ export default function SeriesDetailScreen() {
       .sort(([a], [b]) => a - b)
       .map(([season, eps]) => ({
         season,
+        downloadedCount: eps.length,
         episodes: eps.sort((a, b) => (Number(a.ep) || 0) - (Number(b.ep) || 0)),
       }));
-  }, [episodes]);
+  }, [episodes, catalog]);
 
   // Set active season
   const activeSeasonNum = selectedSeason ?? seasons[0]?.season ?? 1;
   const currentSeason = seasons.find((s) => s.season === activeSeasonNum) || seasons[0];
-  const visibleEpisodes = currentSeason?.episodes || episodes;
+
+  const visibleEpisodes = useMemo(() => {
+    const downloadedForSeason =
+      currentSeason?.episodes ||
+      episodes.filter((e) => Number(e.se) === activeSeasonNum);
+    const catSeason = (catalog?.seasons || []).find(
+      (s) => Number(s.season) === activeSeasonNum
+    );
+    if (!catSeason?.episodes?.length) {
+      return downloadedForSeason;
+    }
+    const dlMap = new Map();
+    for (const d of downloadedForSeason) {
+      dlMap.set(Number(d.ep), d);
+    }
+    return catSeason.episodes.map((catEp, idx) => {
+      const epNum = Number(catEp.ep ?? catEp.episode ?? idx + 1);
+      const existing = dlMap.get(epNum);
+      if (existing) return existing;
+      return {
+        id: `catalog-${activeSeasonNum}-${epNum}`,
+        subjectId,
+        detailPath,
+        se: String(catEp.se ?? activeSeasonNum),
+        ep: String(epNum),
+        title: catEp.name || catEp.title || `Episode ${epNum}`,
+        name: catEp.name || catEp.title,
+        duration: catEp.duration,
+        thumbnail:
+          catEp.thumbnail ||
+          catEp.image ||
+          pack?.poster ||
+          richMeta?.poster,
+        poster: catEp.poster || pack?.poster || richMeta?.poster,
+        description: catEp.description || catEp.overview,
+        status: "not_downloaded",
+        bytesWritten: 0,
+        totalBytes: 0,
+        sizeHint: null,
+      };
+    });
+  }, [
+    activeSeasonNum,
+    currentSeason,
+    episodes,
+    catalog,
+    subjectId,
+    detailPath,
+    pack,
+    richMeta,
+  ]);
 
   const totalBytes = episodes.reduce(
-    (n, e) => n + (e.bytesWritten || e.sizeHint || 0),
+    (n, e) => n + (Number(e.bytesWritten) || Number(e.sizeHint) || 0),
     0
   );
 
   const openPlay = (epItem) => {
     if (!epItem) return;
+    const isCompleted = epItem.status === "completed" && !epItem.pending;
     router.push({
       pathname: "/play",
       params: {
         subjectId: epItem.subjectId || subjectId,
         detail_path: epItem.detailPath || detailPath,
-        se: String(epItem.se || "0"),
-        ep: String(epItem.ep || "0"),
-        title: `${epItem.title || pack?.title || "Series"} · S${epItem.se}E${epItem.ep}`,
-        poster: epItem.poster || pack?.poster || "",
+        se: String(epItem.se || activeSeasonNum),
+        ep: String(epItem.ep || "1"),
+        title: `${epItem.title || pack?.title || richMeta?.title || "Series"} · S${epItem.se || activeSeasonNum}E${epItem.ep || 1}`,
+        poster: epItem.poster || epItem.thumbnail || pack?.poster || richMeta?.poster || "",
         kind: "series",
         autoplay: "1",
-        downloadId: encodeURIComponent(epItem.id),
+        ...(isCompleted ? { downloadId: encodeURIComponent(epItem.id) } : {}),
       },
     });
   };
 
   const onDeleteEpisode = (item) => {
+    if (!item?.id || item.status === "not_downloaded") return;
     Alert.alert(
       "Remove episode",
       `Delete S${item.se}E${item.ep}?`,
@@ -603,10 +668,42 @@ export default function SeriesDetailScreen() {
                 ? `${epNum}. ${cleanName}`
                 : `${epNum}. Episode ${epNum}`;
               const epDuration = formatDuration(epItem.duration) || "48m";
-              const epBytes = epItem.bytesWritten || epItem.sizeHint || 0;
+
+              const isNotDownloaded = epItem.status === "not_downloaded";
+              const isCompleted = epItem.status === "completed" && !epItem.pending;
+              const isDownloading = !epItem.pending && epItem.status === "downloading";
+              const isQueued = !epItem.pending && epItem.status === "queued";
+              const isPaused = !epItem.pending && epItem.status === "paused";
+              const isFailed = !epItem.pending && epItem.status === "failed";
+              const isPending = !!epItem.pending;
+
+              const pct = Math.round(progressOf(epItem) * 100);
+              const writtenBytes = Number(epItem.bytesWritten) || 0;
+              const totalBytesNum = Number(epItem.totalBytes) || Number(epItem.sizeHint) || 0;
+              const writtenStr = formatBytes(writtenBytes);
+              const totalStr = formatBytes(totalBytesNum);
+              const etaLabel = formatEta(etaSecondsOf(epItem));
+
+              let statusText = null;
+              if (isCompleted) {
+                statusText = totalStr || (writtenStr !== "0 B" ? writtenStr : "Downloaded");
+              } else if (isDownloading) {
+                const sizeDetail = totalBytesNum > 0 ? `${writtenStr} / ${totalStr}` : writtenStr;
+                statusText = `Downloading · ${pct}% (${sizeDetail})${etaLabel ? ` · ${etaLabel}` : ""}`;
+              } else if (isPaused) {
+                const sizeDetail = totalBytesNum > 0 ? `${writtenStr} / ${totalStr}` : writtenStr;
+                statusText = `Paused · ${pct}% (${sizeDetail})`;
+              } else if (isQueued || isPending) {
+                statusText = `Waiting in queue…${totalStr ? ` · ${totalStr}` : ""}`;
+              } else if (isFailed) {
+                statusText = `Failed · ${epItem.error || "Tap to retry"}`;
+              } else {
+                statusText = totalStr || null;
+              }
+
               const epMetaText = [
                 epDuration,
-                epBytes ? formatBytes(epBytes) : null,
+                statusText,
                 watchPct > 0 ? `${watchPct}% watched` : null,
               ]
                 .filter(Boolean)
@@ -638,10 +735,22 @@ export default function SeriesDetailScreen() {
                       )}
                       <View style={styles.thumbPlayCircle}>
                         <Ionicons
-                          name="play"
+                          name={
+                            isCompleted
+                              ? "play"
+                              : isPaused
+                                ? "pause"
+                                : isQueued || isPending
+                                  ? "time-outline"
+                                  : "play"
+                          }
                           size={15}
                           color="#ffffff"
-                          style={{ marginLeft: 2 }}
+                          style={
+                            isCompleted || (!isPaused && !isQueued && !isPending)
+                              ? { marginLeft: 2 }
+                              : null
+                          }
                         />
                       </View>
                       {watchPct > 0 ? (
@@ -660,19 +769,121 @@ export default function SeriesDetailScreen() {
                       <Text style={styles.episodeTitle} numberOfLines={2}>
                         {epTitle}
                       </Text>
-                      <Text style={styles.episodeDurationText}>
+                      <Text
+                        style={[
+                          styles.episodeDurationText,
+                          isDownloading && styles.textDownloading,
+                          isPaused && styles.textPaused,
+                          isFailed && styles.textFailed,
+                        ]}
+                      >
                         {epMetaText}
                       </Text>
+
+                      {(isDownloading || isPaused || isQueued || isPending) && (
+                        <View style={styles.epProgressTrack}>
+                          <View
+                            style={[
+                              styles.epProgressFill,
+                              {
+                                width: isQueued || isPending ? "12%" : `${Math.max(4, pct)}%`,
+                                backgroundColor: isPaused
+                                  ? "#f59e0b"
+                                  : isQueued || isPending
+                                    ? "rgba(255, 255, 255, 0.3)"
+                                    : colors.accentLight,
+                              },
+                            ]}
+                          />
+                        </View>
+                      )}
                     </Pressable>
 
-                    <Pressable
-                      style={styles.episodeDeleteBtn}
-                      onPress={() => onDeleteEpisode(epItem)}
-                      hitSlop={10}
-                      accessibilityLabel={`Delete ${epTitle}`}
-                    >
-                      <Ionicons name="remove-circle-outline" size={20} color="rgba(248, 113, 113, 0.9)" />
-                    </Pressable>
+                    {isNotDownloaded ? (
+                      <Pressable
+                        style={styles.episodeActionBtn}
+                        onPress={() => onDownloadEpisode(epItem.se, epItem.ep)}
+                        hitSlop={8}
+                        accessibilityLabel={`Download ${epTitle}`}
+                      >
+                        <Ionicons name="download-outline" size={22} color={colors.accentLight} />
+                      </Pressable>
+                    ) : isDownloading ? (
+                      <View style={styles.episodeActions}>
+                        <Pressable
+                          style={styles.episodeActionBtn}
+                          onPress={() => pauseDownload(epItem.id)}
+                          hitSlop={8}
+                          accessibilityLabel={`Pause ${epTitle}`}
+                        >
+                          <Ionicons name="pause-circle-outline" size={24} color={colors.accentLight} />
+                        </Pressable>
+                        <Pressable
+                          style={styles.episodeActionBtn}
+                          onPress={() => onDeleteEpisode(epItem)}
+                          hitSlop={8}
+                          accessibilityLabel={`Cancel ${epTitle}`}
+                        >
+                          <Ionicons name="close-circle-outline" size={20} color={colors.muted} />
+                        </Pressable>
+                      </View>
+                    ) : isPaused ? (
+                      <View style={styles.episodeActions}>
+                        <Pressable
+                          style={styles.episodeActionBtn}
+                          onPress={() => resumeDownload(epItem.id)}
+                          hitSlop={8}
+                          accessibilityLabel={`Resume ${epTitle}`}
+                        >
+                          <Ionicons name="arrow-down-circle-outline" size={24} color={colors.accentLight} />
+                        </Pressable>
+                        <Pressable
+                          style={styles.episodeActionBtn}
+                          onPress={() => onDeleteEpisode(epItem)}
+                          hitSlop={8}
+                          accessibilityLabel={`Delete ${epTitle}`}
+                        >
+                          <Ionicons name="close-circle-outline" size={20} color={colors.muted} />
+                        </Pressable>
+                      </View>
+                    ) : isFailed ? (
+                      <View style={styles.episodeActions}>
+                        <Pressable
+                          style={styles.episodeActionBtn}
+                          onPress={() => retryDownload(epItem.id)}
+                          hitSlop={8}
+                          accessibilityLabel={`Retry ${epTitle}`}
+                        >
+                          <Ionicons name="refresh-circle-outline" size={24} color={colors.accent} />
+                        </Pressable>
+                        <Pressable
+                          style={styles.episodeActionBtn}
+                          onPress={() => onDeleteEpisode(epItem)}
+                          hitSlop={8}
+                          accessibilityLabel={`Delete ${epTitle}`}
+                        >
+                          <Ionicons name="close-circle-outline" size={20} color={colors.muted} />
+                        </Pressable>
+                      </View>
+                    ) : isQueued || isPending ? (
+                      <Pressable
+                        style={styles.episodeActionBtn}
+                        onPress={() => onDeleteEpisode(epItem)}
+                        hitSlop={8}
+                        accessibilityLabel={`Cancel ${epTitle}`}
+                      >
+                        <Ionicons name="close-circle-outline" size={20} color={colors.muted} />
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        style={styles.episodeDeleteBtn}
+                        onPress={() => onDeleteEpisode(epItem)}
+                        hitSlop={10}
+                        accessibilityLabel={`Delete ${epTitle}`}
+                      >
+                        <Ionicons name="remove-circle-outline" size={20} color="rgba(248, 113, 113, 0.9)" />
+                      </Pressable>
+                    )}
                   </View>
 
                   {epSynopsis ? (
@@ -1150,6 +1361,38 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+  episodeActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  episodeActionBtn: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  epProgressTrack: {
+    height: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 2,
+    overflow: "hidden",
+    marginTop: 4,
+    width: "100%",
+  },
+  epProgressFill: {
+    height: 3,
+    borderRadius: 2,
+  },
+  textDownloading: {
+    color: colors.accentLight,
+  },
+  textPaused: {
+    color: "#fbbf24",
+  },
+  textFailed: {
+    color: "#f87171",
   },
   episodeSynopsis: {
     color: colors.muted,

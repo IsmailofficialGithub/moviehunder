@@ -670,6 +670,13 @@ export default function PlayScreen() {
   useEffect(() => {
     const sub = player.addListener("statusChange", (payload) => {
       if (payload?.status === "error" || payload?.error) {
+        // Fall back to online streaming if offline file failed and we have online info
+        if (offlineUri && subjectId && detailPath) {
+          setOfflineUri("");
+          setChipHint("Offline playback error · Streaming online");
+          load();
+          return;
+        }
         if (!fallbackTried.current) {
           fallbackTried.current = true;
           setUseWatchFallback(true);
@@ -683,7 +690,7 @@ export default function PlayScreen() {
       }
     });
     return () => sub.remove();
-  }, [player]);
+  }, [player, offlineUri, subjectId, detailPath, load]);
 
   useEffect(() => {
     const sub = player.addListener("timeUpdate", () => {
@@ -870,6 +877,14 @@ export default function PlayScreen() {
         await hydrateDownloads();
         const item = getDownloadById(downloadId);
         if (!item?.fileUri) {
+          if (subjectId && detailPath) {
+            if (!cancelled) {
+              setOfflineUri("");
+              setOfflineReady(true);
+              setChipHint("Streaming online");
+            }
+            return;
+          }
           if (!cancelled) {
             setError("Downloaded file not found.");
             setStatus("error");
@@ -896,12 +911,25 @@ export default function PlayScreen() {
 
         const info = await FileSystem.getInfoAsync(playFileUri);
         const minBytes = 256 * 1024;
-        if (!info.exists || (info.size != null && info.size < minBytes)) {
+        const isCompleted = item.status === "completed";
+        if (!info.exists || (info.size != null && info.size < minBytes) || !isCompleted) {
+          if (subjectId && detailPath) {
+            if (!cancelled) {
+              setOfflineUri("");
+              setOfflineReady(true);
+              setChipHint(
+                isCompleted
+                  ? "File missing · Streaming online"
+                  : "Download in progress · Streaming online"
+              );
+            }
+            return;
+          }
           if (!cancelled) {
             setError(
-              item.status === "completed"
+              isCompleted
                 ? "Download file is missing or incomplete."
-                : "Not enough downloaded yet — wait for at least ~5% or resume the download."
+                : `Download in progress (${Math.round(progressOf(item) * 100)}%). Please wait for download to finish or connect to internet to stream.`
             );
             setStatus("error");
             setOfflineReady(true);
@@ -1003,11 +1031,14 @@ export default function PlayScreen() {
   }, [downloadId, wantsAutoplay]);
 
   const load = useCallback(async () => {
-    if (downloadId) return; // handled by offline effect
+    if (offlineUri) return; // handled by offline effect
+    if (downloadId && !offlineReady) return; // wait for offline check first
 
     if (!subjectId || !detailPath) {
-      setError("Missing playback info.");
-      setStatus("error");
+      if (!downloadId) {
+        setError("Missing playback info.");
+        setStatus("error");
+      }
       return;
     }
 
@@ -1057,11 +1088,13 @@ export default function PlayScreen() {
       );
       setStatus("error");
     }
-  }, [downloadId, subjectId, detailPath, se, ep, wantsAutoplay]);
+  }, [downloadId, offlineReady, offlineUri, subjectId, detailPath, se, ep, wantsAutoplay]);
 
   useEffect(() => {
+    if (downloadId && !offlineReady) return;
+    if (offlineUri) return;
     load();
-  }, [load]);
+  }, [load, downloadId, offlineReady, offlineUri]);
 
   useEffect(() => {
     setExpanded(false);

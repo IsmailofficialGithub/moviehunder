@@ -338,13 +338,17 @@ function MovieCard({
         </Text>
         {isDownloading ? (
           <Text style={styles.netflixStatusDownloading}>
-            Downloading{etaLabel ? ` · ${etaLabel}` : pct > 0 ? ` · ${pct}%` : ""}
+            {item.status === "queued"
+              ? `Waiting in queue…${total ? ` · ${total}` : ""}`
+              : `Downloading · ${pct}% (${written}${total ? ` / ${total}` : ""})${etaLabel ? ` · ${etaLabel}` : ""}`}
           </Text>
         ) : isPaused ? (
-          <Text style={styles.netflixStatusPaused}>Paused</Text>
+          <Text style={styles.netflixStatusPaused}>
+            {`Paused · ${pct}% (${written}${total ? ` / ${total}` : ""})`}
+          </Text>
         ) : isFailed ? (
           <Text style={styles.netflixStatusFailed}>
-            {item.error || "Download failed"}
+            {item.error || "Download failed · Tap to retry"}
           </Text>
         ) : null}
       </View>
@@ -520,11 +524,11 @@ function SeriesPack({
   const isFailed = !isDownloading && !isPaused && pack.episodes.some((e) => e.status === "failed");
 
   const bytes = pack.episodes.reduce(
-    (n, e) => n + (e.bytesWritten || e.sizeHint || 0),
+    (n, e) => n + (Number(e.bytesWritten) || Number(e.sizeHint) || 0),
     0
   );
   const avgPct = Math.round(
-    (pack.episodes.reduce((n, e) => n + progressOf(e), 0) / Math.max(1, pack.episodes.length)) *
+    (pack.episodes.reduce((n, e) => n + (Number(progressOf(e)) || 0), 0) / Math.max(1, pack.episodes.length)) *
     100
   );
   const remoteSeasons = catalog?.seasons || [];
@@ -1076,6 +1080,7 @@ export default function DownloadsScreen() {
   };
 
   const onPlay = (item) => {
+    const isCompleted = item.status === "completed" && !item.pending;
     router.push({
       pathname: "/play",
       params: {
@@ -1090,7 +1095,7 @@ export default function DownloadsScreen() {
         poster: item.poster || "",
         kind: isSeriesItem(item) ? "series" : "movie",
         autoplay: "1",
-        downloadId: encodeURIComponent(item.id),
+        ...(isCompleted ? { downloadId: encodeURIComponent(item.id) } : {}),
       },
     });
   };
