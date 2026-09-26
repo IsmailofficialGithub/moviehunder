@@ -1,32 +1,17 @@
 {
-  "latest_version": "0.0.6",
-  "min_supported_version": "0.0.6",
+  "latest_version": "0.0.7",
+  "min_supported_version": "0.0.7",
   "update_type": "soft",
   "env": {
     "api_base": "",
     "play_relay": "",
     "app_client_key": ""
   },
-  "release_notes": "Full in-app installer fix with Android package installation permissions and hold-to-2x player upgrades.\n\nAdded\n- In-app package installer permissions (REQUEST_INSTALL_PACKAGES) for seamless direct updating without opening browser\n- Non-blocking system installer process launcher to ensure download and install never hangs at 100%\n- Web player hold click for 2x playback speed\n\nChanged\n- Updated in-app download progress indicator to show 'Starting installer…' at completion\n\nFixed\n- Resolved 100% download hang when installing app updates on Android\n- Fixed Android PackageInstaller intent timeouts",
-  "release_metadata": {
-    "summary": "Full in-app installer fix with Android package installation permissions and hold-to-2x player upgrades.",
-    "added": [
-      "In-app package installer permissions (REQUEST_INSTALL_PACKAGES) for seamless direct updating without opening browser",
-      "Non-blocking system installer process launcher to ensure download and install never hangs at 100%",
-      "Web player hold click for 2x playback speed"
-    ],
-    "changed": [
-      "Updated in-app download progress indicator to show 'Starting installer…' at completion"
-    ],
-    "fixed": [
-      "Resolved 100% download hang when installing app updates on Android",
-      "Fixed Android PackageInstaller intent timeouts"
-    ],
-    "removed": []
-  },
+  "release_notes": "Fixed storage format display, resolved download list visibility on cold start, added real-time per-episode download progress and status, fixed partial playback errors by streaming online seamlessly, and fixed notification looping and episode details with cold/warm start notification redirection.",
+  "release_metadata": {},
   "android": {
-    "version_code": 6,
-    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.6/moviehunter-0.0.6.apk",
+    "version_code": 7,
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.7/moviehunter-0.0.7.apk",
     "force": false
   }
 }
