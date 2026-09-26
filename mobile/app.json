@@ -2,7 +2,7 @@
   "expo": {
     "name": "MovieHunter",
     "slug": "moviehunter",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "moviehunter",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.moviehunter.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#0c0c0e",

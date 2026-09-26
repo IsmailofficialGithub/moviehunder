@@ -1,17 +1,17 @@
 {
-  "latest_version": "0.0.7",
-  "min_supported_version": "0.0.7",
+  "latest_version": "0.0.8",
+  "min_supported_version": "0.0.8",
   "update_type": "soft",
   "env": {
     "api_base": "",
     "play_relay": "",
     "app_client_key": ""
   },
-  "release_notes": "Fixed storage format display, resolved download list visibility on cold start, added real-time per-episode download progress and status, fixed partial playback errors by streaming online seamlessly, and fixed notification looping and episode details with cold/warm start notification redirection.",
+  "release_notes": "Show only downloaded episodes in series list and clean up notification text format",
   "release_metadata": {},
   "android": {
-    "version_code": 7,
-    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.7/moviehunter-0.0.7.apk",
+    "version_code": 8,
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.8/moviehunter-0.0.8.apk",
     "force": false
   }
 }
