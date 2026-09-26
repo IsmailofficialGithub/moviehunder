@@ -1,5 +1,21 @@
 {
   "releases": {
+    "0.0.6": {
+      "summary": "Full in-app installer fix with Android package installation permissions and hold-to-2x player upgrades.",
+      "added": [
+        "In-app package installer permissions (REQUEST_INSTALL_PACKAGES) for seamless direct updating without opening browser",
+        "Non-blocking system installer process launcher to ensure download and install never hangs at 100%",
+        "Web player hold click for 2x playback speed"
+      ],
+      "changed": [
+        "Updated in-app download progress indicator to show 'Starting installer…' at completion"
+      ],
+      "fixed": [
+        "Resolved 100% download hang when installing app updates on Android",
+        "Fixed Android PackageInstaller intent timeouts"
+      ],
+      "removed": []
+    },
     "0.0.5": {
       "summary": "Enhanced subtitle management with online SubDL search, appearance customization, offline subtitle downloading, and intuitive swipe controls.",
       "added": [
