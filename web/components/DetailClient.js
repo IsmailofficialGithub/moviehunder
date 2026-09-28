@@ -681,7 +681,9 @@ export default function DetailClient({ slug, detail, episodes }) {
               {meta.imdb_rating ? (
                 <div className={styles.infoItem}>
                   <span className={styles.infoLabel}>IMDb Rating</span>
-                  <span className={styles.infoValue}>★ {meta.imdb_rating} / 10</span>
+                  <span className={styles.infoValue}>
+                    <span className={styles.ratingScore}>★ {meta.imdb_rating}</span> / 10
+                  </span>
                 </div>
               ) : null}
             </div>

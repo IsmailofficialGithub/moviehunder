@@ -145,6 +145,7 @@ export default function StreamPlayer({
   se = "0",
   ep = "0",
   title = "",
+  initialTime = 0,
   prevEpisode = null,
   nextEpisode = null,
   onPrevEpisode = null,
@@ -384,9 +385,23 @@ export default function StreamPlayer({
       }
       lastPosAt = now;
 
-      if (video.currentTime > 5 && !video.ended) {
+      if (video.currentTime > 2 && !video.ended) {
         try {
           localStorage.setItem(`history_${subjectId}_${se}_${ep}`, video.currentTime.toString());
+          if (displayTitle || poster) {
+            localStorage.setItem(
+              `history_meta_${subjectId}`,
+              JSON.stringify({
+                title: displayTitle,
+                poster: poster || null,
+                detailPath: detailPath || null,
+                duration: video.duration || 0,
+              })
+            );
+          }
+          import("../lib/sync")
+            .then((m) => m.scheduleWatchSync?.())
+            .catch(() => {});
         } catch {}
       }
       updateMediaSession({
@@ -572,7 +587,7 @@ export default function StreamPlayer({
     if (!mounted) return;
     const video = videoRef.current;
     if (!video || !src) return;
-    let resume = resumeAtRef.current;
+    let resume = Number(initialTime) || 0;
 
     // Reset retry counter every time the src changes (new episode or quality change)
     videoRetryCount.current = 0;
@@ -599,6 +614,7 @@ export default function StreamPlayer({
       }
       video.play().catch(() => {});
     };
+    video.addEventListener("loadedmetadata", onReady, { once: true });
     video.addEventListener("loadeddata", onReady, { once: true });
 
     // Auto-retry on network errors (e.g. 429 rate-limit from CDN proxy).

@@ -97,7 +97,8 @@
             "extraProguardRules": "-keep class com.facebook.react.** { *; }\n-keep class com.facebook.jni.** { *; }"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "router": {},

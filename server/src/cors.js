@@ -46,7 +46,7 @@ function isOriginAllowed(origin, allowlist, suffixes) {
 
 export function corsHeadersForOrigin(originEcho) {
   const base = {
-    "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, OPTIONS",
     "Access-Control-Allow-Headers":
       "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key, Authorization",
     "Access-Control-Expose-Headers":
@@ -70,7 +70,7 @@ export function activeCorsHeaders() {
   return (
     requestContext.getStore()?.cors || {
       "Access-Control-Allow-Origin": "null",
-      "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, OPTIONS",
       "Access-Control-Allow-Headers":
         "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key, Authorization",
       "Access-Control-Max-Age": "86400",
@@ -83,6 +83,23 @@ export function activeCorsHeaders() {
  * @returns {{ ok: true, cors: Record<string, string>, kind: 'web'|'app' } | { ok: false, reason: string, received_origin?: string }}
  */
 export function authorizeClient(request) {
+  // Top-level Google OAuth redirects have no Origin / app key
+  try {
+    const path = new URL(request.url).pathname.replace(/\/+$/, "");
+    if (
+      path === "/api/auth/google/callback" ||
+      path === "/api/auth/google/start"
+    ) {
+      return {
+        ok: true,
+        kind: "web",
+        cors: corsHeadersForOrigin(null),
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+
   const allowlist = (cfg().CORS_ALLOWED_ORIGINS || [])
     .map((o) => (String(o).trim() === "*" ? "*" : normalizeOrigin(o)))
     .filter(Boolean);

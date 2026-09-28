@@ -9,12 +9,20 @@
     "dev:api": "wrangler dev --port 8787",
     "dev:relay": "node play-relay.mjs",
     "start:api": "node scripts/start-api.mjs",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy"
   },
   "devDependencies": {
+    "prisma": "^6.19.0",
     "wrangler": "^3.0.0"
   },
   "dependencies": {
-    "fflate": "^0.8.2"
+    "@prisma/client": "^6.19.0",
+    "argon2": "^0.45.1",
+    "fflate": "^0.8.2",
+    "jose": "^6.2.12",
+    "nodemailer": "^10.0.12"
   }
 }

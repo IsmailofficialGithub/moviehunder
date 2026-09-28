@@ -35,11 +35,12 @@ export default function PlayClient() {
   const router = useRouter();
   const params = useSearchParams();
 
-  const subjectId = params.get("subjectId") || "";
+  const subjectId = params.get("subjectId") || params.get("id") || "";
   const detailPath = params.get("detail_path") || "";
   const se = params.get("se") || "0";
   const ep = params.get("ep") || "0";
   const title = params.get("title") || "";
+  const initialTime = Number(params.get("t") || params.get("start") || params.get("position") || 0);
 
   const isSeries = Number(se) > 0 || Number(ep) > 0;
   const [episodeList, setEpisodeList] = useState(null);
@@ -112,6 +113,7 @@ export default function PlayClient() {
           se={se}
           ep={ep}
           title={title}
+          initialTime={initialTime}
           prevEpisode={prevEpisode}
           nextEpisode={nextEpisode}
           onPrevEpisode={() => goTo(prevEpisode)}

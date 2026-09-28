@@ -32,6 +32,9 @@ async function writeAll(list) {
       /* ignore */
     }
   }
+  import("./sync")
+    .then((m) => m.scheduleLibrarySync?.())
+    .catch(() => {});
 }
 
 /** Live updates when playlists change (add/remove/like). */

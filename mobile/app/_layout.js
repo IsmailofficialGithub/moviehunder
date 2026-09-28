@@ -15,6 +15,7 @@ import {
 import MusicNowPlayingBanner from "../components/MusicNowPlayingBanner";
 import MusicPlayerModal from "../components/MusicPlayerModal";
 import { useAccessGate } from "../lib/useAccessGate";
+import { AuthProvider } from "../lib/AuthProvider";
 import Constants from "expo-constants";
 import { setupMusicNotifications } from "../lib/musicNotification";
 import { setupDownloadNotifications } from "../lib/downloadNotification";
@@ -97,6 +98,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <AuthProvider>
       <StatusBar style="light" />
       <View style={styles.root}>
         {!splashDone ? (
@@ -134,6 +136,8 @@ export default function RootLayout() {
                   name="history"
                   options={{ headerShown: false }}
                 />
+                <Stack.Screen name="account" options={{ headerShown: false }} />
+                <Stack.Screen name="auth" options={{ headerShown: false }} />
                 <Stack.Screen name="title/[slug]" options={{ headerShown: false }} />
                 <Stack.Screen name="shorts/[slug]" options={{ headerShown: false }} />
                 <Stack.Screen name="series-detail" options={{ headerShown: false }} />
@@ -167,6 +171,7 @@ export default function RootLayout() {
           </View>
         ) : null}
       </View>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

@@ -353,6 +353,43 @@ export default function SiteHeader() {
                 <span className={styles.downloadLabel}>App</span>
               </button>
               <Link
+                href="/login"
+                className={`${styles.iconBtn} ${
+                  pathname.startsWith("/login") || pathname.startsWith("/signup")
+                    ? styles.iconBtnOn
+                    : ""
+                }`}
+                aria-label="Account"
+                title="Account"
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path
+                    d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+                  <path
+                    d="M4 20c1.8-3.2 4.6-5 8-5s6.2 1.8 8 5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </Link>
+              <Link
+                href="/history"
+                className={`${styles.iconBtn} ${
+                  pathname.startsWith("/history") ? styles.iconBtnOn : ""
+                }`}
+                aria-label="Watch history"
+                title="Watch history"
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Link>
+              <Link
                 href="/settings"
                 className={`${styles.iconBtn} ${
                   settingsActive ? styles.iconBtnOn : ""
@@ -373,6 +410,7 @@ export default function SiteHeader() {
                   />
                 </svg>
               </Link>
+
             </>
           ) : null}
         </div>

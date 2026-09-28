@@ -58,9 +58,11 @@ export default function TitleCard({ item }) {
       <h3>{item.name || "Untitled"}</h3>
       {item.year || item.rating ? (
         <p className={styles.meta}>
-          {[item.year, item.rating ? `★ ${item.rating}` : ""]
-            .filter(Boolean)
-            .join(" · ")}
+          {item.year ? <span>{item.year}</span> : null}
+          {item.year && item.rating ? <span> · </span> : null}
+          {item.rating ? (
+            <span className={styles.rating}>★ {item.rating}</span>
+          ) : null}
         </p>
       ) : null}
     </Link>

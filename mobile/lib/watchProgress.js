@@ -37,6 +37,9 @@ function schedulePersist() {
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     AsyncStorage.setItem(STORE_KEY, JSON.stringify(cache)).catch(() => {});
+    import("./sync")
+      .then((m) => m.scheduleLibrarySync?.())
+      .catch(() => {});
   }, 400);
 }
 

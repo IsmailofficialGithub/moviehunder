@@ -88,6 +88,9 @@ async function ensureLikes() {
 
 async function persistLikes() {
   await AsyncStorage.setItem(LIKES_KEY, JSON.stringify([...likedIds]));
+  import("./sync")
+    .then((m) => m.scheduleLibrarySync?.())
+    .catch(() => {});
 }
 
 export function subscribeMusicPlayer(fn) {

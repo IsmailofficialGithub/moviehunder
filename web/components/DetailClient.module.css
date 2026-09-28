@@ -95,6 +95,7 @@
 
 .ratingScore {
   font-weight: 800;
+  color: var(--gold, #f5c518);
 }
 
 .ratingSource {

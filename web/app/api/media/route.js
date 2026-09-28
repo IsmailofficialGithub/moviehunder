@@ -29,18 +29,60 @@ async function handleMedia(request) {
     }
 
     const relayBase = getPlayRelayBase();
-    const isRelayConfigured =
-      relayBase &&
-      !relayBase.includes("127.0.0.1:8788") &&
-      !relayBase.includes("localhost:8788");
 
-    let redirectUrl = targetUrl;
-    if (isRelayConfigured) {
-      redirectUrl = `${relayBase}/api/media?url=${encodeURIComponent(targetUrl)}`;
+    // If relay is configured, redirect to relay to handle CDN headers and streaming
+    if (relayBase) {
+      let base = relayBase;
+      try {
+        const reqHost = url.hostname;
+        const relayUrl = new URL(relayBase);
+        if (
+          (relayUrl.hostname === "127.0.0.1" || relayUrl.hostname === "localhost") &&
+          reqHost &&
+          reqHost !== relayUrl.hostname
+        ) {
+          relayUrl.hostname = reqHost;
+          base = relayUrl.origin;
+        }
+      } catch {}
+      const redirectUrl = `${base}/api/media?url=${encodeURIComponent(targetUrl)}`;
+      return Response.redirect(redirectUrl, 302);
     }
 
-    // 302 Redirect to upstream CDN or Relay. Transfers 0 video bytes through Vercel.
-    return Response.redirect(redirectUrl, 302);
+    // Direct proxy fallback with upstream headers when no relay is set
+    const upstreamHeaders = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "*/*",
+      Origin: "https://123movienow.cc",
+      Referer: "https://123movienow.cc/",
+    };
+    const range = request.headers.get("range");
+    if (range) upstreamHeaders["Range"] = range;
+
+    const upstreamRes = await fetch(targetUrl, {
+      method: request.method,
+      headers: upstreamHeaders,
+      redirect: "follow",
+      signal: request.signal,
+    });
+
+    const outHeaders = new Headers();
+    const forwardHeader = (name) => {
+      const val = upstreamRes.headers.get(name);
+      if (val) outHeaders.set(name, val);
+    };
+
+    forwardHeader("content-type");
+    forwardHeader("content-length");
+    forwardHeader("content-range");
+    forwardHeader("accept-ranges");
+    outHeaders.set("Cache-Control", "private, max-age=60");
+
+    return new Response(upstreamRes.body, {
+      status: upstreamRes.status,
+      headers: outHeaders,
+    });
   } catch (err) {
     console.error("[api/media] redirect error:", err);
     return NextResponse.json(

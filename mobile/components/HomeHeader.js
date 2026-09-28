@@ -139,13 +139,22 @@ export default function HomeHeader() {
         </View>
 
         <Pressable
+          onPress={() => router.push("/account")}
+          style={styles.headerIcon}
+          hitSlop={8}
+          accessibilityLabel="Account profile"
+        >
+          <Ionicons name="person-circle-outline" size={26} color={colors.accentLight || colors.secondary} />
+        </Pressable>
+
+        <Pressable
           onPress={() => Linking.openURL(GITHUB_URL)}
           style={styles.github}
           hitSlop={8}
           accessibilityRole="link"
           accessibilityLabel="Open IsmailOfficial on GitHub"
         >
-          <Ionicons name="logo-github" size={22} color={colors.text} />
+          <Ionicons name="logo-github" size={20} color={colors.muted} />
         </Pressable>
       </View>
 
@@ -208,8 +217,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 13,
   },
-  github: {
+  headerIcon: {
     width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  github: {
+    width: 32,
     height: 36,
     alignItems: "center",
     justifyContent: "center",

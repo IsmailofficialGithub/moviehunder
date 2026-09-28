@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String?   @map("password_hash")
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  displayName     String?   @map("display_name")
+  avatarUrl       String?   @map("avatar_url")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  oauthAccounts  OAuthAccount[]
+  sessions       Session[]
+  emailTokens    EmailToken[]
+  watchProgress  WatchProgress[]
+  playlists      Playlist[]
+  trackLikes     TrackLike[]
+  downloadItems  DownloadItem[]
+
+  @@map("users")
+}
+
+model OAuthAccount {
+  id             String   @id @default(cuid())
+  provider       String
+  providerUserId String   @map("provider_user_id")
+  userId         String   @map("user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model Session {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  refreshTokenHash String   @map("refresh_token_hash")
+  expiresAt        DateTime @map("expires_at")
+  userAgent        String?  @map("user_agent")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+  @@map("sessions")
+}
+
+model EmailToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  purpose   String
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([tokenHash])
+  @@map("email_tokens")
+}
+
+model AppDevice {
+  deviceId      String    @id @map("device_id")
+  platform      String?
+  appVersion    String?   @map("app_version")
+  deviceName     String?   @map("device_name")
+  model         String?
+  firstSeenAt   DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt    DateTime  @default(now()) @map("last_seen_at")
+  blocked       Boolean   @default(false)
+  blockedReason String?   @map("blocked_reason")
+  blockedAt     DateTime? @map("blocked_at")
+  notes         String?
+
+  @@index([blocked])
+  @@index([lastSeenAt(sort: Desc)])
+  @@map("app_devices")
+}
+
+model WatchProgress {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  progressKey String   @map("progress_key")
+  position    Float    @default(0)
+  duration    Float    @default(0)
+  title       String?
+  subjectId   String?  @map("subject_id")
+  detailPath  String?  @map("detail_path")
+  se          String?
+  ep          String?
+  poster      String?
+  kind        String?
+  completed   Boolean  @default(false)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, progressKey])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("watch_progress")
+}
+
+model Playlist {
+  id        String   @id
+  userId    String   @map("user_id")
+  name      String
+  system    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tracks PlaylistTrack[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("playlists")
+}
+
+model PlaylistTrack {
+  id         String   @id @default(cuid())
+  playlistId String   @map("playlist_id")
+  trackId    String   @map("track_id")
+  sortOrder  Int      @default(0) @map("sort_order")
+  snapshot   Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, trackId])
+  @@index([playlistId])
+  @@map("playlist_tracks")
+}
+
+model TrackLike {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  trackId   String   @map("track_id")
+  snapshot  Json?
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+  @@index([userId])
+  @@map("track_likes")
+}
+
+model DownloadItem {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  downloadId  String   @map("download_id")
+  kind        String?
+  payload     Json
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, downloadId])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("download_items")
+}

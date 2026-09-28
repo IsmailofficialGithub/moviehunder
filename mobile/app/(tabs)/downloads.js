@@ -1335,14 +1335,24 @@ export default function DownloadsScreen() {
             </Pressable>
           </View>
         ) : (
-          <Pressable
-            onPress={() => setSettingsModalOpen(true)}
-            hitSlop={10}
-            style={styles.settingsIconBtn}
-            accessibilityLabel="Download settings"
-          >
-            <Ionicons name="settings-outline" size={18} color={colors.text} />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              onPress={() => router.push("/account")}
+              hitSlop={10}
+              style={styles.settingsIconBtn}
+              accessibilityLabel="Account"
+            >
+              <Ionicons name="person-outline" size={18} color={colors.text} />
+            </Pressable>
+            <Pressable
+              onPress={() => setSettingsModalOpen(true)}
+              hitSlop={10}
+              style={styles.settingsIconBtn}
+              accessibilityLabel="Download settings"
+            >
+              <Ionicons name="settings-outline" size={18} color={colors.text} />
+            </Pressable>
+          </View>
         )}
       </Pressable>
 

@@ -5,12 +5,6 @@
 
 import { cfg, createConfig, setActiveConfig } from "./config.js";
 import {
-  assertAdmin,
-  listDevices,
-  setDeviceBlocked,
-  verifyDeviceAccess,
-} from "./access.js";
-import {
   musicPlaylistTracks,
   musicSearch,
   musicSuggest,
@@ -37,6 +31,7 @@ import {
   authorizeClient,
   requestContext,
 } from "./cors.js";
+import { isProxiedApiPath, proxyToNodeApi } from "./nodeProxy.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -380,15 +375,9 @@ async function handleRequest(request, env) {
         return await handleSubtitleDownload(request, env);
       }
 
-      // ── Device access (Supabase) ──────────────────────────
-      if (p === "/api/access/verify" && request.method === "POST") {
-        return await handleAccessVerify(request, env);
-      }
-      if (p === "/api/access/devices" && request.method === "GET") {
-        return await handleAccessList(request, env);
-      }
-      if (p === "/api/access/block" && request.method === "POST") {
-        return await handleAccessBlock(request, env);
+      // Auth / sync / device access → Node play-relay (Prisma)
+      if (isProxiedApiPath(p)) {
+        return await proxyToNodeApi(request, env);
       }
 
       // ── Live watching counter ─────────────────────────────
@@ -499,9 +488,15 @@ function handleRoot() {
         "/api/subtitles/download": "POST { file_id } — fetch and convert to VTT (server-side only)",
       },
       access: {
-        "/api/access/verify": "POST { device_id, platform, app_version } — register/verify device",
+        "/api/access/verify": "POST { device_id, platform, app_version } — register/verify device (proxied to Node)",
         "/api/access/devices": "GET — list devices (header X-Admin-Key)",
         "/api/access/block": "POST { device_id, blocked, reason } (header X-Admin-Key)",
+      },
+      auth: {
+        "/api/auth/signup": "POST email/password signup",
+        "/api/auth/login": "POST login",
+        "/api/auth/google/start": "GET Google OAuth",
+        "/api/sync/*": "GET/PUT library sync (Bearer token)",
       },
       music: {
         "/api/music/search?q=": "Search free Audius tracks + playlists",
@@ -1862,54 +1857,6 @@ async function handleSubtitleDownload(request, env) {
 // ══════════════════════════════════════════════════════════════════
 // Device access (Supabase)
 // ══════════════════════════════════════════════════════════════════
-
-async function handleAccessVerify(request, env) {
-  const body = await request.json().catch(() => ({}));
-  try {
-    const result = await verifyDeviceAccess(env, body);
-    return json(
-      { ok: result.allowed, ...result },
-      result.allowed ? 200 : 403
-    );
-  } catch (err) {
-    console.error("[access/verify]", err);
-    // Supabase / network errors — do NOT treat as "blocked device"
-    return json(
-      {
-        ok: false,
-        allowed: true,
-        mode: "degraded",
-        error: err.message || "Access check failed",
-        hint: "Check SUPABASE_URL, SUPABASE_SERVICE_KEY, and that app_devices table exists",
-      },
-      503
-    );
-  }
-}
-
-async function handleAccessList(request, env) {
-  const auth = assertAdmin(env, request);
-  if (!auth.ok) return json({ error: auth.error }, 401);
-  try {
-    const limit = new URL(request.url).searchParams.get("limit");
-    const devices = await listDevices(env, { limit });
-    return json({ ok: true, devices });
-  } catch (err) {
-    return json({ error: err.message || "List failed" }, 502);
-  }
-}
-
-async function handleAccessBlock(request, env) {
-  const auth = assertAdmin(env, request);
-  if (!auth.ok) return json({ error: auth.error }, 401);
-  const body = await request.json().catch(() => ({}));
-  try {
-    const row = await setDeviceBlocked(env, body);
-    return json({ ok: true, device: row });
-  } catch (err) {
-    return json({ error: err.message || "Block failed" }, 502);
-  }
-}
 
 async function handleMusicSearch(params) {
   try {

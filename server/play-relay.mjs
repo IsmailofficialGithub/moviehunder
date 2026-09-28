@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { URL } from "node:url";
 import { createConfig, setActiveConfig, cfg } from "./src/config.js";
 import { authorizeClient } from "./src/cors.js";
+import { handleNodeApi, isNodeApiPath } from "./src/nodeApi.js";
 
 function loadDotEnv(filePath) {
   if (!existsSync(filePath)) return {};
@@ -234,6 +235,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
+    return;
   }
 
   const url = new URL(req.url || "/", `http://127.0.0.1:${PORT}`);
@@ -247,9 +249,57 @@ const server = http.createServer(async (req, res) => {
         service: "play-relay",
         port: PORT,
         usage: `/api/stream/{subjectId}?detail_path=slug&se=1&ep=1`,
+        node_api: ["/api/auth/*", "/api/sync/*", "/api/access/*"],
       },
       corsHeaders
     );
+    return;
+  }
+
+  // Auth / sync / device access (Prisma + nodemailer)
+  if (isNodeApiPath(url.pathname)) {
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const rawBody = Buffer.concat(chunks);
+      const headers = new Headers();
+      for (const [k, v] of Object.entries(req.headers || {})) {
+        if (v == null) continue;
+        if (Array.isArray(v)) {
+          for (const item of v) headers.append(k, item);
+        } else {
+          headers.set(k, String(v));
+        }
+      }
+      const fetchReq = new Request(`http://${req.headers.host || "127.0.0.1"}${req.url}`, {
+        method: req.method || "GET",
+        headers,
+        body:
+          rawBody.length && !["GET", "HEAD"].includes(req.method || "GET")
+            ? rawBody
+            : undefined,
+      });
+      const apiRes = await handleNodeApi(fetchReq, { env: process.env });
+      if (!apiRes) {
+        sendJson(res, 404, { error: "Not found" }, corsHeaders);
+        return;
+      }
+      applyCors(res, corsHeaders);
+      const location = apiRes.headers.get("location");
+      const outHeaders = { "Content-Type": apiRes.headers.get("content-type") || "application/json" };
+      if (location) outHeaders.Location = location;
+      const buf = Buffer.from(await apiRes.arrayBuffer());
+      res.writeHead(apiRes.status, outHeaders);
+      res.end(buf);
+    } catch (err) {
+      console.error("[node-api]", err);
+      sendJson(
+        res,
+        500,
+        { error: err.message || "Node API error" },
+        corsHeaders
+      );
+    }
     return;
   }
 

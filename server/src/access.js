@@ -1,29 +1,9 @@
 /**
- * Device access via Supabase REST.
- * If SUPABASE_URL / SUPABASE_SERVICE_KEY are missing, access is open (dev).
+ * Device access via Prisma / Postgres.
+ * If DATABASE_URL is missing, access is open (dev).
  */
 
-function sbConfigured(env) {
-  const url = String(env?.SUPABASE_URL || "").trim();
-  const key = String(env?.SUPABASE_SERVICE_KEY || "").trim();
-  if (!url || !key) return false;
-  if (/YOUR_PROJECT|your_service_role/i.test(url + key)) return false;
-  return true;
-}
-
-function sbHeaders(env) {
-  const key = String(env.SUPABASE_SERVICE_KEY).trim();
-  return {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    "Content-Type": "application/json",
-    Prefer: "return=representation",
-  };
-}
-
-function sbUrl(env, path) {
-  return `${String(env.SUPABASE_URL).replace(/\/+$/, "")}/rest/v1${path}`;
-}
+import { dbConfigured, getPrisma } from "./db.js";
 
 function normalizeDeviceId(raw) {
   const id = String(raw || "").trim();
@@ -32,16 +12,33 @@ function normalizeDeviceId(raw) {
   return id;
 }
 
+function toPublicDevice(row) {
+  if (!row) return null;
+  return {
+    device_id: row.deviceId,
+    platform: row.platform,
+    app_version: row.appVersion,
+    device_name: row.deviceName,
+    model: row.model,
+    first_seen_at: row.firstSeenAt?.toISOString?.() || row.firstSeenAt,
+    last_seen_at: row.lastSeenAt?.toISOString?.() || row.lastSeenAt,
+    blocked: row.blocked,
+    blocked_reason: row.blockedReason,
+    blocked_at: row.blockedAt?.toISOString?.() || row.blockedAt,
+    notes: row.notes,
+  };
+}
+
 /**
  * Upsert device, refresh last_seen, return access decision.
- * @returns {Promise<{ allowed: boolean, mode: string, device?: object, reason?: string }>}
+ * @returns {Promise<{ allowed: boolean, mode: string, device?: object, reason?: string, hint?: string }>}
  */
-export async function verifyDeviceAccess(env, body = {}) {
-  if (!sbConfigured(env)) {
+export async function verifyDeviceAccess(_env, body = {}) {
+  if (!dbConfigured()) {
     return {
       allowed: true,
       mode: "open",
-      hint: "Supabase not configured — access open",
+      hint: "DATABASE_URL not configured — access open",
     };
   }
 
@@ -49,163 +46,122 @@ export async function verifyDeviceAccess(env, body = {}) {
   if (!deviceId) {
     return {
       allowed: false,
-      mode: "supabase",
+      mode: "postgres",
       reason: "Invalid device_id",
     };
   }
 
-  const now = new Date().toISOString();
+  const prisma = getPrisma();
+  const now = new Date();
   const platform = String(body.platform || "").slice(0, 32) || null;
   const appVersion = String(body.app_version || "").slice(0, 64) || null;
   const deviceName = String(body.device_name || "").slice(0, 120) || null;
   const model = String(body.model || "").slice(0, 120) || null;
 
-  // Existing row?
-  const getRes = await fetch(
-    sbUrl(env, `/app_devices?device_id=eq.${encodeURIComponent(deviceId)}&select=*`),
-    { headers: sbHeaders(env) }
-  );
-  if (!getRes.ok) {
-    const text = await getRes.text().catch(() => "");
-    throw new Error(`Supabase read failed (${getRes.status}): ${text.slice(0, 200)}`);
-  }
-  const existing = await getRes.json();
-  const row = Array.isArray(existing) ? existing[0] : null;
+  const existing = await prisma.appDevice.findUnique({
+    where: { deviceId },
+  });
 
-  if (row) {
-    const patchRes = await fetch(
-      sbUrl(env, `/app_devices?device_id=eq.${encodeURIComponent(deviceId)}`),
-      {
-        method: "PATCH",
-        headers: sbHeaders(env),
-        body: JSON.stringify({
-          last_seen_at: now,
-          platform: platform || row.platform,
-          app_version: appVersion || row.app_version,
-          device_name: deviceName || row.device_name,
-          model: model || row.model,
-        }),
-      }
-    );
-    if (!patchRes.ok) {
-      const text = await patchRes.text().catch(() => "");
-      throw new Error(`Supabase update failed (${patchRes.status}): ${text.slice(0, 200)}`);
-    }
+  if (existing) {
+    const row = await prisma.appDevice.update({
+      where: { deviceId },
+      data: {
+        lastSeenAt: now,
+        platform: platform || existing.platform,
+        appVersion: appVersion || existing.appVersion,
+        deviceName: deviceName || existing.deviceName,
+        model: model || existing.model,
+      },
+    });
 
     if (row.blocked) {
       return {
         allowed: false,
-        mode: "supabase",
+        mode: "postgres",
         reason:
-          row.blocked_reason?.trim() ||
+          row.blockedReason?.trim() ||
           "Your access to this app has been removed.",
         device: {
-          device_id: row.device_id,
+          device_id: row.deviceId,
           blocked: true,
-          first_seen_at: row.first_seen_at,
+          first_seen_at: row.firstSeenAt?.toISOString?.() || row.firstSeenAt,
         },
       };
     }
 
     return {
       allowed: true,
-      mode: "supabase",
+      mode: "postgres",
       device: {
-        device_id: row.device_id,
+        device_id: row.deviceId,
         blocked: false,
-        first_seen_at: row.first_seen_at,
+        first_seen_at: row.firstSeenAt?.toISOString?.() || row.firstSeenAt,
       },
     };
   }
 
-  // New device
-  const insertRes = await fetch(sbUrl(env, "/app_devices"), {
-    method: "POST",
-    headers: {
-      ...sbHeaders(env),
-      Prefer: "return=representation",
-    },
-    body: JSON.stringify({
-      device_id: deviceId,
+  const created = await prisma.appDevice.create({
+    data: {
+      deviceId,
       platform,
-      app_version: appVersion,
-      device_name: deviceName,
+      appVersion,
+      deviceName,
       model,
-      first_seen_at: now,
-      last_seen_at: now,
+      firstSeenAt: now,
+      lastSeenAt: now,
       blocked: false,
-    }),
+    },
   });
-
-  if (!insertRes.ok) {
-    const text = await insertRes.text().catch(() => "");
-    throw new Error(`Supabase insert failed (${insertRes.status}): ${text.slice(0, 200)}`);
-  }
-
-  const created = await insertRes.json();
-  const createdRow = Array.isArray(created) ? created[0] : created;
 
   return {
     allowed: true,
-    mode: "supabase",
+    mode: "postgres",
     device: {
-      device_id: createdRow?.device_id || deviceId,
+      device_id: created.deviceId,
       blocked: false,
-      first_seen_at: createdRow?.first_seen_at || now,
+      first_seen_at: created.firstSeenAt?.toISOString?.() || created.firstSeenAt,
     },
   };
 }
 
-export async function setDeviceBlocked(env, { device_id, blocked, reason } = {}) {
-  if (!sbConfigured(env)) {
-    throw new Error("Supabase not configured");
+export async function setDeviceBlocked(_env, { device_id, blocked, reason } = {}) {
+  if (!dbConfigured()) {
+    throw new Error("DATABASE_URL not configured");
   }
   const deviceId = normalizeDeviceId(device_id);
   if (!deviceId) throw new Error("Invalid device_id");
 
-  const payload = {
-    blocked: Boolean(blocked),
-    blocked_reason: blocked ? String(reason || "Blocked by admin").slice(0, 240) : null,
-    blocked_at: blocked ? new Date().toISOString() : null,
-  };
-
-  const res = await fetch(
-    sbUrl(env, `/app_devices?device_id=eq.${encodeURIComponent(deviceId)}`),
-    {
-      method: "PATCH",
-      headers: sbHeaders(env),
-      body: JSON.stringify(payload),
-    }
-  );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Supabase block failed (${res.status}): ${text.slice(0, 200)}`);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) ? rows[0] : rows;
+  const prisma = getPrisma();
+  const row = await prisma.appDevice.update({
+    where: { deviceId },
+    data: {
+      blocked: Boolean(blocked),
+      blockedReason: blocked
+        ? String(reason || "Blocked by admin").slice(0, 240)
+        : null,
+      blockedAt: blocked ? new Date() : null,
+    },
+  });
+  return toPublicDevice(row);
 }
 
-export async function listDevices(env, { limit = 50 } = {}) {
-  if (!sbConfigured(env)) {
-    throw new Error("Supabase not configured");
+export async function listDevices(_env, { limit = 50 } = {}) {
+  if (!dbConfigured()) {
+    throw new Error("DATABASE_URL not configured");
   }
   const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  const res = await fetch(
-    sbUrl(
-      env,
-      `/app_devices?select=*&order=last_seen_at.desc&limit=${lim}`
-    ),
-    { headers: sbHeaders(env) }
-  );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Supabase list failed (${res.status}): ${text.slice(0, 200)}`);
-  }
-  return res.json();
+  const prisma = getPrisma();
+  const rows = await prisma.appDevice.findMany({
+    orderBy: { lastSeenAt: "desc" },
+    take: lim,
+  });
+  return rows.map(toPublicDevice);
 }
 
 export function assertAdmin(env, request) {
-  const expected = String(env?.ADMIN_API_KEY || "").trim();
+  const expected = String(
+    env?.ADMIN_API_KEY || process.env.ADMIN_API_KEY || ""
+  ).trim();
   if (!expected) {
     return { ok: false, error: "ADMIN_API_KEY not set on server" };
   }
@@ -219,4 +175,9 @@ export function assertAdmin(env, request) {
   return { ok: true };
 }
 
-export { sbConfigured };
+/** @deprecated use dbConfigured */
+export function sbConfigured() {
+  return dbConfigured();
+}
+
+export { dbConfigured };

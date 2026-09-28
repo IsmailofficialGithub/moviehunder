@@ -1,8 +1,9 @@
-import Link from "next/link";
+﻿import Link from "next/link";
+import AccountSettings from "../../components/AccountSettings";
 import styles from "./settings.module.css";
 
 export const metadata = {
-  title: "Settings",
+  title: "Settings — MovieHunter",
 };
 
 export default function SettingsPage() {
@@ -15,6 +16,8 @@ export default function SettingsPage() {
         </p>
       </header>
 
+      <AccountSettings />
+
       <section className={styles.group} aria-labelledby="settings-general">
         <h2 id="settings-general" className={styles.groupTitle}>
           General
@@ -23,7 +26,7 @@ export default function SettingsPage() {
           <div className={styles.row}>
             <div className={styles.rowText}>
               <p className={styles.rowLabel}>App</p>
-              <p className={styles.rowHint}>MovieHunter</p>
+              <p className={styles.rowHint}>MovieHunter — Web</p>
             </div>
             <span className={styles.rowValue}>Web</span>
           </div>

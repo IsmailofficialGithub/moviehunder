@@ -49,7 +49,7 @@ export default function PosterCard({ item, width = 118, onPress }) {
         {item?.name || "Untitled"}
       </Text>
       {item?.rating ? (
-        <Text style={styles.meta}>★ {item.rating}</Text>
+        <Text style={styles.rating}>★ {item.rating}</Text>
       ) : null}
     </View>
   );
@@ -127,6 +127,12 @@ const styles = StyleSheet.create({
   meta: {
     color: colors.muted,
     fontSize: 11,
+    marginTop: 2,
+  },
+  rating: {
+    color: colors.gold,
+    fontSize: 11,
+    fontWeight: "700",
     marginTop: 2,
   },
 });

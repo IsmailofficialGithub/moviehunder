@@ -36,7 +36,7 @@ body {
     radial-gradient(900px 500px at 90% 0%, rgba(90, 0, 162, 0.22), transparent 50%),
     var(--bg);
   color: var(--text);
-  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -202,7 +202,7 @@ select {
 @media (max-width: 800px) {
   :root {
     --page-pad: 16px;
-    --header-h: auto;
+    --header-h: 56px;
   }
 
   .page {
