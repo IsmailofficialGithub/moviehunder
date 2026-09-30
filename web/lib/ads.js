@@ -1,10 +1,10 @@
 export const ADS_CONFIG = {
   // Set this to false to disable all ads across the application
-  ENABLE_ADS: false,
+  ENABLE_ADS: true,
 
   // Set this to false to hide ads from users but still load them for impressions (Stealth mode)
   // Set this to true to actually show the ads in your UI layout normally
-  ADS_VISIBILITY: false,
+  ADS_VISIBILITY: true,
 
   // Set the maximum number of visual ads (banners) to show per page
   // Set to -1 to show all ads
