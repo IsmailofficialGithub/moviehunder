@@ -145,6 +145,7 @@ export default function StreamPlayer({
   se = "0",
   ep = "0",
   title = "",
+  poster = "",
   initialTime = 0,
   prevEpisode = null,
   nextEpisode = null,
@@ -388,14 +389,18 @@ export default function StreamPlayer({
       if (video.currentTime > 2 && !video.ended) {
         try {
           localStorage.setItem(`history_${subjectId}_${se}_${ep}`, video.currentTime.toString());
-          if (displayTitle || poster) {
+          if (displayTitle || poster || title) {
+            let prevMeta = {};
+            try {
+              prevMeta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
+            } catch {}
             localStorage.setItem(
               `history_meta_${subjectId}`,
               JSON.stringify({
-                title: displayTitle,
-                poster: poster || null,
-                detailPath: detailPath || null,
-                duration: video.duration || 0,
+                title: displayTitle || prevMeta.title || title,
+                poster: poster || prevMeta.poster || null,
+                detailPath: detailPath || prevMeta.detailPath || null,
+                duration: video.duration || prevMeta.duration || 0,
               })
             );
           }

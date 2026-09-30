@@ -21,14 +21,16 @@ function flattenEpisodes(seasons = []) {
   return flat;
 }
 
-function playQuery({ subjectId, detailPath, se, ep, title }) {
-  return new URLSearchParams({
+function playQuery({ subjectId, detailPath, se, ep, title, poster }) {
+  const q = {
     subjectId,
     detail_path: detailPath,
     se: String(se),
     ep: String(ep),
     title: title || "",
-  }).toString();
+  };
+  if (poster) q.poster = poster;
+  return new URLSearchParams(q).toString();
 }
 
 export default function PlayClient() {
@@ -36,11 +38,25 @@ export default function PlayClient() {
   const params = useSearchParams();
 
   const subjectId = params.get("subjectId") || params.get("id") || "";
-  const detailPath = params.get("detail_path") || "";
+  let detailPath = params.get("detail_path") || "";
   const se = params.get("se") || "0";
   const ep = params.get("ep") || "0";
-  const title = params.get("title") || "";
+  let title = params.get("title") || "";
+  let poster = params.get("poster") || "";
   const initialTime = Number(params.get("t") || params.get("start") || params.get("position") || 0);
+
+  if (subjectId && typeof window !== "undefined") {
+    try {
+      const meta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
+      if (!detailPath && meta.detailPath) detailPath = meta.detailPath;
+      if (!title && meta.title) title = meta.title;
+      if (!poster && meta.poster) poster = meta.poster;
+    } catch {}
+  }
+
+  if (!detailPath && subjectId) {
+    detailPath = subjectId;
+  }
 
   const isSeries = Number(se) > 0 || Number(ep) > 0;
   const [episodeList, setEpisodeList] = useState(null);
@@ -113,6 +129,7 @@ export default function PlayClient() {
           se={se}
           ep={ep}
           title={title}
+          poster={poster}
           initialTime={initialTime}
           prevEpisode={prevEpisode}
           nextEpisode={nextEpisode}

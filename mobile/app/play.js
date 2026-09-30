@@ -150,7 +150,7 @@ export default function PlayScreen() {
   const params = useLocalSearchParams();
 
   const subjectId = String(params.subjectId || "");
-  const detailPath = String(params.detail_path || params.slug || "");
+  const detailPath = String(params.detail_path || params.slug || params.subjectId || "");
   const se = String(params.se ?? "0");
   const ep = String(params.ep ?? "0");
   const title = String(params.title || "Now playing");

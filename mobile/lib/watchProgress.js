@@ -33,13 +33,15 @@ async function hydrate() {
   return hydratePromise;
 }
 
-function schedulePersist() {
+function schedulePersist(skipSync = false) {
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     AsyncStorage.setItem(STORE_KEY, JSON.stringify(cache)).catch(() => {});
-    import("./sync")
-      .then((m) => m.scheduleLibrarySync?.())
-      .catch(() => {});
+    if (!skipSync) {
+      import("./sync")
+        .then((m) => m.scheduleLibrarySync?.())
+        .catch(() => {});
+    }
   }, 400);
 }
 
@@ -121,14 +123,14 @@ export function historyBucket(updatedAt, now = Date.now()) {
   if (age < day * 2) return "Yesterday";
   if (age < day * 4) return "Last 3 days";
   if (age < day * 8) return "Last 7 days";
-  return "";
+  return "Earlier";
 }
 
-export async function getWatchHistory({ limit = 30 } = {}) {
+export async function getWatchHistory({ limit = 50 } = {}) {
   const entries = await getAllWatchProgress();
   return entries
-    .filter((entry) => entry.title && entry.detailPath && historyBucket(entry.updatedAt))
-    .slice(0, Math.max(0, Number(limit) || 30));
+    .filter((entry) => (entry.title || entry.subjectId) && (Number(entry.position) > 2))
+    .slice(0, Math.max(0, Number(limit) || 50));
 }
 
 export async function saveWatchProgress(
@@ -143,12 +145,14 @@ export async function saveWatchProgress(
     ep,
     poster,
     kind,
-  } = {}
+    updatedAt,
+  } = {},
+  { skipSync = false } = {}
 ) {
   if (!key) return;
   const pos = Number(position) || 0;
   const dur = Number(duration) || 0;
-  if (pos < 5) return;
+  if (pos < 2) return;
   await hydrate();
 
   const completed =
@@ -156,7 +160,7 @@ export async function saveWatchProgress(
   const previous = cache[key] || {};
   cache[key] = {
     position: completed ? dur : pos,
-    duration: dur,
+    duration: dur || previous.duration || 0,
     title: title ? String(title) : previous.title,
     subjectId: subjectId ? String(subjectId) : previous.subjectId,
     detailPath: detailPath ? String(detailPath) : previous.detailPath,
@@ -165,9 +169,9 @@ export async function saveWatchProgress(
     poster: poster ? String(poster) : previous.poster,
     kind: kind ? String(kind) : previous.kind,
     completed,
-    updatedAt: Date.now(),
+    updatedAt: Number(updatedAt) || Date.now(),
   };
-  schedulePersist();
+  schedulePersist(skipSync);
   emit();
 }
 

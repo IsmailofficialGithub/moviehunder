@@ -20,9 +20,10 @@ import {
   progressPercent,
   subscribeWatchProgress,
 } from "../lib/watchProgress";
+import { pullWatch } from "../lib/sync";
 import { colors, radii, spacing } from "../lib/theme";
 
-const GROUPS = ["Today", "Yesterday", "Last 3 days", "Last 7 days"];
+const GROUPS = ["Today", "Yesterday", "Last 3 days", "Last 7 days", "Earlier"];
 
 export default function HistoryScreen() {
   const [entries, setEntries] = useState([]);
@@ -30,9 +31,10 @@ export default function HistoryScreen() {
 
   useEffect(() => {
     const refresh = () =>
-      getWatchHistory({ limit: 30 }).then(setEntries).catch(() => {});
+      getWatchHistory({ limit: 50 }).then(setEntries).catch(() => {});
     const unsubscribe = subscribeWatchProgress(refresh);
     refresh();
+    pullWatch().then(refresh).catch(() => {});
     return unsubscribe;
   }, []);
 
@@ -105,7 +107,7 @@ export default function HistoryScreen() {
                       ]}
                     >
                       <Pressable
-                        onPress={() => openCatalogTitle(entry.detailPath)}
+                        onPress={() => openCatalogTitle(entry.detailPath || entry.subjectId)}
                         style={[
                           styles.cardPressable,
                           viewMode === "list" && styles.cardPressableList,
@@ -144,7 +146,7 @@ export default function HistoryScreen() {
                         </ProgressBorder>
                         <View style={viewMode === "list" ? styles.cardInfo : null}>
                           <Text style={styles.name} numberOfLines={2}>
-                            {entry.title}
+                            {entry.title || entry.subjectId || "Watched title"}
                           </Text>
                           <Text style={styles.meta} numberOfLines={1}>
                             {[episode, `${percent}% watched`]
@@ -164,7 +166,7 @@ export default function HistoryScreen() {
                         }
                         hitSlop={8}
                         style={styles.removeButton}
-                        accessibilityLabel={`Remove ${entry.title} from history`}
+                        accessibilityLabel={`Remove ${entry.title || entry.subjectId || "item"} from history`}
                       >
                         <Text style={styles.removeText}>Remove</Text>
                       </Pressable>

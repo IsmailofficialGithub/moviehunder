@@ -19,7 +19,7 @@ export function scheduleLibrarySync() {
   }, 2000);
 }
 
-async function pushWatch() {
+export async function pushWatch() {
   const entries = await getAllWatchProgress();
   const items = entries.map((e) => ({
     key: e.key,
@@ -35,27 +35,38 @@ async function pushWatch() {
     completed: e.completed,
     updatedAt: e.updatedAt,
   }));
-  if (items.length) await syncPut("/api/sync/watch-progress", items);
+  if (items.length) await syncPut("/api/sync/watch-progress", items).catch(() => {});
 }
 
-async function pullWatch() {
+export async function pullWatch() {
   const data = await syncGet("/api/sync/watch-progress");
   for (const item of data.items || []) {
     const local = (await getAllWatchProgress()).find((e) => e.key === item.key);
     const remoteTs = Number(item.updatedAt) || 0;
     const localTs = Number(local?.updatedAt) || 0;
-    if (!local || remoteTs > localTs) {
-      await saveWatchProgress(item.key, {
-        position: item.position,
-        duration: item.duration,
-        title: item.title,
-        subjectId: item.subjectId,
-        detailPath: item.detailPath,
-        se: item.se,
-        ep: item.ep,
-        poster: item.poster,
-        kind: item.kind,
-      });
+    if (
+      !local ||
+      remoteTs > localTs ||
+      (!local.title && item.title) ||
+      (!local.poster && item.poster) ||
+      (!local.detailPath && item.detailPath)
+    ) {
+      await saveWatchProgress(
+        item.key,
+        {
+          position: item.position,
+          duration: item.duration,
+          title: item.title || local?.title,
+          subjectId: item.subjectId || local?.subjectId,
+          detailPath: item.detailPath || local?.detailPath,
+          se: item.se ?? local?.se,
+          ep: item.ep ?? local?.ep,
+          poster: item.poster || local?.poster,
+          kind: item.kind || local?.kind,
+          updatedAt: remoteTs || Date.now(),
+        },
+        { skipSync: true }
+      );
     }
   }
 }

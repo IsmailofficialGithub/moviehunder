@@ -243,6 +243,21 @@ export default function DetailClient({ slug, detail, episodes }) {
       ep: String(ep),
       title: meta.title || slug,
     });
+    if (meta.poster) q.set("poster", meta.poster);
+
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(
+          `history_meta_${subjectId}`,
+          JSON.stringify({
+            title: meta.title || slug,
+            poster: meta.poster || null,
+            detailPath: slug,
+          })
+        );
+      } catch {}
+    }
+
     startTransition(() => {
       router.push(`/play?${q.toString()}`);
     });

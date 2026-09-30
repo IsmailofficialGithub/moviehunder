@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../components/AuthProvider";
 import { syncGet } from "../../lib/auth";
+import { applyRemoteWatch, pushWatchProgress } from "../../lib/sync";
 import styles from "./history.module.css";
 
 function formatTime(seconds) {
@@ -35,10 +36,12 @@ function buildPlayUrl(item) {
   if (!item.detailPath && !item.subjectId) return null;
   const p = new URLSearchParams();
   if (item.subjectId) p.set("subjectId", item.subjectId);
-  if (item.detailPath) p.set("detail_path", item.detailPath);
+  const detailPath = item.detailPath || item.subjectId;
+  if (detailPath) p.set("detail_path", detailPath);
   if (item.se != null) p.set("se", String(item.se));
   if (item.ep != null) p.set("ep", String(item.ep));
   if (item.title) p.set("title", item.title);
+  if (item.poster) p.set("poster", item.poster);
   if (item.position != null && item.position > 0) {
     p.set("t", String(Math.floor(item.position)));
   }
@@ -152,10 +155,37 @@ export default function HistoryPage() {
       setLoading(true);
       try {
         if (isSignedIn) {
+          // Push any pending local watch history before pulling
+          await pushWatchProgress().catch(() => {});
           const data = await syncGet("/api/sync/watch-progress");
+          applyRemoteWatch(data.items || []);
+
+          // Read local history to enrich any remote item that has null title/poster/detailPath
+          const localItems = readLocalHistory();
           const remote = (data.items || [])
             .filter((i) => i.position > 2)
+            .map((item) => {
+              const localMatch = localItems.find(
+                (l) => l.subjectId === item.subjectId && String(l.se) === String(item.se) && String(l.ep) === String(item.ep)
+              ) || localItems.find((l) => l.subjectId === item.subjectId);
+              return {
+                ...item,
+                title: item.title || localMatch?.title || null,
+                poster: item.poster || localMatch?.poster || null,
+                detailPath: item.detailPath || localMatch?.detailPath || null,
+                duration: item.duration || localMatch?.duration || 0,
+              };
+            })
             .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+          // Also include any local item that wasn't yet in remote
+          for (const loc of localItems) {
+            if (!remote.some((r) => r.subjectId === loc.subjectId && String(r.se) === String(loc.se) && String(r.ep) === String(loc.ep))) {
+              remote.push(loc);
+            }
+          }
+          remote.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
           setItems(remote);
         } else {
           setItems(readLocalHistory());
