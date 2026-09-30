@@ -40,6 +40,11 @@ const fileEnv = {
   ...loadDotEnv(path.join(root, ".env")),
   ...loadDotEnv(path.join(root, ".dev.vars")),
 };
+for (const [k, v] of Object.entries(fileEnv)) {
+  if (process.env[k] == null || process.env[k] === "") {
+    process.env[k] = v;
+  }
+}
 const config = createConfig({ ...fileEnv, ...process.env });
 setActiveConfig(config);
 
