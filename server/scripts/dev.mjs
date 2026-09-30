@@ -3,11 +3,19 @@
  * Usage: npm run dev
  */
 import { spawn } from "node:child_process";
+import { copyFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const serverRoot = path.resolve(root, "..");
+
+const envPath = path.join(serverRoot, ".env");
+const devVars = path.join(serverRoot, ".dev.vars");
+if (existsSync(envPath)) {
+  copyFileSync(envPath, devVars);
+  console.log("[dev] synced .env → .dev.vars");
+}
 
 const kids = [];
 
