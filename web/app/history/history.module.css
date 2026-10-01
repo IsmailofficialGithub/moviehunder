@@ -315,7 +315,7 @@
 
 .heroPosterBarFill {
   height: 100%;
-  background: var(--accent);
+  background: var(--secondary);
 }
 
 .heroInfo {
@@ -337,7 +337,7 @@
   gap: 6px;
   padding: 4px 12px;
   border-radius: 999px;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--primary));
   color: var(--accent-ink);
   font-size: 11px;
   font-weight: 700;
@@ -391,7 +391,7 @@
 
 .heroBar {
   height: 100%;
-  background: var(--accent);
+  background: var(--secondary);
   border-radius: 999px;
   transition: width 0.3s ease;
 }
@@ -409,7 +409,7 @@
   gap: 8px;
   padding: 11px 24px;
   border-radius: 12px;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--primary));
   color: var(--accent-ink);
   font-size: 14px;
   font-weight: 700;
@@ -419,7 +419,7 @@
 
 .heroPlayBtn:hover {
   transform: translateY(-2px);
-  background: var(--primary);
+  filter: brightness(1.1);
 }
 
 .heroDeleteBtn {
@@ -482,8 +482,8 @@
 }
 
 .tabActive {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  border-color: transparent;
   color: var(--accent-ink);
   font-weight: 700;
 }
@@ -598,6 +598,7 @@
 .cardList .cardBody {
   justify-content: center;
   flex: 1;
+  min-width: 0; /* allows text to wrap/truncate instead of breaking layout */
   padding-right: 48px; /* space for delete btn */
 }
 
@@ -731,7 +732,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--primary));
   color: var(--accent-ink);
   display: flex;
   align-items: center;
@@ -756,7 +757,7 @@
 
 .cardBar {
   height: 100%;
-  background: var(--accent);
+  background: var(--secondary);
 }
 
 .cardBody {
@@ -779,6 +780,7 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.35;
   transition: color 0.15s ease;
 }
@@ -836,7 +838,7 @@
   align-items: center;
   padding: 10px 24px;
   border-radius: 12px;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--primary));
   color: var(--accent-ink);
   font-size: 14px;
   font-weight: 700;
@@ -846,7 +848,7 @@
 
 .exploreBtn:hover {
   transform: translateY(-2px);
-  background: var(--primary);
+  filter: brightness(1.1);
 }
 
 /* Pagination */
