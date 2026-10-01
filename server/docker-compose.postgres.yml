@@ -30,9 +30,11 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     volumes:
       - moviehunter_redis_data:/data
-    command: redis-server --save 60 1 --loglevel warning
+    command: /bin/sh -c 'redis-server --save 60 1 --loglevel warning --requirepass "$$REDIS_PASSWORD"'
 
 volumes:
   moviehunter_pg_data:
