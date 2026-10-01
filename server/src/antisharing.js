@@ -1,5 +1,5 @@
 import { getRedis } from "./redis.js";
-import { db, getPrisma } from "./db.js";
+import { getPrisma } from "./db.js";
 import { requireUser } from "./auth.js";
 
 // Mock Lua script for concurrency
