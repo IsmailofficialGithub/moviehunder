@@ -278,6 +278,7 @@ export default function HistoryPage() {
     if (isSignedIn) {
       await syncPut("/api/sync/watch-progress", [
         {
+          key: itemKey,
           subjectId: itemToDelete.subjectId,
           se: itemToDelete.se ?? "0",
           ep: itemToDelete.ep ?? "0",
