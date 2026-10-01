@@ -128,6 +128,59 @@ export async function handlePutWatchProgress(request) {
   return { status: 200, body: { ok: true, upserted } };
 }
 
+export async function handleSyncGuestHistory(request) {
+  const auth = await requireUser(request);
+  if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
+  if (!dbConfigured()) {
+    return { status: 503, body: { error: "Database not configured" } };
+  }
+  const body = await request.json().catch(() => ({}));
+  const items = Array.isArray(body.items) ? body.items : [];
+  const prisma = getPrisma();
+  let upserted = 0;
+
+  for (const item of items) {
+    if (!item.subjectId) continue;
+    const updatedAt = new Date(Number(item.lastWatched) || Date.now());
+    const key = (item.se && item.ep && item.se !== "0" && item.ep !== "0") ? `${item.subjectId}_${item.se}_${item.ep}` : String(item.subjectId);
+
+    const existing = await prisma.watchProgress.findUnique({
+      where: {
+        userId_progressKey: { userId: auth.user.id, progressKey: key },
+      },
+    });
+
+    if (existing && existing.updatedAt.getTime() >= updatedAt.getTime()) {
+      continue;
+    }
+
+    await prisma.watchProgress.upsert({
+      where: {
+        userId_progressKey: { userId: auth.user.id, progressKey: key },
+      },
+      create: {
+        userId: auth.user.id,
+        progressKey: key,
+        subjectId: item.subjectId,
+        detailPath: item.detailPath || null,
+        title: item.title || null,
+        poster: item.poster || null,
+        se: item.se != null ? String(item.se) : null,
+        ep: item.ep != null ? String(item.ep) : null,
+        updatedAt,
+      },
+      update: {
+        title: item.title || existing?.title || null,
+        poster: item.poster || existing?.poster || null,
+        updatedAt,
+      },
+    });
+    upserted += 1;
+  }
+
+  return { status: 200, body: { ok: true, upserted } };
+}
+
 export async function handleDeleteWatchProgress(request) {
   const auth = await requireUser(request);
   if (!auth.ok) return { status: auth.status, body: { error: auth.error } };

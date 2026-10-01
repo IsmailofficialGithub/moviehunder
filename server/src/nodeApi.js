@@ -32,6 +32,7 @@ import {
   handlePutLikes,
   handleGetDownloads,
   handlePutDownloads,
+  handleSyncGuestHistory,
 } from "./sync.js";
 
 async function readJson(request) {
@@ -162,6 +163,9 @@ export async function handleNodeApi(request, opts = {}) {
   if (p === "/api/sync/downloads" && method === "PUT") {
     return fromHandler(await handlePutDownloads(request));
   }
+  if (p === "/api/history/sync" && method === "POST") {
+    return fromHandler(await handleSyncGuestHistory(request));
+  }
 
   return null;
 }
@@ -186,6 +190,7 @@ export function isNodeApiPath(pathname) {
   return (
     p.startsWith("/api/access") ||
     p.startsWith("/api/auth") ||
-    p.startsWith("/api/sync")
+    p.startsWith("/api/sync") ||
+    p.startsWith("/api/history/sync")
   );
 }
