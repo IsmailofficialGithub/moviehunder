@@ -128,10 +128,6 @@ export function handleLogoutCleanup(userId) {
 
 export function listLocalWatch() {
   if (typeof window === "undefined") return [];
-  const session = getStoredSession();
-  const userId = session?.user?.id;
-  const cached = getWatchCache(userId);
-  if (cached.length > 0) return cached;
 
   // Fallback to reading raw localStorage keys
   const items = [];
@@ -233,9 +229,6 @@ export function applyRemoteWatch(items) {
       );
     }
   }
-
-  // Update structured user browser cache
-  saveWatchCache(userId, items);
 }
 
 // ── Optimized Live Playback Sync (Throttled & Heartbeat) ────────────────────
