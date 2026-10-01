@@ -389,8 +389,10 @@ export default function StreamPlayer({
       if (video.currentTime > 2 && !video.ended) {
         try {
           const nowTs = Date.now();
-          localStorage.setItem(`history_${subjectId}_${se}_${ep}`, video.currentTime.toString());
-          localStorage.setItem(`history_time_${subjectId}_${se}_${ep}`, nowTs.toString());
+          const seStr = String(se || "0");
+          const epStr = String(ep || "0");
+          localStorage.setItem(`history_${subjectId}_${seStr}_${epStr}`, video.currentTime.toString());
+          localStorage.setItem(`history_time_${subjectId}_${seStr}_${epStr}`, nowTs.toString());
           if (title || poster) {
             let prevMeta = {};
             try {
@@ -409,10 +411,10 @@ export default function StreamPlayer({
           }
 
           const watchItem = {
-            key: `t:${subjectId}:s${se || "0"}:e${ep || "0"}`,
+            key: `t:${subjectId}:s${seStr}:e${epStr}`,
             subjectId,
-            se: String(se || "0"),
-            ep: String(ep || "0"),
+            se: seStr,
+            ep: epStr,
             position: video.currentTime,
             duration: video.duration || 0,
             title: title || null,

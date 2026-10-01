@@ -253,10 +253,19 @@ export default function HistoryPage() {
     saveWatchCache(user?.id, nextItems);
 
     // 2. Remove from localStorage
-    const se = itemToDelete.se ?? "0";
-    const ep = itemToDelete.ep ?? "0";
+    const rawSe = itemToDelete.se;
+    const rawEp = itemToDelete.ep;
+    const se = (!rawSe || rawSe === "undefined" || rawSe === "null") ? "0" : rawSe;
+    const ep = (!rawEp || rawEp === "undefined" || rawEp === "null") ? "0" : rawEp;
+    
     localStorage.removeItem(`history_${itemToDelete.subjectId}_${se}_${ep}`);
     localStorage.removeItem(`history_time_${itemToDelete.subjectId}_${se}_${ep}`);
+    
+    // Also remove bad data keys to clean them up
+    if (rawSe !== se || rawEp !== ep) {
+      localStorage.removeItem(`history_${itemToDelete.subjectId}_${rawSe}_${rawEp}`);
+      localStorage.removeItem(`history_time_${itemToDelete.subjectId}_${rawSe}_${rawEp}`);
+    }
 
     let hasOtherEpisodes = false;
     for (let i = 0; i < localStorage.length; i++) {
@@ -280,8 +289,8 @@ export default function HistoryPage() {
         {
           key: itemKey,
           subjectId: itemToDelete.subjectId,
-          se: itemToDelete.se ?? "0",
-          ep: itemToDelete.ep ?? "0",
+          se,
+          ep,
           position: -1,
           duration: -1,
           updatedAt: Date.now(),

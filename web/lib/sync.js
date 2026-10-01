@@ -143,8 +143,10 @@ export function listLocalWatch() {
     const rest = key.slice(WATCH_PREFIX.length);
     const parts = rest.split("_");
     if (parts.length < 3) continue;
-    const ep = parts.pop();
-    const se = parts.pop();
+    const rawEp = parts.pop();
+    const rawSe = parts.pop();
+    const ep = (!rawEp || rawEp === "undefined" || rawEp === "null") ? "0" : rawEp;
+    const se = (!rawSe || rawSe === "undefined" || rawSe === "null") ? "0" : rawSe;
     const subjectId = parts.join("_");
     const position = Number(localStorage.getItem(key)) || 0;
     if (position < 2) continue;
