@@ -12,7 +12,9 @@ import {
   listLocalWatch,
   parseTimestamp,
   saveWatchCache,
+  runFullSync,
 } from "../../lib/sync";
+import { syncGuestHistoryToServer } from "../../lib/guestHistory";
 import styles from "./history.module.css";
 
 function formatTime(seconds) {
@@ -139,6 +141,8 @@ export default function HistoryPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [lastSynced, setLastSynced] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const isClearingRef = useRef(false);
 
   useEffect(() => {
@@ -157,6 +161,7 @@ export default function HistoryPage() {
         if (isSignedIn) {
           const data = await syncGet("/api/sync/watch-progress");
           if (isClearingRef.current) return;
+          setLastSynced(new Date());
           const remoteItems = data.items || [];
           applyRemoteWatch(remoteItems);
 
@@ -298,6 +303,22 @@ export default function HistoryPage() {
     }
   }
 
+  async function handleSyncNow() {
+    if (!isSignedIn) return;
+    setIsSyncing(true);
+    try {
+      await syncGuestHistoryToServer().catch(() => {});
+      await runFullSync().catch(() => {});
+      
+      setLastSynced(new Date());
+      window.dispatchEvent(new Event("focus"));
+    } catch (err) {
+      console.error("Sync failed", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
   const recentItem = items && items.length > 0 ? items[0] : null;
 
   const filteredItems =
@@ -319,10 +340,24 @@ export default function HistoryPage() {
           </div>
           <div className={styles.syncStatus}>
             {isSignedIn ? (
-              <span className={styles.syncOnline}>
-                <span className={styles.syncDotOnline} />
-                Synced with <strong>{user?.email || "Account"}</strong>
-              </span>
+              <div className={styles.syncOnlineWrap}>
+                <span className={styles.syncOnline}>
+                  <span className={styles.syncDotOnline} />
+                  Synced with <strong>{user?.email || "Account"}</strong>
+                </span>
+                {lastSynced && (
+                  <span className={styles.lastSynced}>
+                    Last synced: {lastSynced.toLocaleTimeString()}
+                  </span>
+                )}
+                <button 
+                  onClick={handleSyncNow} 
+                  className={styles.syncBtn}
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? "Syncing..." : "Sync Now"}
+                </button>
+              </div>
             ) : (
               <span className={styles.syncLocal}>
                 <span className={styles.syncDotLocal} />

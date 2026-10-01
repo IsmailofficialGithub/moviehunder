@@ -103,6 +103,43 @@
   color: #f43f5e;
 }
 
+.syncOnlineWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lastSynced {
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+}
+
+.syncBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: max-content;
+}
+
+.syncBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.syncBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .clearBtn {
   display: inline-flex;
   align-items: center;
