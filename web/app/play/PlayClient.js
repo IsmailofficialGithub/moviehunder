@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import StreamPlayer from "../../components/StreamPlayer";
 import { getEpisodes } from "../../lib/api";
+import { useAuth } from "../../components/AuthProvider";
+import { addHistoryItem } from "../../lib/guestHistory";
 import styles from "./play.module.css";
 
 function flattenEpisodes(seasons = []) {
@@ -57,6 +59,14 @@ export default function PlayClient() {
       if (!poster && meta.poster) poster = meta.poster;
     } catch {}
   }
+
+  const { isSignedIn } = useAuth();
+
+  useEffect(() => {
+    if (isSignedIn === false && subjectId) {
+      addHistoryItem(subjectId, { detailPath, title, poster, se, ep });
+    }
+  }, [isSignedIn, subjectId, detailPath, title, poster, se, ep]);
 
   if (!detailPath && subjectId) {
     detailPath = subjectId;
