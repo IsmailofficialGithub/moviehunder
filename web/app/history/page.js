@@ -442,7 +442,7 @@ export default function HistoryPage() {
             Start watching any movie, series, or short show and pick up right
             where you left off.
           </p>
-          <Link href="/catalog" className={styles.exploreBtn}>
+          <Link href="/" className={styles.exploreBtn}>
             Explore Catalog
           </Link>
         </div>
