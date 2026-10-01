@@ -1,0 +1,184 @@
+.row {
+  margin: 12px 0 28px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  content-visibility: auto;
+}
+
+.seeAllLink {
+  color: var(--secondary, #c084fc);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.seeAllLink:hover {
+  color: #f43f5e;
+  transform: translateX(2px);
+}
+
+.card {
+  flex: 0 0 148px;
+  width: 148px;
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  transition: transform 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+}
+
+.card:hover h3 {
+  color: var(--secondary, #c084fc);
+}
+
+.posterWrap {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  background: var(--panel, #12121e);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.25s ease, filter 0.2s ease;
+}
+
+.card:hover .poster {
+  transform: scale(1.05);
+  filter: brightness(1.08);
+}
+
+.fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--muted, #a1a1aa);
+  font-size: 32px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.badge {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-weight: 700;
+  z-index: 2;
+}
+
+.playOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 2;
+}
+
+.card:hover .playOverlay {
+  opacity: 1;
+}
+
+.playIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(236, 72, 153, 0.5);
+  transform: scale(0.9);
+  transition: transform 0.2s ease;
+}
+
+.card:hover .playIcon {
+  transform: scale(1);
+}
+
+.progressBarWrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 3;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, #ec4899, #a855f7);
+}
+
+.cardTitle {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text, #fff);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: color 0.15s ease;
+}
+
+.meta {
+  margin: 3px 0 0;
+  color: var(--muted, #a1a1aa);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.progressText {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .card {
+    flex: 0 0 130px;
+    width: 130px;
+  }
+
+  .cardTitle {
+    font-size: 12px;
+  }
+
+  .meta {
+    font-size: 10px;
+  }
+}

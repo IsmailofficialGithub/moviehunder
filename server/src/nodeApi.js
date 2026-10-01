@@ -25,6 +25,7 @@ import {
 import {
   handleGetWatchProgress,
   handlePutWatchProgress,
+  handleDeleteWatchProgress,
   handleGetPlaylists,
   handlePutPlaylists,
   handleGetLikes,
@@ -139,6 +140,9 @@ export async function handleNodeApi(request, opts = {}) {
   }
   if (p === "/api/sync/watch-progress" && method === "PUT") {
     return fromHandler(await handlePutWatchProgress(request));
+  }
+  if (p === "/api/sync/watch-progress" && method === "DELETE") {
+    return fromHandler(await handleDeleteWatchProgress(request));
   }
   if (p === "/api/sync/playlists" && method === "GET") {
     return fromHandler(await handleGetPlaylists(request));

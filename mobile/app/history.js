@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -13,6 +14,7 @@ import ProgressBorder from "../components/ProgressBorder";
 import Screen from "../components/Screen";
 import { openCatalogTitle } from "../lib/catalogNav";
 import {
+  clearAllWatchProgress,
   clearWatchProgress,
   formatResumeTime,
   getWatchHistory,
@@ -49,41 +51,74 @@ export default function HistoryScreen() {
     );
   }, [entries]);
 
+  const handleClearAll = () => {
+    Alert.alert(
+      "Clear Watch History",
+      "Are you sure you want to clear your entire watch history?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: () => {
+            clearAllWatchProgress()
+              .then(() => setEntries([]))
+              .catch(() => {});
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <Screen edges={["left", "right", "bottom"]}>
       <DetailHeader title="Watch history" />
       <View style={styles.viewToolbar}>
-        <Text style={styles.viewLabel}>View</Text>
-        <View style={styles.viewToggle}>
-          <Pressable
-            onPress={() => setViewMode("grid")}
-            style={[
-              styles.viewButton,
-              viewMode === "grid" && styles.viewButtonActive,
-            ]}
-            accessibilityLabel="Box view"
-          >
-            <Ionicons
-              name="grid-outline"
-              size={17}
-              color={viewMode === "grid" ? colors.accentLight : colors.muted}
-            />
-          </Pressable>
-          <Pressable
-            onPress={() => setViewMode("list")}
-            style={[
-              styles.viewButton,
-              viewMode === "list" && styles.viewButtonActive,
-            ]}
-            accessibilityLabel="Inline view"
-          >
-            <Ionicons
-              name="list-outline"
-              size={18}
-              color={viewMode === "list" ? colors.accentLight : colors.muted}
-            />
-          </Pressable>
+        <View style={styles.viewToolbarLeft}>
+          <Text style={styles.viewLabel}>View</Text>
+          <View style={styles.viewToggle}>
+            <Pressable
+              onPress={() => setViewMode("grid")}
+              style={[
+                styles.viewButton,
+                viewMode === "grid" && styles.viewButtonActive,
+              ]}
+              accessibilityLabel="Box view"
+            >
+              <Ionicons
+                name="grid-outline"
+                size={17}
+                color={viewMode === "grid" ? colors.accentLight : colors.muted}
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => setViewMode("list")}
+              style={[
+                styles.viewButton,
+                viewMode === "list" && styles.viewButtonActive,
+              ]}
+              accessibilityLabel="Inline view"
+            >
+              <Ionicons
+                name="list-outline"
+                size={18}
+                color={viewMode === "list" ? colors.accentLight : colors.muted}
+              />
+            </Pressable>
+          </View>
         </View>
+
+        {entries.length > 0 && (
+          <Pressable
+            onPress={handleClearAll}
+            hitSlop={8}
+            style={styles.clearAllBtn}
+            accessibilityLabel="Clear all watch history"
+          >
+            <Ionicons name="trash-outline" size={13} color="#f87171" />
+            <Text style={styles.clearAllText}>Clear all</Text>
+          </Pressable>
+        )}
       </View>
 
       {grouped.length ? (
@@ -197,6 +232,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+  },
+  viewToolbarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  clearAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(248, 113, 113, 0.3)",
+    backgroundColor: "rgba(248, 113, 113, 0.08)",
+  },
+  clearAllText: {
+    color: "#f87171",
+    fontSize: 12,
+    fontWeight: "700",
   },
   viewLabel: {
     color: colors.muted,

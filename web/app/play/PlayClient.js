@@ -37,8 +37,12 @@ export default function PlayClient() {
   const router = useRouter();
   const params = useSearchParams();
 
-  const subjectId = params.get("subjectId") || params.get("id") || "";
+  let subjectId = params.get("subjectId") || params.get("id") || "";
   let detailPath = params.get("detail_path") || "";
+
+  if (!subjectId && detailPath) subjectId = detailPath;
+  if (!detailPath && subjectId) detailPath = subjectId;
+
   const se = params.get("se") || "0";
   const ep = params.get("ep") || "0";
   let title = params.get("title") || "";
@@ -56,6 +60,9 @@ export default function PlayClient() {
 
   if (!detailPath && subjectId) {
     detailPath = subjectId;
+  }
+  if (!subjectId && detailPath) {
+    subjectId = detailPath;
   }
 
   const isSeries = Number(se) > 0 || Number(ep) > 0;

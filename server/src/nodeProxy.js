@@ -66,7 +66,10 @@ export async function proxyToNodeApi(request, env) {
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = await request.arrayBuffer();
+    const buf = await request.arrayBuffer();
+    if (buf && buf.byteLength > 0) {
+      init.body = buf;
+    }
   }
 
   let upstream;

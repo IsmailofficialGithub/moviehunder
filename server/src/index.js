@@ -261,7 +261,8 @@ export default {
       const denyCors = origin
         ? {
             "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+            "Access-Control-Allow-Methods":
+              "GET, HEAD, POST, PUT, DELETE, OPTIONS",
             "Access-Control-Allow-Headers":
               "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key, Authorization",
             Vary: "Origin",

@@ -1,6 +1,7 @@
 "use client";
 
 import Hero from "./Hero";
+import ContinueWatchingRow from "./ContinueWatchingRow";
 import TitleCard from "./TitleCard";
 import RowScroller from "./RowScroller";
 import LazyRow from "./LazyRow";
@@ -25,6 +26,7 @@ export default function CatalogRows({ sections = [], showHero = true }) {
   return (
     <div>
       {showHero && bannerItems.length ? <Hero items={bannerItems} /> : null}
+      <ContinueWatchingRow />
       {rows.map((section, index) => (
         <section
           key={`${section.section || "row"}-${index}`}

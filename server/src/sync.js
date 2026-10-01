@@ -46,7 +46,13 @@ export async function handlePutWatchProgress(request) {
     return { status: 503, body: { error: "Database not configured" } };
   }
   const body = await request.json().catch(() => ({}));
-  const items = Array.isArray(body.items) ? body.items : [];
+  const items = Array.isArray(body.items)
+    ? body.items
+    : body.item
+    ? [body.item]
+    : (body.key || body.progressKey)
+    ? [body]
+    : [];
   const prisma = getPrisma();
   let upserted = 0;
 
@@ -61,7 +67,27 @@ export async function handlePutWatchProgress(request) {
         userId_progressKey: { userId: auth.user.id, progressKey: key },
       },
     });
-    if (existing && existing.updatedAt > updatedAt) continue;
+
+    const incomingPos = Number(item.position) || 0;
+    const isRewind = Boolean(item.rewind || incomingPos < 15);
+    let finalPos = incomingPos;
+    let finalCompleted = Boolean(item.completed);
+
+    if (existing) {
+      // 1. If existing record is newer than incoming update by > 10s, keep existing
+      if (existing.updatedAt.getTime() - updatedAt.getTime() > 10000) {
+        continue;
+      }
+
+      // 2. Multi-device concurrent watching:
+      // If two devices are actively watching at the same time (within 3 mins),
+      // do not let a lagging background device overwrite a further progress
+      const timeDiff = Math.abs(updatedAt.getTime() - existing.updatedAt.getTime());
+      if (timeDiff < 180000 && existing.position > incomingPos && !isRewind) {
+        finalPos = existing.position;
+        if (existing.completed) finalCompleted = true;
+      }
+    }
 
     await prisma.watchProgress.upsert({
       where: {
@@ -70,7 +96,7 @@ export async function handlePutWatchProgress(request) {
       create: {
         userId: auth.user.id,
         progressKey: key,
-        position: Number(item.position) || 0,
+        position: finalPos,
         duration: Number(item.duration) || 0,
         title: item.title || null,
         subjectId: item.subjectId || null,
@@ -79,11 +105,11 @@ export async function handlePutWatchProgress(request) {
         ep: item.ep != null ? String(item.ep) : null,
         poster: item.poster || null,
         kind: item.kind || null,
-        completed: Boolean(item.completed),
+        completed: finalCompleted,
         updatedAt,
       },
       update: {
-        position: Number(item.position) || 0,
+        position: finalPos,
         duration: Number(item.duration) || existing?.duration || 0,
         title: item.title || existing?.title || null,
         subjectId: item.subjectId || existing?.subjectId || null,
@@ -92,7 +118,7 @@ export async function handlePutWatchProgress(request) {
         ep: item.ep != null ? String(item.ep) : (existing?.ep || null),
         poster: item.poster || existing?.poster || null,
         kind: item.kind || existing?.kind || null,
-        completed: Boolean(item.completed),
+        completed: finalCompleted,
         updatedAt,
       },
     });
@@ -100,6 +126,27 @@ export async function handlePutWatchProgress(request) {
   }
 
   return { status: 200, body: { ok: true, upserted } };
+}
+
+export async function handleDeleteWatchProgress(request) {
+  const auth = await requireUser(request);
+  if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
+  if (!dbConfigured()) {
+    return { status: 503, body: { error: "Database not configured" } };
+  }
+  const url = new URL(request.url);
+  const key = url.searchParams.get("key");
+  const prisma = getPrisma();
+  if (key) {
+    await prisma.watchProgress.deleteMany({
+      where: { userId: auth.user.id, progressKey: key },
+    });
+    return { status: 200, body: { ok: true, deleted: key } };
+  }
+  const result = await prisma.watchProgress.deleteMany({
+    where: { userId: auth.user.id },
+  });
+  return { status: 200, body: { ok: true, deletedCount: result.count } };
 }
 
 function playlistToPublic(pl) {

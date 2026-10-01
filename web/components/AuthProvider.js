@@ -18,7 +18,7 @@ import {
   signup as apiSignup,
   storeSession,
 } from "../lib/auth";
-import { runFullSync } from "../lib/sync";
+import { ensureUserStorage, handleLogoutCleanup, runFullSync } from "../lib/sync";
 
 const AuthContext = createContext(null);
 
@@ -45,10 +45,12 @@ export function AuthProvider({ children }) {
       setHasPassword(Boolean(me.has_password));
       if (me.user) {
         storeSession({ user: me.user });
+        ensureUserStorage(me.user.id);
         runFullSync().catch(() => {});
       }
     } catch {
       clearSession();
+      handleLogoutCleanup(null);
       setUser(null);
       setProviders([]);
       setHasPassword(false);
@@ -61,9 +63,10 @@ export function AuthProvider({ children }) {
     hydrate();
   }, [hydrate]);
 
-  const login = useCallback(async ( creds) => {
+  const login = useCallback(async (creds) => {
     const data = await apiLogin(creds);
     setUser(data.user || null);
+    if (data.user?.id) ensureUserStorage(data.user.id);
     await hydrate();
     return data;
   }, [hydrate]);
@@ -71,16 +74,19 @@ export function AuthProvider({ children }) {
   const signup = useCallback(async (creds) => {
     const data = await apiSignup(creds);
     setUser(data.user || null);
+    if (data.user?.id) ensureUserStorage(data.user.id);
     await hydrate();
     return data;
   }, [hydrate]);
 
   const logout = useCallback(async () => {
+    const currentId = user?.id;
     await apiLogout();
+    handleLogoutCleanup(currentId);
     setUser(null);
     setProviders([]);
     setHasPassword(false);
-  }, []);
+  }, [user]);
 
   const value = useMemo(
     () => ({

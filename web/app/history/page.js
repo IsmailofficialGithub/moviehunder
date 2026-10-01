@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../components/AuthProvider";
-import { syncGet } from "../../lib/auth";
-import { applyRemoteWatch, pushWatchProgress } from "../../lib/sync";
+import { syncDelete, syncGet } from "../../lib/auth";
+import {
+  applyRemoteWatch,
+  clearLocalWatchHistory,
+  clearWatchCache,
+  getWatchCache,
+  listLocalWatch,
+  parseTimestamp,
+  saveWatchCache,
+} from "../../lib/sync";
 import styles from "./history.module.css";
 
 function formatTime(seconds) {
@@ -15,6 +23,24 @@ function formatTime(seconds) {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+function formatTimeAgo(timestamp) {
+  const ts = parseTimestamp(timestamp);
+  if (!ts) return null;
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 60) return "Just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function progressPct(position, duration) {
@@ -33,11 +59,19 @@ function episodeLabel(se, ep) {
 }
 
 function buildPlayUrl(item) {
-  if (!item.detailPath && !item.subjectId) return null;
+  let subjectId = item.subjectId || null;
+  let detailPath = item.detailPath || null;
+  if (!subjectId && item.key?.startsWith("t:")) {
+    const parts = item.key.slice(2).split(":");
+    subjectId = parts[0] || null;
+  }
+  if (!subjectId && detailPath) subjectId = detailPath;
+  if (!detailPath && subjectId) detailPath = subjectId;
+  if (!subjectId && !detailPath) return null;
+
   const p = new URLSearchParams();
-  if (item.subjectId) p.set("subjectId", item.subjectId);
-  const detailPath = item.detailPath || item.subjectId;
-  if (detailPath) p.set("detail_path", detailPath);
+  p.set("subjectId", subjectId);
+  p.set("detail_path", detailPath);
   if (item.se != null) p.set("se", String(item.se));
   if (item.ep != null) p.set("ep", String(item.ep));
   if (item.title) p.set("title", item.title);
@@ -89,52 +123,6 @@ function getItemCategory(item) {
   return "Hot";
 }
 
-function readLocalHistory() {
-  if (typeof window === "undefined") return [];
-  const items = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (!key?.startsWith("history_") || key.startsWith("history_meta_")) continue;
-    const rest = key.slice("history_".length);
-    const parts = rest.split("_");
-    if (parts.length < 3) continue;
-    const ep = parts.pop();
-    const se = parts.pop();
-    const subjectId = parts.join("_");
-    const position = Number(localStorage.getItem(key)) || 0;
-    if (position < 2) continue;
-
-    let title = null;
-    let poster = null;
-    let detailPath = null;
-    let duration = 0;
-
-    try {
-      const metaRaw = localStorage.getItem(`history_meta_${subjectId}`);
-      if (metaRaw) {
-        const meta = JSON.parse(metaRaw);
-        title = meta.title || null;
-        poster = meta.poster || null;
-        detailPath = meta.detailPath || null;
-        duration = meta.duration || 0;
-      }
-    } catch {}
-
-    items.push({
-      subjectId,
-      se,
-      ep,
-      position,
-      duration,
-      title,
-      poster,
-      detailPath,
-      updatedAt: Date.now() - i * 1000,
-    });
-  }
-  return items;
-}
-
 const CATEGORIES = [
   { id: "all", label: "All Watched" },
   { id: "Hot", label: "🔥 Hot" },
@@ -145,70 +133,169 @@ const CATEGORIES = [
 ];
 
 export default function HistoryPage() {
-  const { isSignedIn, loading: authLoading } = useAuth();
+  const { user, isSignedIn, loading: authLoading } = useAuth();
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const isClearingRef = useRef(false);
 
   useEffect(() => {
     async function load() {
-      setLoading(true);
+      if (isClearingRef.current) return;
+
+      // 1. Instant Cache Hit (0ms delay)
+      const cached = getWatchCache(user?.id);
+      if (cached && cached.length > 0) {
+        setItems(cached);
+        setLoading(false);
+      }
+
+      // 2. Background Revalidation (SWR)
       try {
         if (isSignedIn) {
-          // Push any pending local watch history before pulling
-          await pushWatchProgress().catch(() => {});
           const data = await syncGet("/api/sync/watch-progress");
-          applyRemoteWatch(data.items || []);
+          if (isClearingRef.current) return;
+          const remoteItems = data.items || [];
+          applyRemoteWatch(remoteItems);
 
-          // Read local history to enrich any remote item that has null title/poster/detailPath
-          const localItems = readLocalHistory();
-          const remote = (data.items || [])
-            .filter((i) => i.position > 2)
-            .map((item) => {
-              const localMatch = localItems.find(
-                (l) => l.subjectId === item.subjectId && String(l.se) === String(item.se) && String(l.ep) === String(item.ep)
-              ) || localItems.find((l) => l.subjectId === item.subjectId);
-              return {
-                ...item,
-                title: item.title || localMatch?.title || null,
-                poster: item.poster || localMatch?.poster || null,
-                detailPath: item.detailPath || localMatch?.detailPath || null,
-                duration: item.duration || localMatch?.duration || 0,
-              };
-            })
-            .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          const localItems = listLocalWatch();
+          const remoteMap = new Map();
 
-          // Also include any local item that wasn't yet in remote
+          for (const item of remoteItems) {
+            if (Number(item.position) <= 2) continue;
+            const localMatch = localItems.find(
+              (l) =>
+                l.subjectId === item.subjectId &&
+                String(l.se) === String(item.se) &&
+                String(l.ep) === String(item.ep)
+            ) || localItems.find((l) => l.subjectId === item.subjectId);
+
+            const merged = {
+              ...item,
+              title: item.title || localMatch?.title || null,
+              poster: item.poster || localMatch?.poster || null,
+              detailPath: item.detailPath || localMatch?.detailPath || null,
+              duration: item.duration || localMatch?.duration || 0,
+              updatedAt: Math.max(
+                parseTimestamp(item.updatedAt),
+                parseTimestamp(localMatch?.updatedAt)
+              ),
+            };
+            const mapKey =
+              item.key ||
+              `t:${item.subjectId}:s${item.se || "0"}:e${item.ep || "0"}`;
+            remoteMap.set(mapKey, merged);
+          }
+
           for (const loc of localItems) {
-            if (!remote.some((r) => r.subjectId === loc.subjectId && String(r.se) === String(loc.se) && String(r.ep) === String(loc.ep))) {
-              remote.push(loc);
+            const locKey =
+              loc.key || `t:${loc.subjectId}:s${loc.se || "0"}:e${loc.ep || "0"}`;
+            if (!remoteMap.has(locKey)) {
+              remoteMap.set(locKey, loc);
             }
           }
-          remote.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
-          setItems(remote);
+          const sorted = Array.from(remoteMap.values()).sort(
+            (a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt)
+          );
+
+          if (!isClearingRef.current) {
+            saveWatchCache(user?.id, sorted);
+            setItems(sorted);
+          }
         } else {
-          setItems(readLocalHistory());
+          const loc = listLocalWatch();
+          saveWatchCache(null, loc);
+          setItems(loc);
         }
-      } catch {
-        setItems(readLocalHistory());
+      } catch (err) {
+        if (!cached || cached.length === 0) {
+          const loc = listLocalWatch();
+          setItems(loc);
+        }
       } finally {
         setLoading(false);
       }
     }
 
-    if (!authLoading) load();
-  }, [isSignedIn, authLoading]);
-
-  function clearHistory() {
-    if (!confirm("Clear all watch history from this device?")) return;
-    const toRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith("history_")) toRemove.push(key);
+    if (!authLoading) {
+      load();
+      const onFocus = () => load();
+      window.addEventListener("focus", onFocus);
+      return () => {
+        window.removeEventListener("focus", onFocus);
+      };
     }
-    toRemove.forEach((k) => localStorage.removeItem(k));
-    if (!isSignedIn) setItems([]);
+  }, [isSignedIn, authLoading, user?.id]);
+
+  async function handleDeleteItem(itemToDelete) {
+    if (!itemToDelete) return;
+    const itemKey =
+      itemToDelete.key ||
+      `t:${itemToDelete.subjectId}:s${itemToDelete.se || "0"}:e${itemToDelete.ep || "0"}`;
+
+    // 1. Optimistic UI and Cache removal
+    const nextItems = (items || []).filter((i) => {
+      const k = i.key || `t:${i.subjectId}:s${i.se || "0"}:e${i.ep || "0"}`;
+      return k !== itemKey;
+    });
+    setItems(nextItems);
+    saveWatchCache(user?.id, nextItems);
+
+    // 2. Remove from localStorage
+    const se = itemToDelete.se ?? "0";
+    const ep = itemToDelete.ep ?? "0";
+    localStorage.removeItem(`history_${itemToDelete.subjectId}_${se}_${ep}`);
+    localStorage.removeItem(`history_time_${itemToDelete.subjectId}_${se}_${ep}`);
+
+    let hasOtherEpisodes = false;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (
+        k?.startsWith(`history_${itemToDelete.subjectId}_`) &&
+        !k.startsWith("history_meta_") &&
+        !k.startsWith("history_time_")
+      ) {
+        hasOtherEpisodes = true;
+        break;
+      }
+    }
+    if (!hasOtherEpisodes) {
+      localStorage.removeItem(`history_meta_${itemToDelete.subjectId}`);
+    }
+
+    // 3. Remove from server if signed in
+    if (isSignedIn) {
+      await syncDelete(
+        `/api/sync/watch-progress?key=${encodeURIComponent(itemKey)}`
+      ).catch(() => {});
+    }
+  }
+
+  async function executeClearAll() {
+    setIsDeleting(true);
+    isClearingRef.current = true;
+    try {
+      // 1. Clear user cache and local storage immediately
+      clearWatchCache(user?.id);
+      clearLocalWatchHistory();
+      setItems([]);
+      setShowClearConfirm(false);
+
+      // 2. Delete all records from server
+      if (isSignedIn) {
+        await syncDelete("/api/sync/watch-progress");
+      }
+    } catch (err) {
+      console.error("[clearHistory error]", err);
+    } finally {
+      setIsDeleting(false);
+      setTimeout(() => {
+        isClearingRef.current = false;
+      }, 3000);
+    }
   }
 
   const recentItem = items && items.length > 0 ? items[0] : null;
@@ -216,43 +303,119 @@ export default function HistoryPage() {
   const filteredItems =
     items && activeTab !== "all"
       ? items.filter((i) => getItemCategory(i) === activeTab)
-      : items;
+      : items || [];
 
   return (
     <main className={`page ${styles.page}`}>
       <header className={styles.head}>
-        <div>
-          <h1>Watch History</h1>
-          <p className={styles.sub}>
-            {isSignedIn
-              ? "Synced across your account — pick up where you left off."
-              : "Stored locally on this device. Sign in to sync across devices."}
-          </p>
+        <div className={styles.headLeft}>
+          <div className={styles.titleRow}>
+            <h1>Watch History</h1>
+            {items && items.length > 0 && (
+              <span className={styles.totalBadge}>
+                {items.length} {items.length === 1 ? "title" : "titles"}
+              </span>
+            )}
+          </div>
+          <div className={styles.syncStatus}>
+            {isSignedIn ? (
+              <span className={styles.syncOnline}>
+                <span className={styles.syncDotOnline} />
+                Synced with <strong>{user?.email || "Account"}</strong>
+              </span>
+            ) : (
+              <span className={styles.syncLocal}>
+                <span className={styles.syncDotLocal} />
+                Stored on this browser ·{" "}
+                <Link href="/login" className={styles.syncLink}>
+                  Sign in to sync across devices
+                </Link>
+              </span>
+            )}
+          </div>
         </div>
-        {items && items.length > 0 && (
-          <button className={styles.clearBtn} onClick={clearHistory}>
-            Clear History
+
+        {items && items.length > 0 && !showClearConfirm && (
+          <button
+            type="button"
+            className={styles.clearBtn}
+            onClick={() => setShowClearConfirm(true)}
+            disabled={isDeleting}
+            title="Clear all watch history"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear All History
           </button>
         )}
       </header>
 
-      {loading || authLoading ? (
+      {/* In-app Inline Confirmation Banner (prevents focus loss and race condition) */}
+      {showClearConfirm && (
+        <div className={styles.confirmBanner}>
+          <div className={styles.confirmText}>
+            <strong>Clear all watch history?</strong>
+            <span>
+              This will remove all progress across your devices and browser
+              cache. This action cannot be undone.
+            </span>
+          </div>
+          <div className={styles.confirmActions}>
+            <button
+              type="button"
+              className={styles.confirmDeleteBtn}
+              onClick={executeClearAll}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Clearing…" : "Yes, Clear All"}
+            </button>
+            <button
+              type="button"
+              className={styles.confirmCancelBtn}
+              onClick={() => setShowClearConfirm(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading && (!items || items.length === 0) ? (
         <div className={styles.empty}>
           <div className="spinner" style={{ margin: "0 auto" }} />
+          <p className={styles.emptyHint} style={{ marginTop: 16 }}>
+            Loading watch history…
+          </p>
         </div>
       ) : !items || items.length === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>🎬</div>
-          <p className={styles.emptyTitle}>Nothing watched yet</p>
+          <p className={styles.emptyTitle}>No watch history yet</p>
           <p className={styles.emptyHint}>
-            Start watching a movie, series, or short TV show to see it here.
+            Start watching any movie, series, or short show and pick up right
+            where you left off.
           </p>
+          <Link href="/catalog" className={styles.exploreBtn}>
+            Explore Catalog
+          </Link>
         </div>
       ) : (
         <>
-          {/* Spotlight Hero: First / Most Recent Watch */}
+          {/* Spotlight Hero: Most Recently Watched Title */}
           {recentItem && (
-            <div className={styles.heroCard}>
+            <section className={styles.heroCard} aria-label="Continue Watching">
               {recentItem.poster && (
                 <div
                   className={styles.heroBackdrop}
@@ -271,23 +434,60 @@ export default function HistoryPage() {
                   ) : (
                     <div className={styles.heroPosterFallback}>🎬</div>
                   )}
+                  {progressPct(recentItem.position, recentItem.duration) > 0 && (
+                    <div className={styles.heroPosterBar}>
+                      <div
+                        className={styles.heroPosterBarFill}
+                        style={{
+                          width: `${progressPct(
+                            recentItem.position,
+                            recentItem.duration
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
+
                 <div className={styles.heroInfo}>
-                  <div className={styles.heroBadge}>
-                    ⚡ Recently Watched
+                  <div className={styles.heroTopRow}>
+                    <div className={styles.heroBadge}>
+                      ⚡ Continue Watching
+                    </div>
+                    {formatTimeAgo(recentItem.updatedAt) && (
+                      <span className={styles.heroTimeAgo}>
+                        Watched {formatTimeAgo(recentItem.updatedAt)}
+                      </span>
+                    )}
                   </div>
+
                   <h2 className={styles.heroTitle}>
-                    {recentItem.title || recentItem.subjectId || "Continue Watching"}
+                    {recentItem.title ||
+                      recentItem.subjectId ||
+                      "Continue Watching"}
                   </h2>
+
                   <div className={styles.heroMeta}>
                     {episodeLabel(recentItem.se, recentItem.ep) && (
-                      <span>{episodeLabel(recentItem.se, recentItem.ep)}</span>
+                      <span className={styles.heroEpisodeBadge}>
+                        {episodeLabel(recentItem.se, recentItem.ep)}
+                      </span>
                     )}
                     <span>{formatTime(recentItem.position)} watched</span>
                     {recentItem.duration > 0 && (
-                      <span>{progressPct(recentItem.position, recentItem.duration)}% complete</span>
+                      <>
+                        <span>·</span>
+                        <span>
+                          {progressPct(
+                            recentItem.position,
+                            recentItem.duration
+                          )}
+                          % complete
+                        </span>
+                      </>
                     )}
                   </div>
+
                   {recentItem.duration > 0 && (
                     <div className={styles.heroBarWrap}>
                       <div
@@ -301,54 +501,107 @@ export default function HistoryPage() {
                       />
                     </div>
                   )}
+
                   <div className={styles.heroActions}>
                     <Link
                       href={buildPlayUrl(recentItem) || "#"}
                       className={styles.heroPlayBtn}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
                         <path d="M8 5v14l11-7z" />
                       </svg>
                       Resume Watching
                     </Link>
+
+                    <button
+                      type="button"
+                      className={styles.heroDeleteBtn}
+                      onClick={() => handleDeleteItem(recentItem)}
+                      title="Remove from history"
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                      Remove
+                    </button>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
           )}
 
           {/* Category Filters Bar */}
           <div className={styles.tabs}>
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                className={`${styles.tab} ${
-                  activeTab === cat.id ? styles.tabActive : ""
-                }`}
-                onClick={() => setActiveTab(cat.id)}
-              >
-                {cat.label}
-              </button>
-            ))}
+            {CATEGORIES.map((cat) => {
+              const count =
+                cat.id === "all"
+                  ? items.length
+                  : items.filter((i) => getItemCategory(i) === cat.id).length;
+              return (
+                <button
+                  key={cat.id}
+                  className={`${styles.tab} ${
+                    activeTab === cat.id ? styles.tabActive : ""
+                  }`}
+                  onClick={() => setActiveTab(cat.id)}
+                >
+                  <span>{cat.label}</span>
+                  {count > 0 && (
+                    <span className={styles.tabCount}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Catalog Grid showing ALL Watched or Filtered Items */}
+          {/* Catalog Grid showing Watched Items */}
           <div>
             <div className={styles.sectionHead}>
               <h3 className={styles.sectionTitle}>
                 {activeTab === "all"
-                  ? "🍿 All Watched History"
-                  : CATEGORIES.find((c) => c.id === activeTab)?.label || "Filtered Items"}
+                  ? "All Watched Titles"
+                  : CATEGORIES.find((c) => c.id === activeTab)?.label ||
+                    "Filtered Titles"}
                 <span className={styles.sectionCount}>
-                  {filteredItems.length} {filteredItems.length === 1 ? "title" : "titles"}
+                  {filteredItems.length}{" "}
+                  {filteredItems.length === 1 ? "title" : "titles"}
                 </span>
               </h3>
             </div>
-            <div className={styles.grid}>
-              {filteredItems.map((item, idx) => (
-                <HistoryCard key={item.key || `${item.subjectId}_${item.se}_${item.ep}_${idx}`} item={item} />
-              ))}
-            </div>
+
+            {filteredItems.length === 0 ? (
+              <div className={styles.noFilterMatch}>
+                <p>No titles watched in this category yet.</p>
+              </div>
+            ) : (
+              <div className={styles.grid}>
+                {filteredItems.map((item, idx) => (
+                  <HistoryCard
+                    key={
+                      item.key ||
+                      `${item.subjectId}_${item.se}_${item.ep}_${idx}`
+                    }
+                    item={item}
+                    onDelete={handleDeleteItem}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -356,48 +609,87 @@ export default function HistoryPage() {
   );
 }
 
-function HistoryCard({ item }) {
+function HistoryCard({ item, onDelete }) {
   const pct = progressPct(item.position, item.duration);
   const epLabel = episodeLabel(item.se, item.ep);
   const playUrl = buildPlayUrl(item);
   const displayTitle = item.title || item.subjectId || "Unknown title";
   const categoryTag = getItemCategory(item);
+  const timeAgo = formatTimeAgo(item.updatedAt);
 
   return (
-    <Link href={playUrl || "#"} className={styles.card}>
-      <div className={styles.cardPosterWrap}>
-        {item.poster ? (
-          <img
-            src={item.poster}
-            alt={displayTitle}
-            className={styles.cardPoster}
-            loading="lazy"
-          />
-        ) : (
-          <div className={styles.cardPosterFallback}>🎬</div>
-        )}
-        <div className={styles.cardBadge}>
-          {epLabel || categoryTag}
-        </div>
-        <div className={styles.cardPlayOverlay}>
-          <div className={styles.cardPlayIcon}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+    <div className={styles.card}>
+      <Link href={playUrl || "#"} className={styles.cardMediaLink}>
+        <div className={styles.cardPosterWrap}>
+          {item.poster ? (
+            <img
+              src={item.poster}
+              alt={displayTitle}
+              className={styles.cardPoster}
+              loading="lazy"
+            />
+          ) : (
+            <div className={styles.cardPosterFallback}>🎬</div>
+          )}
+
+          <div className={styles.cardBadge}>{epLabel || categoryTag}</div>
+
+          <div className={styles.cardPlayOverlay}>
+            <div className={styles.cardPlayIcon}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
           </div>
+
+          {item.duration > 0 && (
+            <div className={styles.cardBarWrap}>
+              <div className={styles.cardBar} style={{ width: `${pct}%` }} />
+            </div>
+          )}
         </div>
-        {item.duration > 0 && (
-          <div className={styles.cardBarWrap}>
-            <div className={styles.cardBar} style={{ width: `${pct}%` }} />
-          </div>
-        )}
-      </div>
+      </Link>
+
+      {/* Delete / Remove item button */}
+      <button
+        type="button"
+        className={styles.cardDeleteBtn}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onDelete(item);
+        }}
+        title={`Remove ${displayTitle} from history`}
+        aria-label={`Remove ${displayTitle} from history`}
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+
       <div className={styles.cardBody}>
-        <p className={styles.cardTitle}>{displayTitle}</p>
-        <p className={styles.cardMeta}>
-          {formatTime(item.position)} {pct > 0 ? `· ${pct}%` : ""}
-        </p>
+        <Link href={playUrl || "#"} className={styles.cardTitleLink}>
+          <p className={styles.cardTitle}>{displayTitle}</p>
+        </Link>
+        <div className={styles.cardMetaRow}>
+          <span className={styles.cardMetaTime}>
+            {formatTime(item.position)} {pct > 0 ? `· ${pct}%` : ""}
+          </span>
+          {timeAgo && (
+            <span className={styles.cardMetaAgo}>{timeAgo}</span>
+          )}
+        </div>
       </div>
-    </Link>
+    </div>
   );
 }

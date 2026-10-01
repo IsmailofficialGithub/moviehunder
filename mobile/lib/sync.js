@@ -1,4 +1,4 @@
-import { getAllWatchProgress, saveWatchProgress } from "./watchProgress";
+import { clearAllWatchProgress, getAllWatchProgress, saveWatchProgress } from "./watchProgress";
 import { listPlaylists } from "./localPlaylists";
 import { getLikedIds } from "./musicPlayer";
 import { getDownloads } from "./downloads";
@@ -8,6 +8,18 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const PLAYLISTS_KEY = "flick.local.playlists.v1";
 const LIKES_KEY = "flick.music.likes.v1";
+const CURRENT_USER_KEY = "flick.current_user_id";
+
+export async function ensureUserStorageMobile(userId) {
+  try {
+    const currentKey = userId ? String(userId) : "guest";
+    const lastUser = await AsyncStorage.getItem(CURRENT_USER_KEY);
+    if (lastUser && lastUser !== currentKey) {
+      await clearAllWatchProgress();
+    }
+    await AsyncStorage.setItem(CURRENT_USER_KEY, currentKey);
+  } catch {}
+}
 
 let syncTimer = null;
 
@@ -42,7 +54,10 @@ export async function pullWatch() {
   const data = await syncGet("/api/sync/watch-progress");
   for (const item of data.items || []) {
     const local = (await getAllWatchProgress()).find((e) => e.key === item.key);
-    const remoteTs = Number(item.updatedAt) || 0;
+    const remoteTs =
+      (typeof item.updatedAt === "number"
+        ? item.updatedAt
+        : Date.parse(item.updatedAt)) || 0;
     const localTs = Number(local?.updatedAt) || 0;
     if (
       !local ||

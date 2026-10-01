@@ -200,3 +200,7 @@ export async function syncGet(path) {
 export async function syncPut(path, items, extra = {}) {
   return authFetch(path, { method: "PUT", body: { items, ...extra } });
 }
+
+export async function syncDelete(path) {
+  return authFetch(path, { method: "DELETE" });
+}

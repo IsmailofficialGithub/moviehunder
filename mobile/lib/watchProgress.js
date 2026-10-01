@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSession, syncDelete } from "./auth";
 
 const STORE_KEY = "moviehunter.watch.progress.v1";
 const MIN_RESUME_SEC = 30;
@@ -45,10 +46,17 @@ function schedulePersist(skipSync = false) {
   }, 400);
 }
 
+function parseTs(val) {
+  if (!val) return 0;
+  if (typeof val === "number") return val;
+  const p = Date.parse(val);
+  return isNaN(p) ? 0 : p;
+}
+
 function snapshot() {
   return Object.entries(cache)
     .map(([key, entry]) => ({ key, ...entry }))
-    .sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
+    .sort((a, b) => parseTs(b.updatedAt) - parseTs(a.updatedAt));
 }
 
 function emit() {
@@ -169,7 +177,7 @@ export async function saveWatchProgress(
     poster: poster ? String(poster) : previous.poster,
     kind: kind ? String(kind) : previous.kind,
     completed,
-    updatedAt: Number(updatedAt) || Date.now(),
+    updatedAt: parseTs(updatedAt) || Date.now(),
   };
   schedulePersist(skipSync);
   emit();
@@ -180,8 +188,11 @@ export async function clearWatchProgress(key) {
   await hydrate();
   if (cache[key]) {
     delete cache[key];
-    schedulePersist();
+    schedulePersist(true);
     emit();
+    if (getSession()?.access_token) {
+      syncDelete(`/api/sync/watch-progress?key=${encodeURIComponent(key)}`).catch(() => {});
+    }
   }
 }
 
@@ -189,8 +200,11 @@ export async function clearAllWatchProgress() {
   await hydrate();
   if (!Object.keys(cache).length) return;
   cache = {};
-  schedulePersist();
+  schedulePersist(true);
   emit();
+  if (getSession()?.access_token) {
+    syncDelete("/api/sync/watch-progress").catch(() => {});
+  }
 }
 
 export function formatResumeTime(seconds) {

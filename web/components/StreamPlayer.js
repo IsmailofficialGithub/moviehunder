@@ -388,8 +388,11 @@ export default function StreamPlayer({
 
       if (video.currentTime > 2 && !video.ended) {
         try {
+          const nowTs = Date.now();
           localStorage.setItem(`history_${subjectId}_${se}_${ep}`, video.currentTime.toString());
-          if (displayTitle || poster || title) {
+          localStorage.setItem(`history_time_${subjectId}_${se}_${ep}`, nowTs.toString());
+          const finalTitle = displayTitle || title;
+          if (finalTitle || poster) {
             let prevMeta = {};
             try {
               prevMeta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
@@ -397,15 +400,31 @@ export default function StreamPlayer({
             localStorage.setItem(
               `history_meta_${subjectId}`,
               JSON.stringify({
-                title: displayTitle || prevMeta.title || title,
+                title: finalTitle || prevMeta.title || title,
                 poster: poster || prevMeta.poster || null,
                 detailPath: detailPath || prevMeta.detailPath || null,
                 duration: video.duration || prevMeta.duration || 0,
+                updatedAt: nowTs,
               })
             );
           }
+
+          const watchItem = {
+            key: `t:${subjectId}:s${se || "0"}:e${ep || "0"}`,
+            subjectId,
+            se: String(se || "0"),
+            ep: String(ep || "0"),
+            position: video.currentTime,
+            duration: video.duration || 0,
+            title: finalTitle || title,
+            poster: poster || null,
+            detailPath: detailPath || subjectId,
+            updatedAt: nowTs,
+            completed: Boolean(video.duration > 0 && video.currentTime >= video.duration - 45),
+          };
+
           import("../lib/sync")
-            .then((m) => m.scheduleWatchSync?.())
+            .then((m) => m.syncPlaybackProgress?.(watchItem, { immediate: forcePos }))
             .catch(() => {});
         } catch {}
       }
@@ -434,16 +453,24 @@ export default function StreamPlayer({
 
     const onPlayPause = () => syncSession(true);
     const onTime = () => syncSession(false);
+    const onLeave = () => syncSession(true);
     syncSession(true);
     video.addEventListener("play", onPlayPause);
     video.addEventListener("pause", onPlayPause);
+    video.addEventListener("seeked", onPlayPause);
     video.addEventListener("timeupdate", onTime);
     video.addEventListener("loadedmetadata", onPlayPause);
+    window.addEventListener("pagehide", onLeave);
+    document.addEventListener("visibilitychange", onLeave);
     return () => {
+      onLeave();
       video.removeEventListener("play", onPlayPause);
       video.removeEventListener("pause", onPlayPause);
+      video.removeEventListener("seeked", onPlayPause);
       video.removeEventListener("timeupdate", onTime);
       video.removeEventListener("loadedmetadata", onPlayPause);
+      window.removeEventListener("pagehide", onLeave);
+      document.removeEventListener("visibilitychange", onLeave);
     };
   }, [mounted, displayTitle, onPrevEpisode, onNextEpisode]);
 

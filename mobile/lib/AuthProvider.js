@@ -17,7 +17,7 @@ import {
   signup as apiSignup,
   storeSession,
 } from "./auth";
-import { runFullSync } from "./sync";
+import { ensureUserStorageMobile, runFullSync } from "./sync";
 
 const AuthContext = createContext(null);
 
@@ -45,10 +45,12 @@ export function AuthProvider({ children }) {
       setHasPassword(Boolean(me.has_password));
       if (me.user) {
         await storeSession({ user: me.user });
+        await ensureUserStorageMobile(me.user.id);
         runFullSync().catch(() => {});
       }
     } catch {
       await clearSession();
+      await ensureUserStorageMobile(null);
       setUser(null);
       setProviders([]);
       setHasPassword(false);
@@ -65,6 +67,7 @@ export function AuthProvider({ children }) {
     async (creds) => {
       const data = await apiLogin(creds);
       setUser(data.user || null);
+      if (data.user?.id) await ensureUserStorageMobile(data.user.id);
       await hydrate();
       return data;
     },
@@ -75,6 +78,7 @@ export function AuthProvider({ children }) {
     async (creds) => {
       const data = await apiSignup(creds);
       setUser(data.user || null);
+      if (data.user?.id) await ensureUserStorageMobile(data.user.id);
       await hydrate();
       return data;
     },
@@ -83,6 +87,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     await apiLogout();
+    await ensureUserStorageMobile(null);
     setUser(null);
     setProviders([]);
     setHasPassword(false);

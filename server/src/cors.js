@@ -46,7 +46,7 @@ function isOriginAllowed(origin, allowlist, suffixes) {
 
 export function corsHeadersForOrigin(originEcho) {
   const base = {
-    "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers":
       "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key, Authorization",
     "Access-Control-Expose-Headers":
@@ -70,7 +70,7 @@ export function activeCorsHeaders() {
   return (
     requestContext.getStore()?.cors || {
       "Access-Control-Allow-Origin": "null",
-      "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers":
         "Range, Content-Type, Accept, X-MovieHunter-Client, X-App-Key, Authorization",
       "Access-Control-Max-Age": "86400",

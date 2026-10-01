@@ -172,3 +172,9 @@ export async function syncPut(path, items, extra = {}) {
     body: { items, ...extra },
   });
 }
+
+export async function syncDelete(path) {
+  return authFetch(path, {
+    method: "DELETE",
+  });
+}
