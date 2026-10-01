@@ -391,8 +391,7 @@ export default function StreamPlayer({
           const nowTs = Date.now();
           localStorage.setItem(`history_${subjectId}_${se}_${ep}`, video.currentTime.toString());
           localStorage.setItem(`history_time_${subjectId}_${se}_${ep}`, nowTs.toString());
-          const finalTitle = displayTitle || title;
-          if (finalTitle || poster) {
+          if (title || poster) {
             let prevMeta = {};
             try {
               prevMeta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
@@ -400,7 +399,7 @@ export default function StreamPlayer({
             localStorage.setItem(
               `history_meta_${subjectId}`,
               JSON.stringify({
-                title: finalTitle || prevMeta.title || title,
+                title: title || prevMeta.title || null,
                 poster: poster || prevMeta.poster || null,
                 detailPath: detailPath || prevMeta.detailPath || null,
                 duration: video.duration || prevMeta.duration || 0,
@@ -416,7 +415,7 @@ export default function StreamPlayer({
             ep: String(ep || "0"),
             position: video.currentTime,
             duration: video.duration || 0,
-            title: finalTitle || title,
+            title: title || null,
             poster: poster || null,
             detailPath: detailPath || subjectId,
             updatedAt: nowTs,

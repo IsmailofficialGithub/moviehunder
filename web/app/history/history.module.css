@@ -599,12 +599,19 @@
   justify-content: center;
   flex: 1;
   min-width: 0; /* allows text to wrap/truncate instead of breaking layout */
-  padding-right: 48px; /* space for delete btn */
+  padding: 0 48px 0 16px; /* space for delete btn, left padding */
+}
+
+.cardList .cardTitleLink {
+  margin-bottom: 6px;
+  display: block;
 }
 
 .cardList .cardTitle {
   font-size: 15px;
   -webkit-line-clamp: 1;
+  margin: 0;
+  color: var(--text, #fff);
 }
 
 .cardList .cardMetaRow {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../components/AuthProvider";
-import { syncDelete, syncGet } from "../../lib/auth";
+import { syncDelete, syncGet, syncPut } from "../../lib/auth";
 import {
   applyRemoteWatch,
   clearLocalWatchHistory,
@@ -746,7 +746,12 @@ function HistoryCard({ item, onDelete, viewMode }) {
   const pct = progressPct(item.position, item.duration);
   const epLabel = episodeLabel(item.se, item.ep);
   const playUrl = buildPlayUrl(item);
-  const displayTitle = item.title || item.subjectId || "Unknown title";
+  let baseTitle = item.title || item.subjectId || "Unknown title";
+  // Clean up any infinitely appended " · S1E1" strings from old bad data
+  if (baseTitle && typeof baseTitle === "string") {
+    baseTitle = baseTitle.replace(/(?: \u00B7 S\d+E\d+)+$/, "");
+  }
+  const displayTitle = baseTitle;
   const categoryTag = getItemCategory(item);
   const timeAgo = formatTimeAgo(item.updatedAt);
 
