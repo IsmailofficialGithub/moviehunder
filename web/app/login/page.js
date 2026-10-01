@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
-    if (isSignedIn) router.replace("/settings");
+    if (isSignedIn) router.replace("/profiles");
   }, [isSignedIn, router]);
 
   async function onSubmit(e) {
@@ -26,7 +26,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await login({ email, password });
-      router.push("/settings");
+      router.push("/profiles");
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {

@@ -24,5 +24,16 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: moviehunter-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - moviehunter_redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+
 volumes:
   moviehunter_pg_data:
+  moviehunter_redis_data:

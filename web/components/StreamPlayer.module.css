@@ -1975,3 +1975,94 @@
   }
 }
 
+
+/* Stream Block Overlay */
+.streamBlockOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+}
+
+.streamBlockModal {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 440px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+.streamBlockModal h2 {
+  font-size: 24px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.streamBlockModal p {
+  color: #a1a1aa;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.primaryBtn {
+  background: #e50914;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.2s;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: #f40612;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.verificationBox {
+  margin-top: 16px;
+}
+
+.codeInputBox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.codeInput {
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  color: white;
+  font-size: 24px;
+  text-align: center;
+  padding: 12px;
+  border-radius: 6px;
+  letter-spacing: 4px;
+}
+
+.codeInput:focus {
+  outline: none;
+  border-color: #e50914;
+}
+
+.successText {
+  color: #10b981 !important;
+  font-weight: 500;
+}

@@ -34,6 +34,13 @@ import {
   handlePutDownloads,
   handleSyncGuestHistory,
 } from "./sync.js";
+import {
+  handlePlaybackStart,
+  handlePlaybackHeartbeat,
+  handlePlaybackStop,
+  handleRequestCode,
+  handleVerifyCode,
+} from "./antisharing.js";
 
 async function readJson(request) {
   try {
@@ -167,6 +174,23 @@ export async function handleNodeApi(request, opts = {}) {
     return fromHandler(await handleSyncGuestHistory(request));
   }
 
+  // ── Anti-Sharing ───────────────────────────────────────
+  if (p === "/api/playback/start" && method === "POST") {
+    return fromHandler(await handlePlaybackStart(request));
+  }
+  if (p === "/api/playback/heartbeat" && method === "POST") {
+    return fromHandler(await handlePlaybackHeartbeat(request));
+  }
+  if (p === "/api/playback/stop" && method === "POST") {
+    return fromHandler(await handlePlaybackStop(request));
+  }
+  if (p === "/api/household/request-code" && method === "POST") {
+    return fromHandler(await handleRequestCode(request));
+  }
+  if (p === "/api/household/verify-code" && method === "POST") {
+    return fromHandler(await handleVerifyCode(request));
+  }
+
   return null;
 }
 
@@ -191,6 +215,8 @@ export function isNodeApiPath(pathname) {
     p.startsWith("/api/access") ||
     p.startsWith("/api/auth") ||
     p.startsWith("/api/sync") ||
-    p.startsWith("/api/history/sync")
+    p.startsWith("/api/history/sync") ||
+    p.startsWith("/api/playback") ||
+    p.startsWith("/api/household")
   );
 }

@@ -180,6 +180,128 @@ export default function StreamPlayer({
   const [selectedLang, setSelectedLang] = useState("en");
   const [subSettings, setSubSettings] = useState(DEFAULT_SUB_SETTINGS);
 
+  // --- Netflix Concurrency & Anti-Sharing State ---
+  const [streamBlockError, setStreamBlockError] = useState(null); // holds the { code, userFriendly, action } error obj
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifyStatus, setVerifyStatus] = useState("idle"); // idle | sending | sent | verifying | success
+
+  // Start Playback Session
+  useEffect(() => {
+    if (!mounted || !videoRef.current) return;
+    let isActive = true;
+    let heartbeatTimer = null;
+
+    const startPlaybackSession = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return; // Only applies to logged-in users
+
+        // We use a mock device ID stored in localStorage or generate one
+        let deviceId = localStorage.getItem("device_id");
+        if (!deviceId) {
+          deviceId = "dev_" + Math.random().toString(36).substr(2, 9);
+          localStorage.setItem("device_id", deviceId);
+        }
+
+        const res = await fetch("/api/playback/start", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ deviceId })
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok && data.error) {
+          if (isActive) setStreamBlockError(data.error);
+          return;
+        }
+
+        // Start 60s heartbeats if start was successful
+        heartbeatTimer = setInterval(async () => {
+          await fetch("/api/playback/heartbeat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ deviceId })
+          }).catch(console.error);
+        }, 60000);
+
+      } catch (err) {
+        console.error("Failed to start playback session", err);
+      }
+    };
+
+    startPlaybackSession();
+
+    return () => {
+      isActive = false;
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      // Graceful stop
+      const token = localStorage.getItem("token");
+      const deviceId = localStorage.getItem("device_id");
+      if (token && deviceId) {
+        fetch("/api/playback/stop", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ deviceId })
+        }).catch(() => {});
+      }
+    };
+  }, [mounted, subjectId, se, ep]);
+
+  const handleRequestCode = async () => {
+    setVerifyStatus("sending");
+    try {
+      const token = localStorage.getItem("token");
+      const deviceId = localStorage.getItem("device_id");
+      const res = await fetch("/api/household/request-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ deviceId, accountId: "auto" }) 
+      });
+      if (res.ok) {
+        setVerifyStatus("sent");
+      } else {
+        alert("Too many requests. Please wait.");
+        setVerifyStatus("idle");
+      }
+    } catch {
+      setVerifyStatus("idle");
+    }
+  };
+
+  const handleVerifyCodeSubmit = async () => {
+    setVerifyStatus("verifying");
+    try {
+      const token = localStorage.getItem("token");
+      const deviceId = localStorage.getItem("device_id");
+      const res = await fetch("/api/household/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ deviceId, accountId: "auto", code: verifyCode })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setVerifyStatus("success");
+        setStreamBlockError(null); // Unblock player!
+      } else {
+        alert(data.error?.userFriendly || "Invalid code");
+        setVerifyStatus("sent");
+      }
+    } catch {
+      setVerifyStatus("sent");
+    }
+  };
+  // --- End Netflix Anti-Sharing ---
+
   // Load saved subtitle appearance preferences
   useEffect(() => {
     try {
@@ -1732,6 +1854,52 @@ export default function StreamPlayer({
       ) : null}
 
       <div className={styles.playerShell}>
+        {streamBlockError && (
+          <div className={styles.streamBlockOverlay}>
+            <div className={styles.streamBlockModal}>
+              <h2>{streamBlockError.code === "STREAM_LIMIT_REACHED" ? "Too Many Streams" : "Device Not Verified"}</h2>
+              <p>{streamBlockError.userFriendly}</p>
+              
+              {streamBlockError.action === "SHOW_VERIFICATION_PROMPT" && (
+                <div className={styles.verificationBox}>
+                  {verifyStatus === "idle" && (
+                    <button onClick={handleRequestCode} className={styles.primaryBtn}>
+                      Email Code to Primary Account
+                    </button>
+                  )}
+                  {verifyStatus === "sending" && <p>Sending code...</p>}
+                  {(verifyStatus === "sent" || verifyStatus === "verifying") && (
+                    <div className={styles.codeInputBox}>
+                      <input 
+                        type="text" 
+                        maxLength={4} 
+                        placeholder="0000"
+                        value={verifyCode}
+                        onChange={(e) => setVerifyCode(e.target.value)}
+                        className={styles.codeInput}
+                      />
+                      <button 
+                        onClick={handleVerifyCodeSubmit}
+                        disabled={verifyStatus === "verifying" || verifyCode.length < 4}
+                        className={styles.primaryBtn}
+                      >
+                        {verifyStatus === "verifying" ? "Verifying..." : "Verify"}
+                      </button>
+                    </div>
+                  )}
+                  {verifyStatus === "success" && <p className={styles.successText}>Success! Resuming playback...</p>}
+                </div>
+              )}
+              
+              {streamBlockError.action === "SHOW_UPGRADE_PROMPT" && (
+                <button className={styles.primaryBtn} onClick={() => alert('Upgrade Flow Mock')}>
+                  Upgrade Plan
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {mounted ? (
           <MediaController
             className={styles.controller}

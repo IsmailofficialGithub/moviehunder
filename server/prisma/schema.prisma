@@ -24,6 +24,10 @@ model User {
   playlists      Playlist[]
   trackLikes     TrackLike[]
   downloadItems  DownloadItem[]
+  
+  account        Account?
+  accountMember  AccountMember?
+  profiles       Profile[]
 
   @@map("users")
 }
@@ -173,4 +177,77 @@ model DownloadItem {
   @@unique([userId, downloadId])
   @@index([userId, updatedAt(sort: Desc)])
   @@map("download_items")
+}
+
+enum PlanTier {
+  STANDARD_ADS
+  STANDARD
+  PREMIUM
+}
+
+enum MemberRole {
+  OWNER
+  EXTRA_MEMBER
+}
+
+model Account {
+  id          String   @id @default(cuid())
+  ownerUserId String   @unique @map("owner_user_id")
+  tier        PlanTier
+  
+  owner       User     @relation(fields: [ownerUserId], references: [id])
+  members     AccountMember[]
+  households  Household[]
+
+  @@map("accounts")
+}
+
+model AccountMember {
+  id        String     @id @default(cuid())
+  accountId String     @map("account_id")
+  userId    String     @unique @map("user_id")
+  role      MemberRole
+
+  account   Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account_members")
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  avatarUrl String?  @map("avatar_url")
+  isKids    Boolean  @default(false)
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("profiles")
+}
+
+model Household {
+  id              String   @id @default(cuid())
+  accountId       String   @map("account_id") 
+  primaryAsn      String?  @map("primary_asn")
+  primarySubnet   String?  @map("primary_subnet")
+  lastUpdated     DateTime? @map("last_updated")
+  
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  devices         DeviceVerification[]
+  
+  @@map("households")
+}
+
+model DeviceVerification {
+  id                    String   @id @default(cuid())
+  householdId           String   @map("household_id")
+  deviceId              String   @map("device_id")
+  lastVerifiedAt        DateTime @default(now()) @map("last_verified_at")
+  temporaryAccessUntil  DateTime? @map("temporary_access_until")
+  
+  household             Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  
+  @@unique([householdId, deviceId])
+  @@map("device_verifications")
 }
