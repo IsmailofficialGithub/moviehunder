@@ -42,7 +42,7 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY);
 }
 
-async function authFetch(path, { method = "GET", body, token, retry = true } = {}) {
+export async function authFetch(path, { method = "GET", body, token, retry = true } = {}) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const access = token || getStoredSession()?.access_token;
