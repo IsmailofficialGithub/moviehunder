@@ -376,6 +376,23 @@ server.requestTimeout = 0;
 server.headersTimeout = 0;
 server.timeout = 0;
 
-server.listen(PORT, "0.0.0.0", () => {
+server.listen(PORT, "0.0.0.0", async () => {
   console.log(`Play relay on http://0.0.0.0:${PORT}`);
+  
+  try {
+    const { getPrisma } = await import("./src/db.js");
+    const prisma = getPrisma();
+    await prisma.$connect();
+    console.log("✅ PostgreSQL Database connected via Prisma");
+  } catch (err) {
+    console.error("❌ Failed to connect to PostgreSQL:", err.message);
+  }
+
+  try {
+    const { getRedis } = await import("./src/redis.js");
+    await getRedis();
+    console.log("✅ Redis cluster successfully connected");
+  } catch (err) {
+    console.error("❌ Failed to connect to Redis:", err.message);
+  }
 });
