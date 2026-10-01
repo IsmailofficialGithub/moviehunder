@@ -19,6 +19,7 @@ import {
   storeSession,
 } from "../lib/auth";
 import { ensureUserStorage, handleLogoutCleanup, runFullSync } from "../lib/sync";
+import { syncGuestHistoryToServer } from "../lib/guestHistory";
 
 const AuthContext = createContext(null);
 
@@ -46,7 +47,7 @@ export function AuthProvider({ children }) {
       if (me.user) {
         storeSession({ user: me.user });
         ensureUserStorage(me.user.id);
-        runFullSync().catch(() => {});
+        syncGuestHistoryToServer().then(() => runFullSync()).catch(() => {});
       }
     } catch {
       clearSession();

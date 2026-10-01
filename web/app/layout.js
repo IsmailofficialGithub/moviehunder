@@ -2,6 +2,7 @@ import SiteHeader from "../components/SiteHeader";
 import AppDownloadPrompt from "../components/AppDownloadPrompt";
 import GlobalAds from "../components/ads/GlobalAds";
 import { AuthProvider } from "../components/AuthProvider";
+import GuestSyncWorker from "../components/GuestSyncWorker";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           <GlobalAds />
+          <GuestSyncWorker />
           <SiteHeader />
           <div className="appMain">{children}</div>
           <AppDownloadPrompt />
