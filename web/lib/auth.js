@@ -52,6 +52,7 @@ export async function authFetch(path, { method = "GET", body, token, retry = tru
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store",
   });
 
   if (res.status === 401 && retry && getStoredSession()?.refresh_token) {
