@@ -143,6 +143,9 @@ export default function HistoryPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [lastSynced, setLastSynced] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [viewMode, setViewMode] = useState("grid");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 24;
   const isClearingRef = useRef(false);
 
   useEffect(() => {
@@ -326,6 +329,17 @@ export default function HistoryPage() {
       ? items.filter((i) => getItemCategory(i) === activeTab)
       : items || [];
 
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+  const paginatedItems = filteredItems.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  // Reset to page 1 when tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
+
   return (
     <main className={`page ${styles.page}`}>
       <header className={styles.head}>
@@ -360,10 +374,8 @@ export default function HistoryPage() {
               </div>
             ) : (
               <span className={styles.syncLocal}>
-                <span className={styles.syncDotLocal} />
-                Stored on this browser ·{" "}
                 <Link href="/login" className={styles.syncLink}>
-                  Sign in to sync across devices
+                  Sign in to backup your history
                 </Link>
               </span>
             )}
@@ -617,6 +629,37 @@ export default function HistoryPage() {
                   {filteredItems.length === 1 ? "title" : "titles"}
                 </span>
               </h3>
+              
+              <div className={styles.viewToggles}>
+                <button
+                  type="button"
+                  className={`${styles.viewBtn} ${viewMode === "grid" ? styles.viewBtnActive : ""}`}
+                  onClick={() => setViewMode("grid")}
+                  title="Grid View"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.viewBtn} ${viewMode === "list" ? styles.viewBtnActive : ""}`}
+                  onClick={() => setViewMode("list")}
+                  title="List View"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {filteredItems.length === 0 ? (
@@ -624,18 +667,49 @@ export default function HistoryPage() {
                 <p>No titles watched in this category yet.</p>
               </div>
             ) : (
-              <div className={styles.grid}>
-                {filteredItems.map((item, idx) => (
-                  <HistoryCard
-                    key={
-                      item.key ||
-                      `${item.subjectId}_${item.se}_${item.ep}_${idx}`
-                    }
-                    item={item}
-                    onDelete={handleDeleteItem}
-                  />
-                ))}
-              </div>
+              <>
+                <div className={viewMode === "list" ? styles.list : styles.grid}>
+                  {paginatedItems.map((item, idx) => (
+                    <HistoryCard
+                      key={
+                        item.key ||
+                        `${item.subjectId}_${item.se}_${item.ep}_${idx}`
+                      }
+                      item={item}
+                      onDelete={handleDeleteItem}
+                      viewMode={viewMode}
+                    />
+                  ))}
+                </div>
+                
+                {totalPages > 1 && (
+                  <div className={styles.pagination}>
+                    <button
+                      className={styles.pageBtn}
+                      disabled={currentPage === 1}
+                      onClick={() => {
+                        setCurrentPage((p) => Math.max(1, p - 1));
+                        window.scrollTo({ top: 300, behavior: "smooth" });
+                      }}
+                    >
+                      Previous
+                    </button>
+                    <span className={styles.pageInfo}>
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      className={styles.pageBtn}
+                      disabled={currentPage === totalPages}
+                      onClick={() => {
+                        setCurrentPage((p) => Math.min(totalPages, p + 1));
+                        window.scrollTo({ top: 300, behavior: "smooth" });
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </>
@@ -644,7 +718,7 @@ export default function HistoryPage() {
   );
 }
 
-function HistoryCard({ item, onDelete }) {
+function HistoryCard({ item, onDelete, viewMode }) {
   const pct = progressPct(item.position, item.duration);
   const epLabel = episodeLabel(item.se, item.ep);
   const playUrl = buildPlayUrl(item);
@@ -653,7 +727,7 @@ function HistoryCard({ item, onDelete }) {
   const timeAgo = formatTimeAgo(item.updatedAt);
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${viewMode === "list" ? styles.cardList : ""}`}>
       <Link href={playUrl || "#"} className={styles.cardMediaLink}>
         <div className={styles.cardPosterWrap}>
           {item.poster ? (
