@@ -276,9 +276,16 @@ export default function HistoryPage() {
 
     // 3. Remove from server if signed in
     if (isSignedIn) {
-      await syncDelete(
-        `/api/sync/watch-progress?key=${encodeURIComponent(itemKey)}`
-      ).catch(() => {});
+      await syncPut("/api/sync/watch-progress", [
+        {
+          subjectId: itemToDelete.subjectId,
+          se: itemToDelete.se ?? "0",
+          ep: itemToDelete.ep ?? "0",
+          position: -1,
+          duration: -1,
+          updatedAt: Date.now(),
+        },
+      ]).catch(() => {});
     }
   }
 
