@@ -127,11 +127,11 @@ function getItemCategory(item) {
 
 const CATEGORIES = [
   { id: "all", label: "All Watched" },
-  { id: "Hot", label: "🔥 Hot" },
-  { id: "Short TV", label: "📺 Short TV" },
-  { id: "Movies", label: "🎬 Movies" },
-  { id: "TV Series", label: "🍿 TV Series" },
-  { id: "Anime", label: "⚡ Anime" },
+  { id: "Hot", label: "Hot" },
+  { id: "Short TV", label: "Short TV" },
+  { id: "Movies", label: "Movies" },
+  { id: "TV Series", label: "TV Series" },
+  { id: "Anime", label: "Anime" },
 ];
 
 export default function HistoryPage() {
@@ -448,7 +448,18 @@ export default function HistoryPage() {
         </div>
       ) : !items || items.length === 0 ? (
         <div className={styles.empty}>
-          <div className={styles.emptyIcon}>🎬</div>
+          <div className={styles.emptyIcon}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+              <line x1="7" y1="2" x2="7" y2="22"></line>
+              <line x1="17" y1="2" x2="17" y2="22"></line>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <line x1="2" y1="7" x2="7" y2="7"></line>
+              <line x1="2" y1="17" x2="7" y2="17"></line>
+              <line x1="17" y1="17" x2="22" y2="17"></line>
+              <line x1="17" y1="7" x2="22" y2="7"></line>
+            </svg>
+          </div>
           <p className={styles.emptyTitle}>No watch history yet</p>
           <p className={styles.emptyHint}>
             Start watching any movie, series, or short show and pick up right
@@ -479,7 +490,13 @@ export default function HistoryPage() {
                       className={styles.heroPoster}
                     />
                   ) : (
-                    <div className={styles.heroPosterFallback}>🎬</div>
+                    <div className={styles.heroPosterFallback}>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                      </svg>
+                    </div>
                   )}
                   {progressPct(recentItem.position, recentItem.duration) > 0 && (
                     <div className={styles.heroPosterBar}>
@@ -499,7 +516,7 @@ export default function HistoryPage() {
                 <div className={styles.heroInfo}>
                   <div className={styles.heroTopRow}>
                     <div className={styles.heroBadge}>
-                      ⚡ Continue Watching
+                      Continue Watching
                     </div>
                     {formatTimeAgo(recentItem.updatedAt) && (
                       <span className={styles.heroTimeAgo}>
@@ -738,7 +755,18 @@ function HistoryCard({ item, onDelete, viewMode }) {
               loading="lazy"
             />
           ) : (
-            <div className={styles.cardPosterFallback}>🎬</div>
+            <div className={styles.cardPosterFallback}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                <line x1="7" y1="2" x2="7" y2="22"></line>
+                <line x1="17" y1="2" x2="17" y2="22"></line>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <line x1="2" y1="7" x2="7" y2="7"></line>
+                <line x1="2" y1="17" x2="7" y2="17"></line>
+                <line x1="17" y1="17" x2="22" y2="17"></line>
+                <line x1="17" y1="7" x2="22" y2="7"></line>
+              </svg>
+            </div>
           )}
 
           <div className={styles.cardBadge}>{epLabel || categoryTag}</div>
