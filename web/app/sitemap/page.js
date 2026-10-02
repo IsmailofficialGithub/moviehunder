@@ -13,25 +13,25 @@ export const revalidate = 3600; // Hourly ISR refresh
 export async function generateMetadata() {
   const siteUrl = getSiteUrl();
   return {
-    title: "Sitemap & Content Directory",
+    title: "Sitemap & Content Directory — Free Movies & TV Series",
     description:
-      "Explore the comprehensive directory of movies, TV series, anime, songs, and genres on MovieHunter. Complete index for users and search engine crawlers.",
+      "Explore the comprehensive directory of free movies, TV series, Hindi dubbed titles, Hollywood and Bollywood releases on Movies Hunder (offstream.co).",
     alternates: {
       canonical: `${siteUrl}/sitemap`,
     },
     openGraph: {
-      title: "Sitemap & Content Directory · MovieHunter",
+      title: "Sitemap & Content Directory · Movies Hunder",
       description:
-        "Explore the comprehensive directory of movies, TV series, anime, songs, and genres on MovieHunter.",
+        "Explore the comprehensive directory of free movies, TV series, Hindi dubbed titles, Hollywood and Bollywood releases on Movies Hunder.",
       url: `${siteUrl}/sitemap`,
-      siteName: "MovieHunter",
+      siteName: "Movies Hunder",
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: "Sitemap & Content Directory · MovieHunter",
+      title: "Sitemap & Content Directory · Movies Hunder",
       description:
-        "Comprehensive index of movies, TV shows, anime, and music.",
+        "Comprehensive index of free movies, TV shows, and entertainment on Movies Hunder (offstream.co).",
     },
   };
 }

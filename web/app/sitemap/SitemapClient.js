@@ -97,10 +97,10 @@ export default function SitemapClient({
           <FolderTree size={14} />
           <span>SEO Content Directory</span>
         </div>
-        <h1 className={styles.title}>MovieHunter Directory & Sitemap</h1>
+        <h1 className={styles.title}>Movies Hunder Directory & Sitemap</h1>
         <p className={styles.subtitle}>
-          Comprehensive architectural index of all media categories, streaming hubs,
-          genre collections, legal policies, and indexed titles for users and search engine crawlers.
+          Comprehensive architectural index of all free movies, TV series, Hindi dubbed titles,
+          Hollywood, Bollywood collections, and streaming hubs on offstream.co for users and search engine crawlers.
         </p>
 
         <div className={styles.metaStats}>

@@ -21,15 +21,14 @@ export default function SiteFooter() {
             <div className={styles.logoRow}>
               <Image
                 src="/brand/logo-symbol.png"
-                alt="MovieHunter Logo"
+                alt="Movies Hunder Logo"
                 width={36}
                 height={36}
               />
-              <span className={styles.brandName}>MovieHunter</span>
+              <span className={styles.brandName}>Movies Hunder</span>
             </div>
             <p className={styles.brandDesc}>
-              Stream blockbusters, top TV series, anime hits, and trending music tracks anytime.
-              Free catalog discovery and entertainment hub.
+              Watch free movies and TV series online on Movies Hunder (offstream.co). Stream Hollywood, Bollywood, Hindi dubbed movies, and top series with no ads.
             </p>
           </div>
 
@@ -71,7 +70,7 @@ export default function SiteFooter() {
         </div>
 
         <div className={styles.bottomSection}>
-          <span>&copy; {new Date().getFullYear()} MovieHunter. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} Movies Hunder (offstream.co). All rights reserved.</span>
           <div className={styles.bottomLinks}>
             <Link href="/sitemap">HTML Sitemap</Link>
             <span>&bull;</span>

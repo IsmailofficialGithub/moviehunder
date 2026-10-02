@@ -1,11 +1,10 @@
-// Web application configuration
 export function getSiteUrl() {
   const url =
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.SITE_URL ||
     (typeof window !== "undefined" && window.location?.origin
       ? window.location.origin
-      : "http://localhost:3001");
+      : "https://offstream.co");
   return url.replace(/\/+$/, "");
 }
 

@@ -16,7 +16,19 @@ export const revalidate = 0;
 
 export async function generateMetadata({ searchParams }) {
   const q = (await searchParams)?.q || "";
-  return { title: q ? `Search: ${q}` : "Search" };
+  const title = q
+    ? `Watch "${q}" Free Online — Movies & Series`
+    : "Search Free Movies, TV Series & Hindi Dubbed";
+  const desc = q
+    ? `Stream results for "${q}" online free in HD on Movies Hunder (offstream.co). Watch movies and series with no ads.`
+    : "Search thousands of free movies, TV series, Hindi dubbed films, Hollywood and Bollywood titles on Movies Hunder.";
+  return {
+    title,
+    description: desc,
+    alternates: {
+      canonical: q ? `https://offstream.co/search?q=${encodeURIComponent(q)}` : "https://offstream.co/search",
+    },
+  };
 }
 
 export default async function SearchPage({ searchParams }) {
