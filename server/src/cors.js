@@ -103,7 +103,12 @@ export function authorizeClient(request) {
   const allowlist = (cfg().CORS_ALLOWED_ORIGINS || [])
     .map((o) => (String(o).trim() === "*" ? "*" : normalizeOrigin(o)))
     .filter(Boolean);
-  const suffixes = cfg().CORS_ALLOWED_ORIGIN_SUFFIXES || [];
+  const suffixes = [
+    ...new Set([
+      "offstream.co",
+      ...(cfg().CORS_ALLOWED_ORIGIN_SUFFIXES || []),
+    ]),
+  ];
   const expectedKey = String(cfg().APP_CLIENT_KEY || "").trim();
 
   const originRaw = request.headers.get("Origin");

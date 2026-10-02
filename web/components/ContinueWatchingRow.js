@@ -32,6 +32,84 @@ function episodeLabel(se, ep) {
   return null;
 }
 
+function resolveDisplayTitle(item) {
+  if (item.title && !/^\d+$/.test(String(item.title).trim())) {
+    return item.title;
+  }
+  if (typeof window !== "undefined" && item.subjectId) {
+    try {
+      const meta = JSON.parse(localStorage.getItem(`history_meta_${item.subjectId}`) || "{}");
+      if (meta.title && !/^\d+$/.test(String(meta.title).trim())) {
+        return meta.title;
+      }
+    } catch {}
+  }
+  if (item.detailPath && typeof item.detailPath === "string") {
+    let slug = item.detailPath.replace(/^.*\/detail\//, "").replace(/^\/+/, "");
+    slug = slug.replace(/-[A-Za-z0-9]{8,16}$/, "");
+    if (slug && !/^\d+$/.test(slug)) {
+      return slug
+        .split("-")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+  }
+  return item.title || "Continue Watching";
+}
+
+function resolvePoster(item) {
+  if (item.poster) return item.poster;
+  if (typeof window !== "undefined" && item.subjectId) {
+    try {
+      const meta = JSON.parse(localStorage.getItem(`history_meta_${item.subjectId}`) || "{}");
+      if (meta.poster) return meta.poster;
+    } catch {}
+  }
+  return null;
+}
+
+function deduplicateShows(list) {
+  if (!Array.isArray(list)) return [];
+  const map = new Map();
+
+  for (const raw of list) {
+    const showId = raw.subjectId || raw.detailPath || raw.key;
+    if (!showId) continue;
+
+    const poster = resolvePoster(raw);
+    const title = resolveDisplayTitle(raw);
+    const item = { ...raw, poster, title };
+
+    if (!map.has(showId)) {
+      map.set(showId, item);
+    } else {
+      const existing = map.get(showId);
+      const existingTs = parseTimestamp(existing.updatedAt) || 0;
+      const currentTs = parseTimestamp(item.updatedAt) || 0;
+
+      // Keep the most recent episode watched
+      if (currentTs >= existingTs) {
+        map.set(showId, {
+          ...item,
+          title: (item.title && item.title !== "Continue Watching") ? item.title : (existing.title || item.title),
+          poster: item.poster || existing.poster,
+          detailPath: item.detailPath || existing.detailPath,
+        });
+      } else {
+        if (!existing.poster && item.poster) existing.poster = item.poster;
+        if ((!existing.title || existing.title === "Continue Watching") && item.title) {
+          existing.title = item.title;
+        }
+      }
+    }
+  }
+
+  return Array.from(map.values()).sort(
+    (a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt)
+  );
+}
+
 function buildPlayUrl(item) {
   let subjectId = item.subjectId || null;
   let detailPath = item.detailPath || null;
@@ -65,10 +143,11 @@ export default function ContinueWatchingRow() {
       // 1. Instant Cache Hit
       const cached = getWatchCache(user?.id);
       if (cached && cached.length > 0) {
-        setItems(cached.filter((i) => (Number(i.position) || 0) > 2));
+        const filtered = cached.filter((i) => (Number(i.position) || 0) > 2);
+        setItems(deduplicateShows(filtered));
       } else {
         const local = listLocalWatch().filter((i) => (Number(i.position) || 0) > 2);
-        setItems(local);
+        setItems(deduplicateShows(local));
       }
 
       // 2. Background refresh if signed in
@@ -79,12 +158,7 @@ export default function ContinueWatchingRow() {
               (i) => (Number(i.position) || 0) > 2
             );
             if (filtered.length > 0) {
-              setItems(
-                filtered.sort(
-                  (a, b) =>
-                    parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt)
-                )
-              );
+              setItems(deduplicateShows(filtered));
             }
           })
           .catch(() => {});
@@ -118,7 +192,7 @@ export default function ContinueWatchingRow() {
           const pct = progressPct(item.position, item.duration);
           const ep = episodeLabel(item.se, item.ep);
           const playUrl = buildPlayUrl(item);
-          const displayTitle = item.title || item.subjectId || "Continue Watching";
+          const displayTitle = item.title || "Continue Watching";
 
           return (
             <Link

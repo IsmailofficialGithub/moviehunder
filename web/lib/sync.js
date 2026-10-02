@@ -61,8 +61,25 @@ export function updateWatchCacheSingle(userId, item) {
           String(i.ep ?? "0") === String(item.ep ?? "0"))
     );
 
+    const isDigits = item.title && /^\d+$/.test(String(item.title).trim());
+    let resolvedTitle = (!isDigits && item.title) ? item.title : (idx >= 0 ? list[idx].title : item.title);
+    let resolvedPoster = item.poster || (idx >= 0 ? list[idx].poster : null);
+
+    // If still missing poster/title, inherit from any sibling item in list with same subjectId
+    if (item.subjectId && (!resolvedPoster || !resolvedTitle || /^\d+$/.test(String(resolvedTitle)))) {
+      const sibling = list.find((i) => i.subjectId === item.subjectId && (i.poster || (i.title && !/^\d+$/.test(String(i.title)))));
+      if (sibling) {
+        if (!resolvedPoster && sibling.poster) resolvedPoster = sibling.poster;
+        if ((!resolvedTitle || /^\d+$/.test(String(resolvedTitle))) && sibling.title && !/^\d+$/.test(String(sibling.title))) {
+          resolvedTitle = sibling.title;
+        }
+      }
+    }
+
     const updated = {
       ...item,
+      title: resolvedTitle,
+      poster: resolvedPoster,
       key: itemKey,
       updatedAt: parseTimestamp(item.updatedAt) || Date.now(),
     };
@@ -219,10 +236,12 @@ export function applyRemoteWatch(items) {
       try {
         meta = JSON.parse(localStorage.getItem(metaKey) || "{}");
       } catch {}
+      const isDigits = item.title && /^\d+$/.test(String(item.title).trim());
+      const cleanTitle = (!isDigits && item.title) ? item.title : (meta.title || item.title || null);
       localStorage.setItem(
         metaKey,
         JSON.stringify({
-          title: item.title || meta.title || null,
+          title: cleanTitle,
           poster: item.poster || meta.poster || null,
           detailPath: item.detailPath || meta.detailPath || null,
           duration: Number(item.duration) || Number(meta.duration) || 0,

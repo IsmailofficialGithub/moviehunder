@@ -1,4 +1,5 @@
 import SiteHeader from "../components/SiteHeader";
+import SiteFooter from "../components/SiteFooter";
 import AppDownloadPrompt from "../components/AppDownloadPrompt";
 import GlobalAds from "../components/ads/GlobalAds";
 import { AuthProvider } from "../components/AuthProvider";
@@ -13,6 +14,7 @@ const inter = Inter({
 });
 
 export const metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://offstream.co"),
   title: {
     default: "MovieHunter",
     template: "%s · MovieHunter",
@@ -37,7 +39,10 @@ export default function RootLayout({ children }) {
           <GlobalAds />
           <GuestSyncWorker />
           <SiteHeader />
-          <div className="appMain">{children}</div>
+          <div className="appMain">
+            {children}
+            <SiteFooter />
+          </div>
           <AppDownloadPrompt />
         </AuthProvider>
       </body>

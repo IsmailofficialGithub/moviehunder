@@ -84,6 +84,46 @@ function buildPlayUrl(item) {
   return `/play?${p.toString()}`;
 }
 
+function resolveItemTitle(item) {
+  if (!item) return "Continue Watching";
+  let title = item.title;
+  if (title && !/^\d+$/.test(String(title).trim())) {
+    return String(title).replace(/(?: \u00B7 S\d+E\d+)+$/, "");
+  }
+  if (typeof window !== "undefined" && item.subjectId) {
+    try {
+      const meta = JSON.parse(localStorage.getItem(`history_meta_${item.subjectId}`) || "{}");
+      if (meta.title && !/^\d+$/.test(String(meta.title).trim())) {
+        return String(meta.title).replace(/(?: \u00B7 S\d+E\d+)+$/, "");
+      }
+    } catch {}
+  }
+  if (item.detailPath && typeof item.detailPath === "string") {
+    let slug = item.detailPath.replace(/^.*\/detail\//, "").replace(/^\/+/, "");
+    slug = slug.replace(/-[A-Za-z0-9]{8,16}$/, "");
+    if (slug && !/^\d+$/.test(slug)) {
+      return slug
+        .split("-")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+  }
+  return "Continue Watching";
+}
+
+function resolveItemPoster(item) {
+  if (!item) return null;
+  if (item.poster) return item.poster;
+  if (typeof window !== "undefined" && item.subjectId) {
+    try {
+      const meta = JSON.parse(localStorage.getItem(`history_meta_${item.subjectId}`) || "{}");
+      if (meta.poster) return meta.poster;
+    } catch {}
+  }
+  return null;
+}
+
 function getItemCategory(item) {
   const path = (item.detailPath || "").toLowerCase();
   const title = (item.title || "").toLowerCase();
@@ -489,64 +529,65 @@ export default function HistoryPage() {
       ) : (
         <>
           {/* Spotlight Hero: Most Recently Watched Title */}
-          {recentItem && (
-            <section className={styles.heroCard} aria-label="Continue Watching">
-              {recentItem.poster && (
-                <div
-                  className={styles.heroBackdrop}
-                  style={{ backgroundImage: `url(${recentItem.poster})` }}
-                />
-              )}
-              <div className={styles.heroOverlay} />
-              <div className={styles.heroBody}>
-                <div className={styles.heroPosterWrap}>
-                  {recentItem.poster ? (
-                    <img
-                      src={recentItem.poster}
-                      alt={recentItem.title || "Recent watch"}
-                      className={styles.heroPoster}
-                    />
-                  ) : (
-                    <div className={styles.heroPosterFallback}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                      </svg>
-                    </div>
-                  )}
-                  {progressPct(recentItem.position, recentItem.duration) > 0 && (
-                    <div className={styles.heroPosterBar}>
-                      <div
-                        className={styles.heroPosterBarFill}
-                        style={{
-                          width: `${progressPct(
-                            recentItem.position,
-                            recentItem.duration
-                          )}%`,
-                        }}
+          {recentItem && (() => {
+            const heroPoster = resolveItemPoster(recentItem);
+            const heroTitle = resolveItemTitle(recentItem);
+            return (
+              <section className={styles.heroCard} aria-label="Continue Watching">
+                {heroPoster && (
+                  <div
+                    className={styles.heroBackdrop}
+                    style={{ backgroundImage: `url(${heroPoster})` }}
+                  />
+                )}
+                <div className={styles.heroOverlay} />
+                <div className={styles.heroBody}>
+                  <div className={styles.heroPosterWrap}>
+                    {heroPoster ? (
+                      <img
+                        src={heroPoster}
+                        alt={heroTitle}
+                        className={styles.heroPoster}
                       />
-                    </div>
-                  )}
-                </div>
-
-                <div className={styles.heroInfo}>
-                  <div className={styles.heroTopRow}>
-                    <div className={styles.heroBadge}>
-                      Continue Watching
-                    </div>
-                    {formatTimeAgo(recentItem.updatedAt) && (
-                      <span className={styles.heroTimeAgo}>
-                        Watched {formatTimeAgo(recentItem.updatedAt)}
-                      </span>
+                    ) : (
+                      <div className={styles.heroPosterFallback}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                      </div>
+                    )}
+                    {progressPct(recentItem.position, recentItem.duration) > 0 && (
+                      <div className={styles.heroPosterBar}>
+                        <div
+                          className={styles.heroPosterBarFill}
+                          style={{
+                            width: `${progressPct(
+                              recentItem.position,
+                              recentItem.duration
+                            )}%`,
+                          }}
+                        />
+                      </div>
                     )}
                   </div>
 
-                  <h2 className={styles.heroTitle}>
-                    {recentItem.title ||
-                      recentItem.subjectId ||
-                      "Continue Watching"}
-                  </h2>
+                  <div className={styles.heroInfo}>
+                    <div className={styles.heroTopRow}>
+                      <div className={styles.heroBadge}>
+                        Continue Watching
+                      </div>
+                      {formatTimeAgo(recentItem.updatedAt) && (
+                        <span className={styles.heroTimeAgo}>
+                          Watched {formatTimeAgo(recentItem.updatedAt)}
+                        </span>
+                      )}
+                    </div>
+
+                    <h2 className={styles.heroTitle}>
+                      {heroTitle}
+                    </h2>
 
                   <div className={styles.heroMeta}>
                     {episodeLabel(recentItem.se, recentItem.ep) && (
@@ -618,13 +659,13 @@ export default function HistoryPage() {
                         <polyline points="3 6 5 6 21 6"></polyline>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                       </svg>
-                      Remove
                     </button>
                   </div>
                 </div>
               </div>
             </section>
-          )}
+          );
+        })()}
 
           {/* Category Filters Bar */}
           <div className={styles.tabs}>
@@ -756,12 +797,8 @@ function HistoryCard({ item, onDelete, viewMode }) {
   const pct = progressPct(item.position, item.duration);
   const epLabel = episodeLabel(item.se, item.ep);
   const playUrl = buildPlayUrl(item);
-  let baseTitle = item.title || item.subjectId || "Unknown title";
-  // Clean up any infinitely appended " · S1E1" strings from old bad data
-  if (baseTitle && typeof baseTitle === "string") {
-    baseTitle = baseTitle.replace(/(?: \u00B7 S\d+E\d+)+$/, "");
-  }
-  const displayTitle = baseTitle;
+  const displayTitle = resolveItemTitle(item);
+  const cardPoster = resolveItemPoster(item);
   const categoryTag = getItemCategory(item);
   const timeAgo = formatTimeAgo(item.updatedAt);
 
@@ -769,9 +806,9 @@ function HistoryCard({ item, onDelete, viewMode }) {
     <div className={`${styles.card} ${viewMode === "list" ? styles.cardList : ""}`}>
       <Link href={playUrl || "#"} className={styles.cardMediaLink}>
         <div className={styles.cardPosterWrap}>
-          {item.poster ? (
+          {cardPoster ? (
             <img
-              src={item.poster}
+              src={cardPoster}
               alt={displayTitle}
               className={styles.cardPoster}
               loading="lazy"

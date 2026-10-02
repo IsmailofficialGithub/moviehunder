@@ -89,6 +89,39 @@ export async function handlePutWatchProgress(request) {
       }
     }
 
+    // Resolve poster & title: never let numeric digits replace a real title,
+    // and inherit poster/title from sibling episodes if missing
+    let finalTitle = item.title;
+    if (finalTitle && /^\d+$/.test(String(finalTitle).trim())) {
+      finalTitle = existing?.title || null;
+    } else if (!finalTitle) {
+      finalTitle = existing?.title || null;
+    }
+
+    let finalPoster = item.poster || existing?.poster || null;
+    let finalDetailPath = item.detailPath || existing?.detailPath || null;
+
+    if ((!finalPoster || !finalTitle || /^\d+$/.test(String(finalTitle))) && (item.subjectId || existing?.subjectId)) {
+      const subId = item.subjectId || existing?.subjectId;
+      try {
+        const sibling = await prisma.watchProgress.findFirst({
+          where: {
+            userId: auth.user.id,
+            subjectId: subId,
+            NOT: { poster: null },
+          },
+          select: { title: true, poster: true, detailPath: true },
+        });
+        if (sibling) {
+          if (!finalPoster && sibling.poster) finalPoster = sibling.poster;
+          if ((!finalTitle || /^\d+$/.test(String(finalTitle))) && sibling.title && !/^\d+$/.test(sibling.title)) {
+            finalTitle = sibling.title;
+          }
+          if (!finalDetailPath && sibling.detailPath) finalDetailPath = sibling.detailPath;
+        }
+      } catch {}
+    }
+
     await prisma.watchProgress.upsert({
       where: {
         userId_progressKey: { userId: auth.user.id, progressKey: key },
@@ -98,12 +131,12 @@ export async function handlePutWatchProgress(request) {
         progressKey: key,
         position: finalPos,
         duration: Number(item.duration) || 0,
-        title: item.title || null,
+        title: finalTitle,
         subjectId: item.subjectId || null,
-        detailPath: item.detailPath || null,
+        detailPath: finalDetailPath,
         se: item.se != null ? String(item.se) : null,
         ep: item.ep != null ? String(item.ep) : null,
-        poster: item.poster || null,
+        poster: finalPoster,
         kind: item.kind || null,
         completed: finalCompleted,
         updatedAt,
@@ -111,12 +144,12 @@ export async function handlePutWatchProgress(request) {
       update: {
         position: finalPos,
         duration: Number(item.duration) || existing?.duration || 0,
-        title: item.title || existing?.title || null,
+        title: finalTitle,
         subjectId: item.subjectId || existing?.subjectId || null,
-        detailPath: item.detailPath || existing?.detailPath || null,
+        detailPath: finalDetailPath,
         se: item.se != null ? String(item.se) : (existing?.se || null),
         ep: item.ep != null ? String(item.ep) : (existing?.ep || null),
-        poster: item.poster || existing?.poster || null,
+        poster: finalPoster,
         kind: item.kind || existing?.kind || null,
         completed: finalCompleted,
         updatedAt,

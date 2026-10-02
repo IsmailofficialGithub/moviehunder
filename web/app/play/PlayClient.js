@@ -55,8 +55,34 @@ export default function PlayClient() {
     try {
       const meta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
       if (!detailPath && meta.detailPath) detailPath = meta.detailPath;
-      if (!title && meta.title) title = meta.title;
+      if ((!title || /^\d+$/.test(String(title).trim())) && meta.title && !/^\d+$/.test(String(meta.title).trim())) {
+        title = meta.title;
+      }
       if (!poster && meta.poster) poster = meta.poster;
+    } catch {}
+  }
+
+  // Derive human-readable title from detailPath slug if title is numeric or empty
+  if ((!title || /^\d+$/.test(String(title).trim())) && detailPath) {
+    let slug = String(detailPath).replace(/^.*\/detail\//, "").replace(/^\/+/, "");
+    slug = slug.replace(/-[A-Za-z0-9]{8,16}$/, "");
+    if (slug && !/^\d+$/.test(slug)) {
+      title = slug
+        .split("-")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+  }
+
+  // Persist resolved title and poster so future episode switches preserve it
+  if (subjectId && typeof window !== "undefined" && (title || poster)) {
+    try {
+      const meta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
+      if (title && !/^\d+$/.test(String(title).trim())) meta.title = title;
+      if (poster) meta.poster = poster;
+      if (detailPath) meta.detailPath = detailPath;
+      localStorage.setItem(`history_meta_${subjectId}`, JSON.stringify(meta));
     } catch {}
   }
 
@@ -122,6 +148,7 @@ export default function PlayClient() {
         se: target.se,
         ep: target.ep,
         title,
+        poster,
       })}`
     );
   };

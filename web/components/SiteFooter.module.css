@@ -1,0 +1,134 @@
+.footer {
+  width: 100%;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: auto;
+  position: relative;
+  z-index: 10;
+}
+
+.inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 24px 28px;
+}
+
+.topSection {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 36px;
+  margin-bottom: 36px;
+}
+
+.brandCol {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brandName {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.brandDesc {
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 320px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.colTitle {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 4px;
+}
+
+.linkList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.linkItem a {
+  color: var(--muted);
+  transition: color 0.2s ease, transform 0.2s ease;
+  display: inline-block;
+  font-size: 0.88rem;
+}
+
+.linkItem a:hover {
+  color: var(--accent-light);
+  transform: translateX(2px);
+}
+
+.sitemapHighlight {
+  color: var(--accent-light) !important;
+  font-weight: 600;
+}
+
+.bottomSection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+}
+
+.bottomLinks {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bottomLinks a {
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.bottomLinks a:hover {
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .topSection {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .topSection {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .bottomSection {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
