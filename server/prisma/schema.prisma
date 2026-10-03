@@ -97,6 +97,7 @@ model AppDevice {
 model WatchProgress {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
+  profileId   String?  @map("profile_id")
   progressKey String   @map("progress_key")
   position    Float    @default(0)
   duration    Float    @default(0)
@@ -111,10 +112,11 @@ model WatchProgress {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, progressKey])
-  @@index([userId, updatedAt(sort: Desc)])
+  @@unique([userId, progressKey, profileId])
+  @@index([userId, profileId, updatedAt(sort: Desc)])
   @@map("watch_progress")
 }
 
@@ -191,13 +193,14 @@ enum MemberRole {
 }
 
 model Account {
-  id          String   @id @default(cuid())
-  ownerUserId String   @unique @map("owner_user_id")
-  tier        PlanTier
+  id                     String    @id @default(cuid())
+  ownerUserId            String    @unique @map("owner_user_id")
+  tier                   PlanTier  @default(STANDARD)
+  extraProfilesPurchased Int       @default(0) @map("extra_profiles_purchased")
   
-  owner       User     @relation(fields: [ownerUserId], references: [id])
-  members     AccountMember[]
-  households  Household[]
+  owner                  User      @relation(fields: [ownerUserId], references: [id])
+  members                AccountMember[]
+  households             Household[]
 
   @@map("accounts")
 }
@@ -215,14 +218,19 @@ model AccountMember {
 }
 
 model Profile {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  name      String
-  avatarUrl String?  @map("avatar_url")
-  isKids    Boolean  @default(false)
+  id            String          @id @default(cuid())
+  userId        String          @map("user_id")
+  name          String
+  avatarUrl     String?         @map("avatar_url")
+  isKids        Boolean         @default(false)
+  isPrimary     Boolean         @default(false) @map("is_primary")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
   
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  watchProgress WatchProgress[]
   
+  @@index([userId])
   @@map("profiles")
 }
 
