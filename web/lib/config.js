@@ -1,11 +1,14 @@
 export function getSiteUrl() {
-  const url =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    (typeof window !== "undefined" && window.location?.origin
-      ? window.location.origin
-      : "https://offstream.co");
-  return url.replace(/\/+$/, "");
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "";
+  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+    return envUrl.replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined" && window.location?.origin) {
+    if (!window.location.origin.includes("localhost") && !window.location.origin.includes("127.0.0.1")) {
+      return window.location.origin.replace(/\/+$/, "");
+    }
+  }
+  return "https://offstream.co";
 }
 
 export function getApiBase() {
