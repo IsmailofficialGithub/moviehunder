@@ -10,6 +10,14 @@ import { getGithubUrl } from "../lib/config";
 import { openAppDownloadModal } from "./AppDownloadPrompt";
 import ActiveUsers from "./ActiveUsers";
 import BtnSpinner from "./BtnSpinner";
+import { useAuth } from "./AuthProvider";
+import {
+  getActiveProfile,
+  setActiveProfile,
+  clearActiveProfile,
+  fetchProfiles,
+  generateAvatarUrl,
+} from "../lib/profiles";
 import styles from "./SiteHeader.module.css";
 
 const NAV = [
@@ -39,6 +47,86 @@ export default function SiteHeader() {
     )?.route || "";
 
   const settingsActive = pathname.startsWith("/settings");
+
+  const { isSignedIn, logout } = useAuth();
+  const [activeProfile, setActiveProfileState] = useState(null);
+  const [allProfiles, setAllProfiles] = useState([]);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+
+  useEffect(() => {
+    setProfileMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setActiveProfileState(null);
+      setAllProfiles([]);
+      return;
+    }
+
+    const current = getActiveProfile();
+    if (current) {
+      setActiveProfileState(current);
+    }
+
+    fetchProfiles()
+      .then((res) => {
+        if (res?.ok && Array.isArray(res.profiles)) {
+          setAllProfiles(res.profiles);
+          const active = getActiveProfile();
+          const found = active && res.profiles.find((p) => p.id === active.id);
+          if (found) {
+            setActiveProfileState(found);
+            setActiveProfile(found);
+          } else if (res.profiles[0]) {
+            setActiveProfileState(res.profiles[0]);
+            setActiveProfile(res.profiles[0]);
+          }
+        }
+      })
+      .catch(() => {});
+
+    const onProfileChanged = (e) => {
+      setActiveProfileState(e.detail);
+    };
+
+    window.addEventListener("mh:profile_changed", onProfileChanged);
+    return () => window.removeEventListener("mh:profile_changed", onProfileChanged);
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    if (profileMenuOpen) {
+      document.addEventListener("mousedown", onDocClick);
+      return () => document.removeEventListener("mousedown", onDocClick);
+    }
+  }, [profileMenuOpen]);
+
+  const handleSwitchProfile = (p) => {
+    setActiveProfile(p);
+    setActiveProfileState(p);
+    setProfileMenuOpen(false);
+    router.refresh();
+  };
+
+  const handleSignOut = async () => {
+    setProfileMenuOpen(false);
+    clearActiveProfile();
+    await logout();
+    router.push("/");
+  };
+
+  const otherProfiles = allProfiles.filter((p) => p.id !== activeProfile?.id);
+  const activeAvatar =
+    activeProfile?.avatarUrl ||
+    generateAvatarUrl(activeProfile?.name || "User", {
+      isKids: activeProfile?.isKids,
+    });
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -352,30 +440,177 @@ export default function SiteHeader() {
                 </svg>
                 <span className={styles.downloadLabel}>App</span>
               </button>
-              <Link
-                href="/login"
-                className={`${styles.iconBtn} ${
-                  pathname.startsWith("/login") || pathname.startsWith("/signup")
-                    ? styles.iconBtnOn
-                    : ""
-                }`}
-                aria-label="Account"
-                title="Account"
-              >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  />
-                  <path
-                    d="M4 20c1.8-3.2 4.6-5 8-5s6.2 1.8 8 5"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </Link>
+              {isSignedIn ? (
+                <div className={styles.profileMenuWrap} ref={profileMenuRef}>
+                  <button
+                    type="button"
+                    className={styles.profileAvatarBtn}
+                    onClick={() => setProfileMenuOpen((prev) => !prev)}
+                    aria-label="Profile menu"
+                    title={activeProfile?.name || "Profile"}
+                    aria-expanded={profileMenuOpen}
+                  >
+                    <div
+                      className={styles.headerAvatar}
+                      style={{
+                        backgroundImage: `url(${activeAvatar})`,
+                      }}
+                    />
+                  </button>
+
+                  {profileMenuOpen && (
+                    <div className={styles.profileDropdown} role="menu">
+                      <div className={styles.activeProfileHeader}>
+                        <div
+                          className={styles.activeHeaderAvatar}
+                          style={{
+                            backgroundImage: `url(${activeAvatar})`,
+                          }}
+                        />
+                        <div className={styles.activeHeaderDetails}>
+                          <span className={styles.activeHeaderName}>
+                            {activeProfile?.name || "Profile"}
+                          </span>
+                          <span className={styles.activeHeaderBadge}>
+                            {activeProfile?.isKids ? "Kids" : "Active Profile"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {otherProfiles.length > 0 && (
+                        <>
+                          <div className={styles.dropdownDivider} />
+                          {otherProfiles.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className={styles.profileSwitchItem}
+                              onClick={() => handleSwitchProfile(p)}
+                            >
+                              <div
+                                className={styles.switchAvatar}
+                                style={{
+                                  backgroundImage: `url(${
+                                    p.avatarUrl ||
+                                    generateAvatarUrl(p.name, { isKids: p.isKids })
+                                  })`,
+                                }}
+                              />
+                              <span className={styles.switchName}>{p.name}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      <div className={styles.dropdownDivider} />
+
+                      <Link
+                        href="/profiles?add=true"
+                        className={styles.dropdownLinkItem}
+                        onClick={() => setProfileMenuOpen(false)}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        Add Profile
+                      </Link>
+
+                      <Link
+                        href="/profiles?manage=true"
+                        className={styles.dropdownLinkItem}
+                        onClick={() => setProfileMenuOpen(false)}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                        </svg>
+                        Manage Profiles
+                      </Link>
+
+                      <Link
+                        href="/settings"
+                        className={styles.dropdownLinkItem}
+                        onClick={() => setProfileMenuOpen(false)}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        </svg>
+                        Account Settings
+                      </Link>
+
+                      <div className={styles.dropdownDivider} />
+
+                      <button
+                        type="button"
+                        className={`${styles.dropdownLinkItem} ${styles.dropdownSignout}`}
+                        onClick={handleSignOut}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                          <polyline points="16 17 21 12 16 7" />
+                          <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className={`${styles.iconBtn} ${
+                    pathname.startsWith("/login") || pathname.startsWith("/signup")
+                      ? styles.iconBtnOn
+                      : ""
+                  }`}
+                  aria-label="Account"
+                  title="Account"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path
+                      d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    />
+                    <path
+                      d="M4 20c1.8-3.2 4.6-5 8-5s6.2 1.8 8 5"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </Link>
+              )}
               <Link
                 href="/history"
                 className={`${styles.iconBtn} ${
