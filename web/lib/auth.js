@@ -42,11 +42,23 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY);
 }
 
-export async function authFetch(path, { method = "GET", body, token, retry = true } = {}) {
-  const headers = { Accept: "application/json" };
+export async function authFetch(path, { method = "GET", body, token, retry = true, headers: customHeaders } = {}) {
+  const headers = { Accept: "application/json", ...(customHeaders || {}) };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const access = token || getStoredSession()?.access_token;
   if (access) headers.Authorization = `Bearer ${access}`;
+
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem("mh.active_profile");
+      if (raw) {
+        const prof = JSON.parse(raw);
+        if (prof?.id && !headers["X-Profile-Id"]) {
+          headers["X-Profile-Id"] = String(prof.id);
+        }
+      }
+    } catch {}
+  }
 
   const res = await fetch(`${apiBase()}${path}`, {
     method,

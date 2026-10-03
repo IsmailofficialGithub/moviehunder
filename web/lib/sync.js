@@ -5,7 +5,8 @@
  * Provides user-isolated caching, SWR instant-loading, and multi-device playback synchronization.
  */
 
-import { getStoredSession, syncGet, syncPut } from "./auth";
+import { getStoredSession, syncGet, syncPut } from "./auth.js";
+import { getActiveProfile } from "./profiles.js";
 
 const WATCH_PREFIX = "history_";
 const CURRENT_USER_KEY = "mh.current_user_id";
@@ -18,12 +19,18 @@ export function parseTimestamp(val) {
   return isNaN(p) ? 0 : p;
 }
 
+export function getWatchCacheKey(userId, profileId = null) {
+  const user = userId ? String(userId) : "guest";
+  const prof = profileId ? String(profileId) : (getActiveProfile()?.id || "default");
+  return `${CACHE_PREFIX}${user}.${prof}`;
+}
+
 // ── User-Isolated Browser Cache ──────────────────────────────────────────────
 
-export function getWatchCache(userId) {
+export function getWatchCache(userId, profileId = null) {
   if (typeof window === "undefined") return [];
   try {
-    const key = `${CACHE_PREFIX}${userId || "guest"}`;
+    const key = getWatchCacheKey(userId, profileId);
     const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
@@ -35,10 +42,10 @@ export function getWatchCache(userId) {
   }
 }
 
-export function saveWatchCache(userId, items) {
+export function saveWatchCache(userId, items, profileId = null) {
   if (typeof window === "undefined" || !Array.isArray(items)) return;
   try {
-    const key = `${CACHE_PREFIX}${userId || "guest"}`;
+    const key = getWatchCacheKey(userId, profileId);
     const sorted = [...items].sort(
       (a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt)
     );
