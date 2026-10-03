@@ -7,9 +7,9 @@ import NativeBannerAd from "../components/ads/NativeBannerAd";
 export const revalidate = 300;
 
 export const metadata = {
-  title: "Movies Hunder · Free Movies & Series Online | Ads Free Movies, Hindi Dubbed, Hollywood, Bollywood",
+  title: "Offstream — Free Movies & TV Series Online | Movies Hunder",
   description:
-    "Stream thousands of free movies and TV series online on Movies Hunder (offstream.co). Watch Hindi dubbed, Hollywood, Bollywood, anime, and Asian dramas in HD ads-free.",
+    "Stream thousands of free movies and TV series online on Offstream (offstream.co). Watch Hindi dubbed, Hollywood, Bollywood, anime, and Asian dramas in HD with zero ads.",
   alternates: {
     canonical: "https://offstream.co",
   },
@@ -33,7 +33,7 @@ export default async function HomePage() {
             border: 0,
           }}
         >
-          Movies Hunder — Free Movies &amp; TV Series Online (Ads Free)
+          Offstream — Free Movies &amp; TV Series Online (Movies Hunder)
         </h1>
         <BannerAd468x60 />
         <CatalogRows sections={data.sections || []} showHero />

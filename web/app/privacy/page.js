@@ -2,8 +2,8 @@ import React from 'react';
 import styles from '../legal.module.css';
 
 export const metadata = {
-  title: "Privacy Policy | Movies Hunder (offstream.co)",
-  description: "Privacy Policy for the Movies Hunder streaming platform.",
+  title: "Privacy Policy | Offstream",
+  description: "Privacy Policy for the Offstream (Movies Hunder) streaming platform.",
   alternates: {
     canonical: "https://offstream.co/privacy",
   },

@@ -18,13 +18,18 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://offstream.co";
 export const metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Movies Hunder · Free Movies & Series Online | Ads Free Movies, Hindi Dubbed, Hollywood, Bollywood",
-    template: "%s | Movies Hunder - Free Movies & TV Series",
+    default: "Offstream — Free Movies & TV Series Online | Movies Hunder",
+    template: "%s · Offstream",
   },
   description:
-    "Watch free movies and series online on Movies Hunder (offstream.co). Enjoy ads free streaming for Hollywood, Bollywood, Hindi dubbed movies, Korean dramas, anime, and trending TV shows in ultra HD.",
+    "Watch free movies and series online on Offstream (offstream.co). Enjoy ads-free streaming for Hollywood, Bollywood, Hindi dubbed movies, Korean dramas, anime, and trending TV shows in ultra HD.",
   keywords: [
+    "Offstream",
+    "Offstream movies",
+    "offstream.co",
+    "Offstream streaming",
     "Movies Hunder",
+    "MovieHunter",
     "free movies",
     "ads free movies",
     "series",
@@ -36,13 +41,11 @@ export const metadata = {
     "dual audio movies",
     "stream tv series free",
     "hd movies",
-    "offstream.co",
-    "movie hunter",
     "asian drama",
     "anime free stream",
     "south hindi dubbed",
   ],
-  applicationName: "Movies Hunder",
+  applicationName: "Offstream",
   alternates: {
     canonical: siteUrl,
   },
@@ -50,24 +53,24 @@ export const metadata = {
     type: "website",
     locale: "en_US",
     url: siteUrl,
-    siteName: "Movies Hunder",
-    title: "Movies Hunder · Free Movies & Series Online | Ads Free Movies",
+    siteName: "Offstream",
+    title: "Offstream — Free Movies & TV Series Online | Movies Hunder",
     description:
-      "Stream Hollywood, Bollywood, Hindi dubbed movies & TV series online for free in HD on Movies Hunder (offstream.co).",
+      "Stream Hollywood, Bollywood, Hindi dubbed movies & TV series online for free in HD on Offstream (offstream.co).",
     images: [
       {
         url: "/brand/logo-full.png",
         width: 1200,
         height: 630,
-        alt: "Movies Hunder - Free Movies & TV Series",
+        alt: "Offstream - Free Movies & TV Series",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Movies Hunder · Free Movies & Series Online",
+    title: "Offstream — Free Movies & TV Series Online",
     description:
-      "Watch Hollywood, Bollywood, and Hindi dubbed movies & TV series free with no ads on Movies Hunder.",
+      "Watch Hollywood, Bollywood, and Hindi dubbed movies & TV series free with no ads on Offstream (offstream.co).",
     images: ["/brand/logo-full.png"],
   },
   robots: {
@@ -97,11 +100,11 @@ const jsonLd = {
     {
       "@type": "WebSite",
       "@id": `${siteUrl}/#website`,
-      url: siteUrl,
-      name: "Movies Hunder",
-      alternateName: ["MovieHunter", "OffStream", "MoviesHunder"],
+      url: `${siteUrl}/`,
+      name: "Offstream",
+      alternateName: ["Offstream Movies", "Movies Hunder", "MovieHunter", "OffStream"],
       description:
-        "Watch free movies and series online on Movies Hunder. Stream Hollywood, Bollywood, Hindi dubbed movies, and TV shows ads-free.",
+        "Watch free movies and series online on Offstream (Movies Hunder). Stream Hollywood, Bollywood, Hindi dubbed movies, and TV shows ads-free.",
       potentialAction: {
         "@type": "SearchAction",
         target: `${siteUrl}/search?q={search_term_string}`,
@@ -111,8 +114,9 @@ const jsonLd = {
     {
       "@type": "Organization",
       "@id": `${siteUrl}/#organization`,
-      name: "Movies Hunder",
-      url: siteUrl,
+      name: "Offstream",
+      alternateName: ["Movies Hunder", "MovieHunter"],
+      url: `${siteUrl}/`,
       logo: {
         "@type": "ImageObject",
         url: `${siteUrl}/brand/logo-symbol.png`,

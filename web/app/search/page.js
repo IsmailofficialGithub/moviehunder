@@ -20,13 +20,18 @@ export async function generateMetadata({ searchParams }) {
     ? `Watch "${q}" Free Online — Movies & Series`
     : "Search Free Movies, TV Series & Hindi Dubbed";
   const desc = q
-    ? `Stream results for "${q}" online free in HD on Movies Hunder (offstream.co). Watch movies and series with no ads.`
-    : "Search thousands of free movies, TV series, Hindi dubbed films, Hollywood and Bollywood titles on Movies Hunder.";
+    ? `Stream results for "${q}" online free in HD on Offstream (offstream.co). Watch movies and series with no ads.`
+    : "Search thousands of free movies, TV series, Hindi dubbed films, Hollywood and Bollywood titles on Offstream.";
   return {
     title,
     description: desc,
     alternates: {
       canonical: q ? `https://offstream.co/search?q=${encodeURIComponent(q)}` : "https://offstream.co/search",
+    },
+    openGraph: {
+      title: `${title} | Offstream`,
+      description: desc,
+      siteName: "Offstream",
     },
   };
 }

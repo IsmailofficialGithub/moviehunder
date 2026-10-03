@@ -2,8 +2,8 @@ import React from 'react';
 import styles from '../legal.module.css';
 
 export const metadata = {
-  title: "Terms of Service | Movies Hunder (offstream.co)",
-  description: "Terms of Service for the Movies Hunder streaming platform.",
+  title: "Terms of Service | Offstream",
+  description: "Terms of Service for the Offstream (Movies Hunder) streaming platform.",
   alternates: {
     canonical: "https://offstream.co/terms",
   },

@@ -35,12 +35,14 @@ export async function generateMetadata({ params }) {
     const canonical = `${siteUrl}/title/${encodeURIComponent(decoded)}`;
 
     return {
-      title: `${name} - Watch Free Online | Movies Hunder`,
+      title: `${name} - Watch Free Online | Offstream`,
       description: desc.slice(0, 160),
       keywords: [
         name,
         `watch ${name} free`,
         `stream ${name} online`,
+        "Offstream",
+        "Offstream movies",
         "Movies Hunder",
         "free movies",
         "ads free movies",
@@ -54,15 +56,15 @@ export async function generateMetadata({ params }) {
         canonical,
       },
       openGraph: {
-        title: `${name} · Watch Free on Movies Hunder`,
+        title: `${name} · Watch Free on Offstream`,
         description: desc.slice(0, 200),
         url: canonical,
-        siteName: "Movies Hunder",
+        siteName: "Offstream",
         type: isSeries ? "video.tv_show" : "video.movie",
         images: [
           {
             url: poster,
-            alt: `${name} Poster - Movies Hunder`,
+            alt: `${name} Poster - Offstream`,
           },
         ],
       },
@@ -119,14 +121,15 @@ export default async function TitlePage({ params }) {
           description:
             detail?.description ||
             detail?.overview ||
-            `Watch ${name} free online in HD on Movies Hunder.`,
+            `Watch ${name} free online in HD on Offstream.`,
           image: poster,
           url: pageUrl,
           dateCreated: detail?.release_date || detail?.year || undefined,
           inLanguage: detail?.language || "en",
           provider: {
             "@type": "Organization",
-            name: "Movies Hunder",
+            name: "Offstream",
+            alternateName: "Movies Hunder",
             url: siteUrl,
           },
         },

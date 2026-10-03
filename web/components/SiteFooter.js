@@ -21,14 +21,14 @@ export default function SiteFooter() {
             <div className={styles.logoRow}>
               <Image
                 src="/brand/logo-symbol.png"
-                alt="Movies Hunder Logo"
+                alt="Offstream Logo"
                 width={36}
                 height={36}
               />
-              <span className={styles.brandName}>Movies Hunder</span>
+              <span className={styles.brandName}>Offstream</span>
             </div>
             <p className={styles.brandDesc}>
-              Watch free movies and TV series online on Movies Hunder (offstream.co). Stream Hollywood, Bollywood, Hindi dubbed movies, and top series with no ads.
+              Watch free movies and TV series online on Offstream (offstream.co). Stream Hollywood, Bollywood, Hindi dubbed movies, and top series with no ads.
             </p>
           </div>
 
@@ -70,7 +70,7 @@ export default function SiteFooter() {
         </div>
 
         <div className={styles.bottomSection}>
-          <span>&copy; {new Date().getFullYear()} Movies Hunder (offstream.co). All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} Offstream (offstream.co). All rights reserved.</span>
           <div className={styles.bottomLinks}>
             <Link href="/sitemap">HTML Sitemap</Link>
             <span>&bull;</span>
