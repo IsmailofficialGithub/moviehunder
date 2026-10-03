@@ -34,24 +34,24 @@
 **Interfaces:**
 - Produces: Updated Prisma Client with `Account.extraProfilesPurchased`, `Profile.isPrimary`, `Profile.createdAt`, `Profile.updatedAt`, and `WatchProgress.profileId`.
 
-- [ ] **Step 1: Write verification test for Prisma schema definitions**
+- [x] **Step 1: Write verification test for Prisma schema definitions**
 Create `server/test/schema.test.js` to assert that `Profile`, `Account`, and `WatchProgress` fields match the specification.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 Run: `node --test server/test/schema.test.js`
 Expected: FAIL (missing fields on models)
 
-- [ ] **Step 3: Update `server/prisma/schema.prisma`**
+- [x] **Step 3: Update `server/prisma/schema.prisma`**
 - Add `extraProfilesPurchased Int @default(0) @map("extra_profiles_purchased")` to `Account`.
 - Add `isPrimary Boolean @default(false) @map("is_primary")`, `createdAt DateTime @default(now()) @map("created_at")`, `updatedAt DateTime @updatedAt @map("updated_at")`, and `watchProgress WatchProgress[]` to `Profile`.
 - Add `profileId String? @map("profile_id")` and `profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)` to `WatchProgress`.
 - Update `WatchProgress` index/uniqueness to support per-profile tracking.
 
-- [ ] **Step 4: Generate Prisma Client & verify test**
+- [x] **Step 4: Generate Prisma Client & verify test**
 Run: `npx prisma generate --schema=server/prisma/schema.prisma && node --test server/test/schema.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add server/prisma/schema.prisma server/test/schema.test.js
 git commit -m "feat(db): update profile, account, and watch progress schema for profile isolation"
@@ -76,18 +76,18 @@ git commit -m "feat(db): update profile, account, and watch progress schema for 
   - `handleDeleteProfile(request, profileId)` -> `{ ok }`
   - `handleBuyExtraSlot(request)` -> `{ ok, limits }`
 
-- [ ] **Step 1: Write the failing tests for profile CRUD and plan limits**
+- [x] **Step 1: Write the failing tests for profile CRUD and plan limits**
 Create `server/test/profiles.test.js` to test:
 - Auto-seeding a default profile if user has none.
 - Enforcing plan tier limits (e.g. 2 for STANDARD_ADS, 4 for STANDARD, 5 for PREMIUM).
 - Purchasing extra profile slots.
 - Modifying and deleting non-primary profiles.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 Run: `node --test server/test/profiles.test.js`
 Expected: FAIL (handler not implemented)
 
-- [ ] **Step 3: Implement `server/src/profiles.js`**
+- [x] **Step 3: Implement `server/src/profiles.js`**
 - Implement `getAccountLimits(userId)`: reads user's `Account`, computes screen concurrency and allowed profile limits based on tier + `extraProfilesPurchased`.
 - Implement `handleGetProfiles(request)`: fetches profiles, auto-seeds default profile if empty, returns profiles + limits.
 - Implement `handleCreateProfile(request)`: validates name, checks `currentCount < totalAllowedProfiles`, creates profile.
@@ -95,15 +95,15 @@ Expected: FAIL (handler not implemented)
 - Implement `handleDeleteProfile(request, profileId)`: guards against deleting only profile, deletes profile.
 - Implement `handleBuyExtraSlot(request)`: increments `extraProfilesPurchased` on Account.
 
-- [ ] **Step 4: Mount routes in `server/src/nodeApi.js` and proxy in `server/src/nodeProxy.js`**
+- [x] **Step 4: Mount routes in `server/src/nodeApi.js` and proxy in `server/src/nodeProxy.js`**
 - Add `/api/profiles` matchers in `server/src/nodeProxy.js`: `p.startsWith("/api/profiles")`.
 - Add route dispatching in `server/src/nodeApi.js` for GET, POST, PUT, DELETE under `/api/profiles`.
 
-- [ ] **Step 5: Run tests and verify they pass**
+- [x] **Step 5: Run tests and verify they pass**
 Run: `node --test server/test/profiles.test.js`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 ```bash
 git add server/src/profiles.js server/src/nodeApi.js server/src/nodeProxy.js server/test/profiles.test.js
 git commit -m "feat(api): implement profile CRUD endpoints and plan entitlement checks"
@@ -121,25 +121,25 @@ git commit -m "feat(api): implement profile CRUD endpoints and plan entitlement 
 - Consumes: `X-Profile-Id` header or `profileId` parameter in `/api/sync/watch-progress`.
 - Produces: Scoped watch progress queries and updates where records belong to a specific profile.
 
-- [ ] **Step 1: Write test for profile-isolated watch progress**
+- [x] **Step 1: Write test for profile-isolated watch progress**
 Create `server/test/sync-profiles.test.js`:
 - Saving progress under Profile A does not show in Profile B's GET request.
 - Deleting watch progress in Profile A leaves Profile B intact.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 Run: `node --test server/test/sync-profiles.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Update `server/src/sync.js`**
+- [x] **Step 3: Update `server/src/sync.js`**
 - Extract `profileId` from `request.headers.get("x-profile-id")` or query param in `handleGetWatchProgress`, `handlePutWatchProgress`, and `handleDeleteWatchProgress`.
 - Filter `watchProgress.findMany` by `{ userId, profileId }` (falling back gracefully to `{ userId }` if `profileId` is omitted).
 - Upsert `watchProgress` with `profileId`.
 
-- [ ] **Step 4: Run tests and verify they pass**
+- [x] **Step 4: Run tests and verify they pass**
 Run: `node --test server/test/sync-profiles.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add server/src/sync.js server/test/sync-profiles.test.js
 git commit -m "feat(sync): isolate watch progress per profile"
@@ -164,27 +164,27 @@ git commit -m "feat(sync): isolate watch progress per profile"
   - `getActiveProfile()`: returns stored active profile from `localStorage` (`mh.active_profile`).
   - `setActiveProfile(profile)`: sets active profile, dispatches `mh:profile_changed`.
 
-- [ ] **Step 1: Write tests for `web/lib/profiles.js` and scoped cache keys**
+- [x] **Step 1: Write tests for `web/lib/profiles.js` and scoped cache keys**
 Create `web/test/profiles.test.js` to verify active profile getter/setter, storage event dispatching, and cache partitioning.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 Run: `node --test web/test/profiles.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Implement `web/lib/profiles.js`**
+- [x] **Step 3: Implement `web/lib/profiles.js`**
 - Implement API client calls using `authFetch` from `web/lib/auth.js`.
 - Provide default avatars palette (using DiceBear seed & brand colorways `#3d0081`, `#5a00a2`, `#bd84db`, `#1a1a1f`, `#f5c518`).
 - Implement `getActiveProfile()` and `setActiveProfile(profile)`.
 
-- [ ] **Step 4: Update `web/lib/sync.js`**
+- [x] **Step 4: Update `web/lib/sync.js`**
 - Modify cache key generator to use `${CACHE_PREFIX}${userId}.${profileId || "default"}`.
 - Attach `X-Profile-Id: activeProfile?.id` to `syncPut` and `syncGet` headers.
 
-- [ ] **Step 5: Run tests and verify they pass**
+- [x] **Step 5: Run tests and verify they pass**
 Run: `node --test web/test/profiles.test.js`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 ```bash
 git add web/lib/profiles.js web/lib/sync.js web/test/profiles.test.js
 git commit -m "feat(web): add profile API client, active profile store, and scoped cache"
@@ -202,7 +202,7 @@ git commit -m "feat(web): add profile API client, active profile store, and scop
 - Consumes: `web/lib/profiles.js` (`fetchProfiles`, `createProfile`, `updateProfile`, `deleteProfile`, `setActiveProfile`, `buyExtraSlot`).
 - Produces: Complete, interactive Netflix-style "Who's watching?" page styled in brand purple/dark-slate aesthetic.
 
-- [ ] **Step 1: Build the Profile Management Modals & Cards**
+- [x] **Step 1: Build the Profile Management Modals & Cards**
 - "Add Profile" modal:
   - Name input with character counter.
   - Avatar selector carousel with curated brand avatars + randomizer seed button.
@@ -214,21 +214,21 @@ git commit -m "feat(web): add profile API client, active profile store, and scop
   - Hover / edit badge on profile cards.
   - Clicking opens "Edit Profile" modal (rename, avatar change, kids toggle, and "Delete Profile" button with confirmation).
 
-- [ ] **Step 2: Apply brand styling in `web/app/profiles/profiles.module.css`**
+- [x] **Step 2: Apply brand styling in `web/app/profiles/profiles.module.css`**
 - Use `--primary` (#3d0081), `--accent` (#5a00a2), `--secondary` (#bd84db), `--panel` (#1a1a1f), `--bg` (#0c0c0e).
 - Replace any hardcoded `#e50914` red accents with glowing brand purple borders (`--accent-border`, `--accent`).
 - Add smooth scale transitions, glassmorphic modal overlay, and responsive grid layout.
 
-- [ ] **Step 3: Connect real data & active profile selection in `web/app/profiles/page.js`**
+- [x] **Step 3: Connect real data & active profile selection in `web/app/profiles/page.js`**
 - Load profiles via `fetchProfiles()`.
 - On profile select, call `setActiveProfile(profile)` and navigate to `/`.
 - If URL has `?manage=true`, automatically initialize in management mode.
 
-- [ ] **Step 4: Verify page build and rendering**
+- [x] **Step 4: Verify page build and rendering**
 Run: `npm --prefix web run build`
 Expected: PASS without compile errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add web/app/profiles/page.js web/app/profiles/profiles.module.css
 git commit -m "feat(web): implement real 'Who's watching?' page with brand styling and CRUD modals"
@@ -246,7 +246,7 @@ git commit -m "feat(web): implement real 'Who's watching?' page with brand styli
 - Consumes: `getActiveProfile()`, `setActiveProfile()`, `fetchProfiles()` from `web/lib/profiles.js`.
 - Produces: Header avatar button with interactive dropdown showing active profile, other profiles for quick-switch, "Manage Profiles", and "Account".
 
-- [ ] **Step 1: Update `web/components/SiteHeader.js`**
+- [x] **Step 1: Update `web/components/SiteHeader.js`**
 - Read active profile on mount and subscribe to `mh:profile_changed` events.
 - Render active profile avatar in place of generic user icon when signed in.
 - Implement click dropdown menu:
@@ -257,15 +257,15 @@ git commit -m "feat(web): implement real 'Who's watching?' page with brand styli
   - "Account Settings" link (`/settings`).
   - "Sign Out" button.
 
-- [ ] **Step 2: Style dropdown in `web/components/SiteHeader.module.css`**
+- [x] **Step 2: Style dropdown in `web/components/SiteHeader.module.css`**
 - Glassmorphic dark purple panel (`background: rgba(18, 18, 24, 0.95)`, `border: 1px solid var(--line)`).
 - Profile rows with smooth hover states and glowing avatar rings.
 
-- [ ] **Step 3: Verify build**
+- [x] **Step 3: Verify build**
 Run: `npm --prefix web run build`
 Expected: PASS without compile errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
 git add web/components/SiteHeader.js web/components/SiteHeader.module.css
 git commit -m "feat(web): add header active profile avatar with 1-click switcher dropdown"
@@ -281,14 +281,14 @@ git commit -m "feat(web): add header active profile avatar with 1-click switcher
 **Interfaces:**
 - Verifies full flow: User signup -> auto-seeded profile -> create secondary profile -> limit check -> switch profile -> scoped watch progress -> delete profile.
 
-- [ ] **Step 1: Write integration verification script `test/e2e-profiles-flow.js`**
+- [x] **Step 1: Write integration verification script `test/e2e-profiles-flow.js`**
 Test the complete API and client flow against the play-relay server.
 
-- [ ] **Step 2: Run end-to-end integration test**
+- [x] **Step 2: Run end-to-end integration test**
 Run: `node test/e2e-profiles-flow.js`
 Expected: All 6 stages PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 ```bash
 git add test/e2e-profiles-flow.js
 git commit -m "test: add end-to-end integration test for profile lifecycle and watch isolation"
