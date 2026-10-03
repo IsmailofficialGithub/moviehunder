@@ -23,14 +23,39 @@ function progressToPublic(row) {
   };
 }
 
-export async function handleGetWatchProgress(request) {
-  const auth = await requireUser(request);
+function extractProfileId(request, opts = {}) {
+  if (opts.profileIdOverride !== undefined) return opts.profileIdOverride;
+  const h = request.headers.get("x-profile-id");
+  if (h && h.trim()) return h.trim();
+  try {
+    const u = new URL(request.url);
+    return u.searchParams.get("profileId") || null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveSyncAuth(request, opts = {}) {
+  if (opts.authUser) return { ok: true, user: opts.authUser };
+  return await requireUser(request);
+}
+
+export async function handleGetWatchProgress(request, opts = {}) {
+  const auth = await resolveSyncAuth(request, opts);
   if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
-  if (!dbConfigured()) {
+  if (!opts.dbConfiguredOverride && !dbConfigured()) {
     return { status: 503, body: { error: "Database not configured" } };
   }
-  const rows = await getPrisma().watchProgress.findMany({
-    where: { userId: auth.user.id },
+  const prisma = opts.prismaOverride || getPrisma();
+  const profileId = extractProfileId(request, opts);
+
+  const where = { userId: auth.user.id };
+  if (profileId) {
+    where.profileId = profileId;
+  }
+
+  const rows = await prisma.watchProgress.findMany({
+    where,
     orderBy: { updatedAt: "desc" },
   });
   return {
@@ -39,10 +64,10 @@ export async function handleGetWatchProgress(request) {
   };
 }
 
-export async function handlePutWatchProgress(request) {
-  const auth = await requireUser(request);
+export async function handlePutWatchProgress(request, opts = {}) {
+  const auth = await resolveSyncAuth(request, opts);
   if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
-  if (!dbConfigured()) {
+  if (!opts.dbConfiguredOverride && !dbConfigured()) {
     return { status: 503, body: { error: "Database not configured" } };
   }
   const body = await request.json().catch(() => ({}));
@@ -53,7 +78,8 @@ export async function handlePutWatchProgress(request) {
     : (body.key || body.progressKey)
     ? [body]
     : [];
-  const prisma = getPrisma();
+  const prisma = opts.prismaOverride || getPrisma();
+  const profileId = extractProfileId(request, opts);
   let upserted = 0;
 
   for (const item of items) {
@@ -62,10 +88,14 @@ export async function handlePutWatchProgress(request) {
     const updatedAt = new Date(
       Number(item.updatedAt) || Date.parse(item.updatedAt) || Date.now()
     );
-    const existing = await prisma.watchProgress.findUnique({
-      where: {
-        userId_progressKey: { userId: auth.user.id, progressKey: key },
-      },
+
+    const lookupWhere = { userId: auth.user.id, progressKey: key };
+    if (profileId) {
+      lookupWhere.profileId = profileId;
+    }
+
+    const existing = await prisma.watchProgress.findFirst({
+      where: lookupWhere,
     });
 
     const incomingPos = Number(item.position) || 0;
@@ -74,14 +104,10 @@ export async function handlePutWatchProgress(request) {
     let finalCompleted = Boolean(item.completed);
 
     if (existing) {
-      // 1. If existing record is newer than incoming update by > 10s, keep existing
-      if (existing.updatedAt.getTime() - updatedAt.getTime() > 10000) {
+      if (existing.updatedAt && existing.updatedAt.getTime() - updatedAt.getTime() > 10000) {
         continue;
       }
 
-      // 2. Multi-device concurrent watching:
-      // If two devices are actively watching at the same time (within 3 mins),
-      // do not let a lagging background device overwrite a further progress
       const timeDiff = Math.abs(updatedAt.getTime() - existing.updatedAt.getTime());
       if (timeDiff < 180000 && existing.position > incomingPos && !isRewind) {
         finalPos = existing.position;
@@ -89,8 +115,6 @@ export async function handlePutWatchProgress(request) {
       }
     }
 
-    // Resolve poster & title: never let numeric digits replace a real title,
-    // and inherit poster/title from sibling episodes if missing
     let finalTitle = item.title;
     if (finalTitle && /^\d+$/.test(String(finalTitle).trim())) {
       finalTitle = existing?.title || null;
@@ -122,39 +146,38 @@ export async function handlePutWatchProgress(request) {
       } catch {}
     }
 
-    await prisma.watchProgress.upsert({
-      where: {
-        userId_progressKey: { userId: auth.user.id, progressKey: key },
-      },
-      create: {
-        userId: auth.user.id,
-        progressKey: key,
-        position: finalPos,
-        duration: Number(item.duration) || 0,
-        title: finalTitle,
-        subjectId: item.subjectId || null,
-        detailPath: finalDetailPath,
-        se: item.se != null ? String(item.se) : null,
-        ep: item.ep != null ? String(item.ep) : null,
-        poster: finalPoster,
-        kind: item.kind || null,
-        completed: finalCompleted,
-        updatedAt,
-      },
-      update: {
-        position: finalPos,
-        duration: Number(item.duration) || existing?.duration || 0,
-        title: finalTitle,
-        subjectId: item.subjectId || existing?.subjectId || null,
-        detailPath: finalDetailPath,
-        se: item.se != null ? String(item.se) : (existing?.se || null),
-        ep: item.ep != null ? String(item.ep) : (existing?.ep || null),
-        poster: finalPoster,
-        kind: item.kind || existing?.kind || null,
-        completed: finalCompleted,
-        updatedAt,
-      },
-    });
+    const payload = {
+      position: finalPos,
+      duration: Number(item.duration) || existing?.duration || 0,
+      title: finalTitle,
+      subjectId: item.subjectId || existing?.subjectId || null,
+      detailPath: finalDetailPath,
+      se: item.se != null ? String(item.se) : (existing?.se || null),
+      ep: item.ep != null ? String(item.ep) : (existing?.ep || null),
+      poster: finalPoster,
+      kind: item.kind || existing?.kind || null,
+      completed: finalCompleted,
+      updatedAt,
+    };
+
+    if (existing) {
+      await prisma.watchProgress.update({
+        where: { id: existing.id },
+        data: {
+          ...payload,
+          ...(profileId ? { profileId } : {}),
+        },
+      });
+    } else {
+      await prisma.watchProgress.create({
+        data: {
+          userId: auth.user.id,
+          profileId: profileId || null,
+          progressKey: key,
+          ...payload,
+        },
+      });
+    }
     upserted += 1;
   }
 
@@ -214,25 +237,27 @@ export async function handleSyncGuestHistory(request) {
   return { status: 200, body: { ok: true, upserted } };
 }
 
-export async function handleDeleteWatchProgress(request) {
-  const auth = await requireUser(request);
+export async function handleDeleteWatchProgress(request, opts = {}) {
+  const auth = await resolveSyncAuth(request, opts);
   if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
-  if (!dbConfigured()) {
+  if (!opts.dbConfiguredOverride && !dbConfigured()) {
     return { status: 503, body: { error: "Database not configured" } };
   }
   const url = new URL(request.url);
-  const key = url.searchParams.get("key");
-  const prisma = getPrisma();
+  const key = url.searchParams.get("key") || url.searchParams.get("progressKey");
+  const prisma = opts.prismaOverride || getPrisma();
+  const profileId = extractProfileId(request, opts);
+
+  const where = { userId: auth.user.id };
   if (key) {
-    await prisma.watchProgress.deleteMany({
-      where: { userId: auth.user.id, progressKey: key },
-    });
-    return { status: 200, body: { ok: true, deleted: key } };
+    where.progressKey = key;
   }
-  const result = await prisma.watchProgress.deleteMany({
-    where: { userId: auth.user.id },
-  });
-  return { status: 200, body: { ok: true, deletedCount: result.count } };
+  if (profileId) {
+    where.profileId = profileId;
+  }
+
+  const result = await prisma.watchProgress.deleteMany({ where });
+  return { status: 200, body: { ok: true, deleted: key || null, deletedCount: result.count } };
 }
 
 function playlistToPublic(pl) {
