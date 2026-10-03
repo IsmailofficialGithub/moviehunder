@@ -23,6 +23,13 @@ import {
   handleGoogleCallbackWithLink,
 } from "./auth.js";
 import {
+  handleGetProfiles,
+  handleCreateProfile,
+  handleUpdateProfile,
+  handleDeleteProfile,
+  handleBuyExtraSlot,
+} from "./profiles.js";
+import {
   handleGetWatchProgress,
   handlePutWatchProgress,
   handleDeleteWatchProgress,
@@ -140,6 +147,26 @@ export async function handleNodeApi(request, opts = {}) {
   }
   if (p === "/api/auth/link/google" && method === "POST") {
     return fromHandler(await handleLinkGoogle(request));
+  }
+
+  // ── Profiles ────────────────────────────────────────────
+  if (p === "/api/profiles" && method === "GET") {
+    return fromHandler(await handleGetProfiles(request));
+  }
+  if (p === "/api/profiles" && method === "POST") {
+    return fromHandler(await handleCreateProfile(request));
+  }
+  if (p.startsWith("/api/profiles/") && p !== "/api/profiles/extra-slot") {
+    const profileId = p.slice("/api/profiles/".length);
+    if (method === "PUT") {
+      return fromHandler(await handleUpdateProfile(request, profileId));
+    }
+    if (method === "DELETE") {
+      return fromHandler(await handleDeleteProfile(request, profileId));
+    }
+  }
+  if (p === "/api/profiles/extra-slot" && method === "POST") {
+    return fromHandler(await handleBuyExtraSlot(request));
   }
 
   // ── Sync ────────────────────────────────────────────────

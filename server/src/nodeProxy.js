@@ -8,6 +8,7 @@ export function isProxiedApiPath(pathname) {
   return (
     p.startsWith("/api/access") ||
     p.startsWith("/api/auth") ||
+    p.startsWith("/api/profiles") ||
     p.startsWith("/api/sync") ||
     p.startsWith("/api/history/sync")
   );
