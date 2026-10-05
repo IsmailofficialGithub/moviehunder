@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 import LandingPage from "./landing/LandingPage";
 import CatalogRows from "./CatalogRows";
-import BannerAd468x60 from "./ads/BannerAd468x60";
-import NativeBannerAd from "./ads/NativeBannerAd";
 
 export default function HomeGateway({ sections = [] }) {
   const router = useRouter();
@@ -18,65 +16,46 @@ export default function HomeGateway({ sections = [] }) {
     }
   }, [loading, isSignedIn, hasActivePlan, router]);
 
-  // While checking auth state
-  if (loading) {
+  // Signed in with an active plan -> show catalog
+  if (!loading && isSignedIn && hasActivePlan) {
+    return <CatalogRows sections={sections} />;
+  }
+
+  // Signed in but no active plan -> show prompt while router redirects
+  if (!loading && isSignedIn && !hasActivePlan) {
     return (
       <div
         style={{
-          minHeight: "80vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#0c0c0e",
-          color: "#bd84db",
-          fontSize: "1.1rem",
-        }}
-      >
-        <span>Loading OffStream...</span>
-      </div>
-    );
-  }
-
-  // Guest landing page
-  if (!isSignedIn) {
-    return <LandingPage sections={sections} />;
-  }
-
-  // Signed in but no active subscription
-  if (!hasActivePlan) {
-    return (
-      <div
-        style={{
-          minHeight: "80vh",
+          minHeight: "75vh",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           textAlign: "center",
-          backgroundColor: "#0c0c0e",
+          backgroundColor: "#08080b",
           color: "#ffffff",
           padding: "40px 20px",
         }}
       >
-        <h2 style={{ fontSize: "2rem", fontWeight: "800", marginBottom: "12px" }}>
-          Finish setting up your plan
+        <h2 style={{ fontSize: "1.85rem", fontWeight: "800", marginBottom: "12px" }}>
+          Select a Plan to Start Streaming
         </h2>
-        <p style={{ color: "#a1a1aa", maxWidth: "480px", marginBottom: "24px", lineHeight: "1.5" }}>
-          You’re signed in! Choose a plan to unlock the entire OffStream & Movies Hunder movie and series catalog.
+        <p style={{ color: "#a1a1aa", maxWidth: "460px", marginBottom: "24px", lineHeight: "1.6" }}>
+          You’re signed in. Choose your membership tier to unlock all movies, series, and Hindi dubbed cinema.
         </p>
         <button
           type="button"
           onClick={() => router.push("/signup/planform?step=2")}
           style={{
             padding: "14px 32px",
-            fontSize: "1.1rem",
+            fontSize: "1.05rem",
             fontWeight: "700",
             border: "none",
-            borderRadius: "6px",
-            background: "linear-gradient(135deg, #5a00a2 0%, #3d0081 100%)",
+            borderRadius: "8px",
+            background: "linear-gradient(135deg, #7c3aed 0%, #5a00a2 100%)",
             color: "#ffffff",
             cursor: "pointer",
-            boxShadow: "0 4px 15px rgba(61, 0, 129, 0.4)",
+            boxShadow: "0 4px 15px rgba(124, 58, 237, 0.4)",
           }}
         >
           Choose Your Plan
@@ -85,12 +64,7 @@ export default function HomeGateway({ sections = [] }) {
     );
   }
 
-  // Subscribed member: Full unlocked catalog
-  return (
-    <>
-      <BannerAd468x60 />
-      <CatalogRows sections={sections} showHero />
-      <NativeBannerAd />
-    </>
-  );
+  // Default: Guest or initial SSR / hydration -> Immediately render complete LandingPage!
+  // No loading screen blocking SEO or user perception!
+  return <LandingPage sections={sections} />;
 }

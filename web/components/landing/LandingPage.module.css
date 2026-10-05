@@ -10,77 +10,39 @@
 /* ── HERO SECTION ────────────────────────────────────────────────────────── */
 .hero {
   position: relative;
-  min-height: 82vh;
+  min-height: 78vh;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 70px 24px 90px 24px;
+  padding: 70px 24px 84px 24px;
   overflow: hidden;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  contain: paint;
 }
 
 @media (max-width: 640px) {
   .hero {
-    padding: 50px 16px 64px 16px;
+    padding: 48px 16px 60px 16px;
     min-height: auto;
   }
 }
 
-/* Dynamic Mosaic Backdrop */
-.heroBackdropMosaic {
-  position: absolute;
-  top: -10%;
-  left: -5%;
-  width: 110%;
-  height: 120%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  opacity: 0.18;
-  filter: blur(1.5px) grayscale(25%);
-  pointer-events: none;
-  transform: rotate(-3deg) scale(1.05);
-  z-index: 1;
-}
-
-.mosaicRow {
-  display: flex;
-  gap: 16px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.mosaicItem {
-  flex: 0 0 160px;
-  height: 235px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #1a1a24;
-}
-
-.mosaicItem img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Dark Gradient Vignette Overlay */
-.heroOverlay {
+/* Lightweight, zero-lag pure CSS atmosphere (no heavy Gaussian blur, no 24 unscaled images) */
+.heroAtmosphere {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 30%, rgba(90, 0, 162, 0.4) 0%, transparent 65%),
-    radial-gradient(circle at 80% 80%, rgba(30, 27, 75, 0.5) 0%, transparent 50%),
-    linear-gradient(180deg, rgba(8, 8, 11, 0.6) 0%, rgba(8, 8, 11, 0.92) 75%, #08080b 100%);
-  z-index: 2;
+    radial-gradient(ellipse 80% 50% at 50% 25%, rgba(90, 0, 162, 0.38) 0%, transparent 68%),
+    radial-gradient(ellipse 60% 40% at 85% 75%, rgba(30, 27, 75, 0.45) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(8, 8, 11, 0.2) 0%, rgba(8, 8, 11, 0.85) 75%, #08080b 100%);
   pointer-events: none;
+  z-index: 1;
 }
 
 .heroContent {
   position: relative;
-  z-index: 3;
+  z-index: 2;
   max-width: 900px;
   margin: 0 auto;
   display: flex;
@@ -92,8 +54,8 @@
 .brandBadge {
   display: inline-flex;
   align-items: center;
-  background: rgba(90, 0, 162, 0.45);
-  border: 1px solid rgba(189, 132, 219, 0.5);
+  background: rgba(45, 12, 75, 0.85);
+  border: 1px solid rgba(189, 132, 219, 0.45);
   color: #e9d5ff;
   padding: 8px 22px;
   border-radius: 9999px;
@@ -101,8 +63,7 @@
   font-weight: 700;
   letter-spacing: 1.2px;
   margin-bottom: 24px;
-  box-shadow: 0 0 25px rgba(90, 0, 162, 0.4);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 0 20px rgba(90, 0, 162, 0.3);
   text-transform: uppercase;
 }
 
@@ -114,7 +75,7 @@
   margin-bottom: 20px;
   letter-spacing: -1px;
   color: #ffffff;
-  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.85);
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.8);
 }
 
 .heroGradient {
@@ -131,7 +92,7 @@
   color: #cbd5e1;
   max-width: 780px;
   margin-bottom: 24px;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
 .highlightText {
@@ -149,7 +110,7 @@
 }
 
 .perkChip {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(26, 26, 36, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #f1f5f9;
   padding: 6px 16px;
@@ -157,7 +118,6 @@
   font-size: 0.84rem;
   font-weight: 600;
   letter-spacing: 0.3px;
-  backdrop-filter: blur(6px);
 }
 
 /* Email Form */
@@ -180,19 +140,18 @@
   padding: 16px 22px;
   font-size: 1.05rem;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(18, 18, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #15151e;
   color: #ffffff;
   outline: none;
-  backdrop-filter: blur(12px);
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .emailInput:focus {
   border-color: #bd84db;
-  box-shadow: 0 0 0 3px rgba(189, 132, 219, 0.35);
-  background: rgba(24, 24, 32, 0.95);
+  box-shadow: 0 0 0 3px rgba(189, 132, 219, 0.3);
+  background: #1b1b26;
 }
 
 .submitBtn {
@@ -208,15 +167,15 @@
   border-radius: 8px;
   cursor: pointer;
   outline: none;
-  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.45);
-  transition: all 0.2s ease;
+  box-shadow: 0 4px 18px rgba(124, 58, 237, 0.4);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
   white-space: nowrap;
   letter-spacing: 0.3px;
 }
 
 .submitBtn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 25px rgba(124, 58, 237, 0.65);
+  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.6);
   background: linear-gradient(135deg, #8b5cf6 0%, #6b21a8 100%);
 }
 
@@ -228,15 +187,14 @@
 
 /* Success Card */
 .successCard {
-  background: rgba(90, 0, 162, 0.35);
+  background: rgba(45, 12, 75, 0.9);
   border: 1px solid rgba(189, 132, 219, 0.45);
   border-radius: 12px;
   padding: 22px 28px;
   max-width: 580px;
   margin: 0 auto;
   text-align: center;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(90, 0, 162, 0.3);
+  box-shadow: 0 8px 30px rgba(90, 0, 162, 0.25);
 }
 
 .successCardHead {
@@ -263,7 +221,7 @@
 .sectionHeader {
   text-align: center;
   max-width: 800px;
-  margin: 0 auto 48px auto;
+  margin: 0 auto 44px auto;
 }
 
 .sectionTag {
@@ -298,9 +256,10 @@
 
 /* ── TRENDING CATALOG PREVIEW SHOWCASE ───────────────────────────────────── */
 .showcaseSection {
-  padding: 72px 24px;
-  background: linear-gradient(180deg, #08080b 0%, #0e0e14 50%, #08080b 100%);
+  padding: 68px 24px;
+  background: linear-gradient(180deg, #08080b 0%, #0d0d13 50%, #08080b 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  contain: paint;
 }
 
 .showcaseScroller {
@@ -324,15 +283,15 @@
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
   display: flex;
   flex-direction: column;
 }
 
 .showcaseCard:hover {
-  transform: translateY(-6px);
+  transform: translateY(-4px);
   border-color: rgba(189, 132, 219, 0.5);
-  box-shadow: 0 12px 30px rgba(90, 0, 162, 0.3);
+  box-shadow: 0 10px 24px rgba(90, 0, 162, 0.25);
 }
 
 .cardPosterWrap {
@@ -340,18 +299,13 @@
   aspect-ratio: 2 / 3;
   width: 100%;
   overflow: hidden;
-  background: #1c1c28;
+  background: #181822;
 }
 
 .showcasePoster {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.4s ease;
-}
-
-.showcaseCard:hover .showcasePoster {
-  transform: scale(1.05);
 }
 
 .cardBadges {
@@ -366,7 +320,7 @@
 }
 
 .qualityBadge {
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #38bdf8;
   font-size: 0.72rem;
@@ -374,11 +328,10 @@
   padding: 3px 8px;
   border-radius: 4px;
   letter-spacing: 0.5px;
-  backdrop-filter: blur(4px);
 }
 
 .hindiBadge {
-  background: rgba(185, 28, 28, 0.9);
+  background: rgba(185, 28, 28, 0.95);
   color: #ffffff;
   font-size: 0.72rem;
   font-weight: 700;
@@ -389,7 +342,7 @@
 }
 
 .audioBadge {
-  background: rgba(109, 40, 217, 0.9);
+  background: rgba(109, 40, 217, 0.95);
   color: #ffffff;
   font-size: 0.72rem;
   font-weight: 700;
@@ -401,14 +354,13 @@
 .cardHoverOverlay {
   position: absolute;
   inset: 0;
-  background: rgba(12, 12, 16, 0.78);
-  backdrop-filter: blur(4px);
+  background: rgba(10, 10, 14, 0.85);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.2s ease;
   z-index: 3;
 }
 
@@ -474,7 +426,7 @@
   font-weight: 600;
   text-decoration: none;
   letter-spacing: 0.3px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 .exploreBtn:hover {
@@ -485,9 +437,10 @@
 
 /* ── CINEMA FEATURES GRID ────────────────────────────────────────────────── */
 .featuresSection {
-  padding: 80px 24px;
+  padding: 76px 24px;
   max-width: 1240px;
   margin: 0 auto;
+  contain: paint;
 }
 
 .featuresGrid {
@@ -497,67 +450,52 @@
 }
 
 .featureCard {
-  background: linear-gradient(135deg, rgba(25, 25, 34, 0.7) 0%, rgba(16, 16, 22, 0.85) 100%);
+  background: linear-gradient(135deg, rgba(22, 22, 30, 0.85) 0%, rgba(14, 14, 20, 0.92) 100%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  padding: 34px 28px;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 32px 26px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
   overflow: hidden;
 }
 
-.featureCard::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(189, 132, 219, 0.4), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
 .featureCard:hover {
-  transform: translateY(-4px);
+  transform: translateY(-3px);
   border-color: rgba(189, 132, 219, 0.35);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(90, 0, 162, 0.15);
-}
-
-.featureCard:hover::before {
-  opacity: 1;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4), 0 0 18px rgba(90, 0, 162, 0.15);
 }
 
 .featureNumber {
-  font-size: 1.5rem;
+  font-size: 1.45rem;
   font-weight: 800;
   letter-spacing: 1px;
   color: #bd84db;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   font-variant-numeric: tabular-nums;
   opacity: 0.9;
 }
 
 .featureTitle {
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: #ffffff;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   letter-spacing: -0.3px;
 }
 
 .featureDescription {
-  font-size: 0.98rem;
+  font-size: 0.96rem;
   color: #94a3b8;
   line-height: 1.6;
 }
 
 /* ── PRICING SECTION ─────────────────────────────────────────────────────── */
 .pricingSection {
-  padding: 80px 24px;
-  background: linear-gradient(180deg, #08080b 0%, #111118 50%, #08080b 100%);
+  padding: 76px 24px;
+  background: linear-gradient(180deg, #08080b 0%, #101016 50%, #08080b 100%);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  contain: paint;
 }
 
 .pricingGrid {
@@ -572,28 +510,28 @@
   background: #14141c;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  padding: 32px 24px;
+  padding: 30px 22px;
   display: flex;
   flex-direction: column;
   position: relative;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .planCard:hover {
-  transform: translateY(-4px);
+  transform: translateY(-3px);
   border-color: rgba(189, 132, 219, 0.4);
 }
 
 .planPopular {
   border-color: #a855f7;
-  background: linear-gradient(180deg, rgba(88, 28, 135, 0.3) 0%, #14141c 100%);
-  box-shadow: 0 0 30px rgba(168, 85, 247, 0.25);
+  background: linear-gradient(180deg, rgba(88, 28, 135, 0.25) 0%, #14141c 100%);
+  box-shadow: 0 0 26px rgba(168, 85, 247, 0.2);
 }
 
 .planUltimate {
   border-color: #38bdf8;
-  background: linear-gradient(180deg, rgba(14, 116, 144, 0.3) 0%, #14141c 100%);
-  box-shadow: 0 0 30px rgba(56, 189, 248, 0.2);
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.25) 0%, #14141c 100%);
+  box-shadow: 0 0 26px rgba(56, 189, 248, 0.18);
 }
 
 .popularBadge {
@@ -609,7 +547,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  box-shadow: 0 2px 10px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.35);
 }
 
 .ultimateBadge {
@@ -625,28 +563,28 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  box-shadow: 0 2px 10px rgba(2, 132, 199, 0.4);
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
 }
 
 .planHead {
   text-align: center;
-  padding-bottom: 20px;
+  padding-bottom: 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .planName {
-  font-size: 1.45rem;
+  font-size: 1.4rem;
   font-weight: 800;
   color: #ffffff;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .planPrice {
-  font-size: 1.75rem;
+  font-size: 1.7rem;
   font-weight: 800;
   color: #bd84db;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .planResBadge {
@@ -662,11 +600,11 @@
 .planMeta {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-bottom: 20px;
+  gap: 8px;
+  padding-bottom: 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 20px;
-  font-size: 0.88rem;
+  margin-bottom: 18px;
+  font-size: 0.86rem;
 }
 
 .planMetaRow {
@@ -682,10 +620,10 @@
 .planFeatures {
   list-style: none;
   padding: 0;
-  margin: 0 0 28px 0;
+  margin: 0 0 24px 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
 }
 
@@ -693,7 +631,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   color: #cbd5e1;
 }
 
@@ -710,13 +648,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 14px 20px;
+  padding: 13px 20px;
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 0.98rem;
   font-weight: 700;
   cursor: pointer;
   outline: none;
-  transition: all 0.2s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
   letter-spacing: 0.3px;
 }
 
@@ -724,12 +662,12 @@
   background: linear-gradient(135deg, #7c3aed 0%, #5a00a2 100%);
   color: #ffffff;
   border: 1px solid rgba(189, 132, 219, 0.4);
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35);
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);
 }
 
 .planBtnPrimary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.55);
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.5);
 }
 
 .planBtnSecondary {
@@ -745,18 +683,18 @@
 
 /* ── BOTTOM CTA SECTION ──────────────────────────────────────────────────── */
 .bottomCtaSection {
-  padding: 80px 24px;
+  padding: 76px 24px;
 }
 
 .bottomCtaBox {
   max-width: 860px;
   margin: 0 auto;
-  background: radial-gradient(circle at 50% 50%, rgba(90, 0, 162, 0.4) 0%, rgba(18, 18, 24, 0.8) 100%);
+  background: radial-gradient(circle at 50% 50%, rgba(90, 0, 162, 0.35) 0%, rgba(18, 18, 24, 0.9) 100%);
   border: 1px solid rgba(189, 132, 219, 0.3);
   border-radius: 20px;
-  padding: 54px 32px;
+  padding: 50px 28px;
   text-align: center;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(90, 0, 162, 0.25);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 24px rgba(90, 0, 162, 0.2);
 }
 
 .bottomTitle {
@@ -770,12 +708,12 @@
   font-size: 1.05rem;
   color: #cbd5e1;
   max-width: 600px;
-  margin: 0 auto 30px auto;
+  margin: 0 auto 28px auto;
   line-height: 1.6;
 }
 
 .bottomSignIn {
-  margin-top: 24px;
+  margin-top: 22px;
   font-size: 0.95rem;
   color: #94a3b8;
 }

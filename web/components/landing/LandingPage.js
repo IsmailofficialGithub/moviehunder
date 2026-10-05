@@ -8,6 +8,57 @@ import FaqAccordion from "./FaqAccordion";
 import LazyPoster from "../LazyPoster";
 import styles from "./LandingPage.module.css";
 
+const FALLBACK_SHOWCASE = [
+  {
+    slug: "dhurandhar-the-revenge-g840HwnahE8",
+    name: "Dhurandhar: The Revenge",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/06/2a9f78d2b295cf75d5a1716a744de8ff.jpg",
+    year: "2026",
+    rating: "8.2",
+    badge: "Hindi Dubbed",
+  },
+  {
+    slug: "coyote-vs-acme-EizvH4xqnd9",
+    name: "Coyote vs. Acme",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/08/8678a90e88a0c592a5632f9c0fc8ddae.jpg",
+    year: "2026",
+    rating: "7.6",
+    badge: "Dual Audio",
+  },
+  {
+    slug: "the-ordinary-jackpot-ejKw9jdwAB6",
+    name: "The Ordinary Jackpot",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/22/7649540bb8da7cd69978dd16bddef069.jpg",
+    year: "2026",
+    rating: "7.9",
+    badge: "HD",
+  },
+  {
+    slug: "day-off-2-ivrbOr1eQ09",
+    name: "Day Off 2",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/07/01/9939b0d3e7d916e8bb9bcb7c9837a9c0.jpg",
+    year: "2026",
+    rating: "7.0",
+    badge: "Action",
+  },
+  {
+    slug: "human-cocaine-2dAtsmfUw4a",
+    name: "Human Cocaine",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/11/b55243c3d1ea35bfd67dec12a87aad13.jpg",
+    year: "2026",
+    rating: "6.1",
+    badge: "Crime",
+  },
+  {
+    slug: "paw-patrol-the-dino-movie-qN015s0uAF4",
+    name: "PAW Patrol: The Dino Movie",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/08/a524654812a5a8f0f8dc9b04cdf25b03.jpg",
+    year: "2026",
+    rating: "6.1",
+    badge: "Animation",
+  },
+];
+
 const FALLBACK_PLANS = [
   {
     code: "mobile",
@@ -71,6 +122,7 @@ export default function LandingPage({ sections = [] }) {
   const [successEmail, setSuccessEmail] = useState("");
   const [error, setError] = useState("");
 
+  // Fetch updated dynamic plan pricing in the background without blocking render
   useEffect(() => {
     let mounted = true;
     getPlans()
@@ -89,8 +141,8 @@ export default function LandingPage({ sections = [] }) {
     };
   }, []);
 
-  // Extract real movies from sections
-  const { trendingMovies, backdropMovies } = useMemo(() => {
+  // Extract real movies from sections or fallback instantly
+  const trendingMovies = useMemo(() => {
     const list = [];
     if (Array.isArray(sections)) {
       sections.forEach((sec) => {
@@ -103,10 +155,7 @@ export default function LandingPage({ sections = [] }) {
         }
       });
     }
-    return {
-      trendingMovies: list.slice(0, 10),
-      backdropMovies: list.slice(0, 24),
-    };
+    return list.length > 0 ? list.slice(0, 10) : FALLBACK_SHOWCASE;
   }, [sections]);
 
   const handleSubmit = async (e, inputEmail) => {
@@ -149,29 +198,9 @@ export default function LandingPage({ sections = [] }) {
 
   return (
     <div className={styles.landingWrapper}>
-      {/* ── HERO SECTION ──────────────────────────────────────────────── */}
+      {/* ── HERO SECTION (Lightweight, zero-lag pure CSS atmosphere) ──────── */}
       <section className={styles.hero} aria-label="Welcome">
-        {/* Dynamic Movie Poster Mosaic Backdrop */}
-        {backdropMovies.length > 0 && (
-          <div className={styles.heroBackdropMosaic} aria-hidden="true">
-            <div className={styles.mosaicRow}>
-              {backdropMovies.slice(0, 12).map((m, idx) => (
-                <div key={`m1-${idx}`} className={styles.mosaicItem}>
-                  <img src={m.poster_url} alt="" loading="lazy" />
-                </div>
-              ))}
-            </div>
-            <div className={styles.mosaicRow}>
-              {backdropMovies.slice(12, 24).map((m, idx) => (
-                <div key={`m2-${idx}`} className={styles.mosaicItem}>
-                  <img src={m.poster_url} alt="" loading="lazy" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className={styles.heroOverlay} />
+        <div className={styles.heroAtmosphere} aria-hidden="true" />
 
         <div className={styles.heroContent}>
           <div className={styles.brandBadge}>
@@ -188,7 +217,7 @@ export default function LandingPage({ sections = [] }) {
             Plans start at <strong className={styles.highlightText}>{startingPriceText}</strong>. Cancel anytime with one click.
           </p>
 
-          {/* Quick Perks Bar - Clean text labels, no icons or emojis */}
+          {/* Quick Perks Bar */}
           <div className={styles.heroPerksBar}>
             <span className={styles.perkChip}>Instant HD Playback</span>
             <span className={styles.perkChip}>100% Ads-Free</span>
@@ -239,74 +268,72 @@ export default function LandingPage({ sections = [] }) {
       </section>
 
       {/* ── TRENDING CATALOG PREVIEW SHOWCASE ─────────────────────────── */}
-      {trendingMovies.length > 0 && (
-        <section className={styles.showcaseSection} aria-label="Trending on OffStream">
-          <div className={styles.sectionHeader}>
-            <div className={styles.sectionTag}>
-              <span>TRENDING NOW</span>
-            </div>
-            <h2 className={styles.sectionTitle}>Included with Your Membership</h2>
-            <p className={styles.sectionSubtitle}>
-              Stream thousands of cinema releases, binge-worthy series, and multi-audio exclusives immediately after joining.
-            </p>
+      <section className={styles.showcaseSection} aria-label="Trending on OffStream">
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionTag}>
+            <span>TRENDING NOW</span>
           </div>
+          <h2 className={styles.sectionTitle}>Included with Your Membership</h2>
+          <p className={styles.sectionSubtitle}>
+            Stream thousands of cinema releases, binge-worthy series, and multi-audio exclusives immediately after joining.
+          </p>
+        </div>
 
-          <div className={styles.showcaseScroller}>
-            {trendingMovies.map((item, idx) => {
-              const isHindi =
-                item?.dub_lang === "hi" ||
-                /hindi/i.test(String(item?.badge || "")) ||
-                /\[\s*hindi\s*\]|\(\s*hindi\s*\)/i.test(String(item?.name || ""));
+        <div className={styles.showcaseScroller}>
+          {trendingMovies.map((item, idx) => {
+            const isHindi =
+              item?.dub_lang === "hi" ||
+              /hindi/i.test(String(item?.badge || "")) ||
+              /\[\s*hindi\s*\]|\(\s*hindi\s*\)/i.test(String(item?.name || ""));
 
-              return (
-                <div
-                  key={item.slug || `trending-${idx}`}
-                  className={styles.showcaseCard}
-                  onClick={() => router.push("/signup/planform?step=2")}
-                >
-                  <div className={styles.cardPosterWrap}>
-                    <LazyPoster
-                      src={item.poster_url}
-                      alt={item.name || "Movie"}
-                      className={styles.showcasePoster}
-                    />
-                    <div className={styles.cardBadges}>
-                      <span className={styles.qualityBadge}>4K HDR</span>
-                      {isHindi ? (
-                        <span className={styles.hindiBadge}>HINDI DUBBED</span>
-                      ) : item.badge ? (
-                        <span className={styles.audioBadge}>{String(item.badge).toUpperCase()}</span>
-                      ) : null}
-                    </div>
-
-                    <div className={styles.cardHoverOverlay}>
-                      <span className={styles.overlayPill}>Unlock with Plan</span>
-                    </div>
+            return (
+              <div
+                key={item.slug || `trending-${idx}`}
+                className={styles.showcaseCard}
+                onClick={() => router.push("/signup/planform?step=2")}
+              >
+                <div className={styles.cardPosterWrap}>
+                  <LazyPoster
+                    src={item.poster_url}
+                    alt={item.name || "Movie"}
+                    className={styles.showcasePoster}
+                  />
+                  <div className={styles.cardBadges}>
+                    <span className={styles.qualityBadge}>4K HDR</span>
+                    {isHindi ? (
+                      <span className={styles.hindiBadge}>HINDI DUBBED</span>
+                    ) : item.badge ? (
+                      <span className={styles.audioBadge}>{String(item.badge).toUpperCase()}</span>
+                    ) : null}
                   </div>
 
-                  <div className={styles.cardMeta}>
-                    <h3 className={styles.cardTitle}>{item.name || "Featured Title"}</h3>
-                    <div className={styles.cardSub}>
-                      {item.year && <span>{item.year}</span>}
-                      {item.rating && (
-                        <span className={styles.cardRating}>
-                          Rating {item.rating}
-                        </span>
-                      )}
-                    </div>
+                  <div className={styles.cardHoverOverlay}>
+                    <span className={styles.overlayPill}>Unlock with Plan</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          <div className={styles.showcaseFooter}>
-            <Link href="/signup/planform?step=2" className={styles.exploreBtn}>
-              Explore All 10,000+ Titles
-            </Link>
-          </div>
-        </section>
-      )}
+                <div className={styles.cardMeta}>
+                  <h3 className={styles.cardTitle}>{item.name || "Featured Title"}</h3>
+                  <div className={styles.cardSub}>
+                    {item.year && <span>{item.year}</span>}
+                    {item.rating && (
+                      <span className={styles.cardRating}>
+                        Rating {item.rating}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className={styles.showcaseFooter}>
+          <Link href="/signup/planform?step=2" className={styles.exploreBtn}>
+            Explore All 10,000+ Titles
+          </Link>
+        </div>
+      </section>
 
       {/* ── CINEMA FEATURES GRID ──────────────────────────────────────── */}
       <section className={styles.featuresSection} aria-label="Why OffStream">
