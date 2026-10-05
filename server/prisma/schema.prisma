@@ -192,13 +192,47 @@ enum MemberRole {
   EXTRA_MEMBER
 }
 
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+}
+
+model SubscriptionPlan {
+  id               String    @id
+  name             String
+  price            Int
+  currency         String    @default("PKR")
+  resolution       String
+  quality          String
+  screens          Int       @default(1)
+  downloadDevices  Int       @default(1) @map("download_devices")
+  spatialAudio     Boolean   @default(false) @map("spatial_audio")
+  supportedDevices String[]  @map("supported_devices")
+  isPopular        Boolean   @default(false) @map("is_popular")
+  sortOrder        Int       @default(0) @map("sort_order")
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  accounts         Account[]
+
+  @@map("subscription_plans")
+}
+
 model Account {
-  id                     String    @id @default(cuid())
-  ownerUserId            String    @unique @map("owner_user_id")
-  tier                   PlanTier  @default(STANDARD)
-  extraProfilesPurchased Int       @default(0) @map("extra_profiles_purchased")
-  
-  owner                  User      @relation(fields: [ownerUserId], references: [id])
+  id                     String             @id @default(cuid())
+  ownerUserId            String             @unique @map("owner_user_id")
+  planId                 String?            @map("plan_id")
+  tier                   PlanTier           @default(STANDARD)
+  subscriptionStatus     SubscriptionStatus @default(INACTIVE) @map("subscription_status")
+  planStartedAt          DateTime?          @map("plan_started_at")
+  planExpiresAt          DateTime?          @map("plan_expires_at")
+  extraProfilesPurchased Int                @default(0) @map("extra_profiles_purchased")
+
+  plan                   SubscriptionPlan?  @relation(fields: [planId], references: [id])
+  owner                  User               @relation(fields: [ownerUserId], references: [id])
   members                AccountMember[]
   households             Household[]
 
