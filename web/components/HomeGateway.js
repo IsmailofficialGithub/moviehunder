@@ -39,7 +39,7 @@ export default function HomeGateway({ sections = [] }) {
 
   // Guest landing page
   if (!isSignedIn) {
-    return <LandingPage />;
+    return <LandingPage sections={sections} />;
   }
 
   // Signed in but no active subscription
