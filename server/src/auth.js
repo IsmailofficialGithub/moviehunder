@@ -197,16 +197,17 @@ export async function handleStartOnboarding(request, overrides = {}) {
   const creationUrl = `${appPublicUrl()}/api/auth/magic-login?token=${encodeURIComponent(rawToken)}`;
   const mailer = overrides.mailer || { sendAccountCreationEmail };
   try {
-    if (typeof mailer.sendAccountCreationEmail === "function") {
-      await mailer.sendAccountCreationEmail({ to: user.email, creationUrl, startingPriceText });
-    } else if (typeof mailer.sendMail === "function") {
+    if (typeof mailer.sendMail === "function") {
       const { generateAccountCreationEmailHtml } = await import("./emailTemplates.js");
       const html = generateAccountCreationEmailHtml({ creationUrl, startingPriceText });
       await mailer.sendMail({
         to: user.email,
         subject: "Let's create your account",
         html,
+        creationUrl,
       });
+    } else if (typeof mailer.sendAccountCreationEmail === "function") {
+      await mailer.sendAccountCreationEmail({ to: user.email, creationUrl, startingPriceText });
     }
   } catch (err) {
     console.error("[auth/start-onboarding] send email error:", err);
