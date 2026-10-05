@@ -79,4 +79,13 @@ export async function sendPasswordResetEmail({ to, resetUrl }) {
   return sendMail({ to, subject, text, html });
 }
 
+import { generateAccountCreationEmailHtml } from "./emailTemplates.js";
+
+export async function sendAccountCreationEmail({ to, creationUrl, startingPriceText = "Rs250/month" }) {
+  const subject = "Let's create your account";
+  const text = `Hey there,\n\nWe’re excited to have you! Open the link below to create your account and start watching today’s hottest shows and movies. Plans start at ${startingPriceText}.\n\nCreate your account: ${creationUrl}\n\nThis link will expire in 15 minutes.\n\nOffStream & Movies Hunder`;
+  const html = generateAccountCreationEmailHtml({ creationUrl, startingPriceText });
+  return sendMail({ to, subject, text, html });
+}
+
 export { smtpConfigured };

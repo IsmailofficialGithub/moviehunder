@@ -11,6 +11,8 @@ import {
 } from "./access.js";
 import {
   handleSignup,
+  handleStartOnboarding,
+  handleMagicLogin,
   handleLogin,
   handleLogout,
   handleRefresh,
@@ -115,6 +117,12 @@ export async function handleNodeApi(request, opts = {}) {
   }
 
   // ── Auth ────────────────────────────────────────────────
+  if (p === "/api/auth/start-onboarding" && method === "POST") {
+    return fromHandler(await handleStartOnboarding(request));
+  }
+  if (p === "/api/auth/magic-login" && method === "GET") {
+    return fromHandler(await handleMagicLogin(request));
+  }
   if (p === "/api/auth/signup" && method === "POST") {
     return fromHandler(await handleSignup(request));
   }

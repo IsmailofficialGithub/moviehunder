@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import argon2 from "argon2";
 import { SignJWT, jwtVerify } from "jose";
 import { dbConfigured, getPrisma } from "./db.js";
-import { sendVerificationEmail } from "./mail.js";
+import { sendVerificationEmail, sendAccountCreationEmail } from "./mail.js";
+import { getPublicPlans } from "./plans.js";
 
 const ACCESS_TTL = "15m";
 const REFRESH_DAYS = 30;
@@ -70,8 +71,8 @@ async function signAccessToken(user) {
     .sign(jwtSecret());
 }
 
-async function createSession(userId, userAgent) {
-  const prisma = getPrisma();
+async function createSession(userId, userAgent, db = null) {
+  const prisma = db || getPrisma();
   const refreshToken = randomToken();
   const expiresAt = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
   await prisma.session.create({
@@ -85,9 +86,9 @@ async function createSession(userId, userAgent) {
   return { refreshToken, expiresAt };
 }
 
-async function issueTokens(user, userAgent) {
+async function issueTokens(user, userAgent, db = null) {
   const accessToken = await signAccessToken(user);
-  const { refreshToken, expiresAt } = await createSession(user.id, userAgent);
+  const { refreshToken, expiresAt } = await createSession(user.id, userAgent, db);
   return {
     access_token: accessToken,
     refresh_token: refreshToken,
@@ -131,6 +132,170 @@ async function createAndSendVerifyToken(user) {
   const verifyUrl = `${appPublicUrl()}/auth/callback?verify=${encodeURIComponent(raw)}&email=${encodeURIComponent(user.email)}`;
   await sendVerificationEmail({ to: user.email, verifyUrl });
   return raw;
+}
+
+export async function handleStartOnboarding(request, overrides = {}) {
+  const db = overrides.db || (dbConfigured() ? getPrisma() : null);
+  if (!db) {
+    return { status: 503, body: { error: "Database not configured" } };
+  }
+  const body = await request.json().catch(() => ({}));
+  const email = normalizeEmail(body.email);
+  if (!validEmail(email)) {
+    return { status: 400, body: { error: "Valid email required" } };
+  }
+
+  let user = await db.user.findUnique({ where: { email } });
+  if (!user) {
+    const displayName = email.split("@")[0] || "User";
+    user = await db.user.create({
+      data: {
+        email,
+        displayName,
+      },
+    });
+  }
+
+  // Ensure Account exists
+  let account = await db.account.findUnique({ where: { ownerUserId: user.id } });
+  if (!account) {
+    account = await db.account.create({
+      data: {
+        ownerUserId: user.id,
+        tier: "STANDARD",
+        subscriptionStatus: "INACTIVE",
+      },
+    });
+  }
+
+  const rawToken = randomToken();
+  const tokenHash = overrides.tokenHasher ? overrides.tokenHasher(rawToken) : hashToken(rawToken);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // exactly 15 minutes
+
+  await db.emailToken.deleteMany({
+    where: { userId: user.id, purpose: "onboarding_magic" },
+  });
+  await db.emailToken.create({
+    data: {
+      userId: user.id,
+      purpose: "onboarding_magic",
+      tokenHash,
+      expiresAt,
+    },
+  });
+
+  let startingPriceText = "Rs250/month";
+  try {
+    const plansInfo = await getPublicPlans(db);
+    if (plansInfo?.startingPriceText) {
+      startingPriceText = plansInfo.startingPriceText;
+    }
+  } catch {
+    // fallback to default
+  }
+
+  const creationUrl = `${appPublicUrl()}/api/auth/magic-login?token=${encodeURIComponent(rawToken)}`;
+  const mailer = overrides.mailer || { sendAccountCreationEmail };
+  try {
+    if (typeof mailer.sendAccountCreationEmail === "function") {
+      await mailer.sendAccountCreationEmail({ to: user.email, creationUrl, startingPriceText });
+    } else if (typeof mailer.sendMail === "function") {
+      const { generateAccountCreationEmailHtml } = await import("./emailTemplates.js");
+      const html = generateAccountCreationEmailHtml({ creationUrl, startingPriceText });
+      await mailer.sendMail({
+        to: user.email,
+        subject: "Let's create your account",
+        html,
+      });
+    }
+  } catch (err) {
+    console.error("[auth/start-onboarding] send email error:", err);
+  }
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      message: "Check your email to finish creating your account.",
+      email: user.email,
+    },
+  };
+}
+
+export async function handleMagicLogin(request, overrides = {}) {
+  const db = overrides.db || (dbConfigured() ? getPrisma() : null);
+  if (!db) {
+    return { status: 503, body: { error: "Database not configured" } };
+  }
+  const url = new URL(request.url);
+  const token = String(url.searchParams.get("token") || "").trim();
+  if (!token) {
+    return { status: 400, body: { error: "Missing token" } };
+  }
+
+  const tokenHash = overrides.tokenHasher ? overrides.tokenHasher(token) : hashToken(token);
+  const now = new Date();
+
+  const row = await db.emailToken.findFirst({
+    where: {
+      tokenHash,
+      purpose: "onboarding_magic",
+      expiresAt: { gt: now },
+    },
+    include: { user: true },
+  });
+
+  if (!row || !row.user) {
+    return {
+      status: 400,
+      body: {
+        error: "This link has expired or is invalid. Links expire in 15 minutes. Please request a new one.",
+        code: "TOKEN_EXPIRED",
+      },
+    };
+  }
+
+  const user = await db.user.update({
+    where: { id: row.userId },
+    data: { emailVerifiedAt: now },
+  });
+
+  await db.emailToken.deleteMany({
+    where: { userId: user.id, purpose: "onboarding_magic" },
+  });
+
+  let account = await db.account.findUnique({ where: { ownerUserId: user.id } });
+  if (!account) {
+    account = await db.account.create({
+      data: {
+        ownerUserId: user.id,
+        tier: "STANDARD",
+        subscriptionStatus: "INACTIVE",
+      },
+    });
+  }
+
+  const userAgent = request.headers.get("user-agent") || null;
+  const tokens = await issueTokens(user, userAgent, db);
+
+  const redirectUrl = new URL(`${appPublicUrl()}/signup/planform`);
+  redirectUrl.searchParams.set("accountCreated", "success");
+  redirectUrl.searchParams.set("access_token", tokens.access_token);
+  redirectUrl.searchParams.set("refresh_token", tokens.refresh_token);
+
+  return {
+    status: 302,
+    redirect: redirectUrl.toString(),
+    headers: {
+      Location: redirectUrl.toString(),
+      "Set-Cookie": `auth_token=${tokens.access_token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+    },
+    body: {
+      ok: true,
+      redirect: redirectUrl.toString(),
+      ...tokens,
+    },
+  };
 }
 
 export async function handleSignup(request) {
