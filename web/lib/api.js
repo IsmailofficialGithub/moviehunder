@@ -74,3 +74,26 @@ export function suggestMusic(q, { limit = 8 } = {}) {
     `/api/music/suggest?q=${encodeURIComponent(query)}&limit=${limit}`
   );
 }
+
+export function getPlans() {
+  return api("/api/plans");
+}
+
+export function startOnboarding(email) {
+  const base = getApiBase();
+  return fetch(`${base}/api/auth/start-onboarding`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...apiClientHeaders(),
+    },
+    body: JSON.stringify({ email }),
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to start onboarding");
+    }
+    return data;
+  });
+}
+
