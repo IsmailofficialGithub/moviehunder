@@ -510,6 +510,14 @@ export async function handleMe(request) {
     where: { userId: auth.user.id },
     select: { provider: true },
   });
+  const account = await prisma.account.findUnique({
+    where: { ownerUserId: auth.user.id },
+    include: { plan: true },
+  });
+  const now = new Date();
+  const isExpired = account?.planExpiresAt && account.planExpiresAt <= now;
+  const hasActivePlan = account?.subscriptionStatus === "ACTIVE" && !isExpired;
+
   return {
     status: 200,
     body: {
@@ -517,6 +525,15 @@ export async function handleMe(request) {
       user: publicUser(auth.user),
       providers: accounts.map((a) => a.provider),
       has_password: Boolean(auth.user.passwordHash),
+      hasActivePlan: Boolean(hasActivePlan),
+      subscription: {
+        status: isExpired ? "EXPIRED" : (account?.subscriptionStatus || "INACTIVE"),
+        hasActivePlan: Boolean(hasActivePlan),
+        planId: account?.planId || null,
+        tier: account?.tier || "STANDARD",
+        plan: account?.plan || null,
+        planExpiresAt: account?.planExpiresAt || null,
+      },
     },
   };
 }

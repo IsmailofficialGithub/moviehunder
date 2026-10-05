@@ -25,6 +25,11 @@ import {
   handleGoogleCallbackWithLink,
 } from "./auth.js";
 import {
+  handleGetPlans,
+  handleGetSubscription,
+  handleSubscribe,
+} from "./subscription.js";
+import {
   handleGetProfiles,
   handleCreateProfile,
   handleUpdateProfile,
@@ -157,6 +162,17 @@ export async function handleNodeApi(request, opts = {}) {
     return fromHandler(await handleLinkGoogle(request));
   }
 
+  // ── Plans & Subscriptions ──────────────────────────────
+  if (p === "/api/plans" && method === "GET") {
+    return fromHandler(await handleGetPlans(request));
+  }
+  if (p === "/api/subscription" && method === "GET") {
+    return fromHandler(await handleGetSubscription(request));
+  }
+  if (p === "/api/subscription/subscribe" && method === "POST") {
+    return fromHandler(await handleSubscribe(request));
+  }
+
   // ── Profiles ────────────────────────────────────────────
   if (p === "/api/profiles" && method === "GET") {
     return fromHandler(await handleGetProfiles(request));
@@ -252,6 +268,8 @@ export function isNodeApiPath(pathname) {
     p.startsWith("/api/sync") ||
     p.startsWith("/api/history/sync") ||
     p.startsWith("/api/playback") ||
-    p.startsWith("/api/household")
+    p.startsWith("/api/household") ||
+    p.startsWith("/api/plans") ||
+    p.startsWith("/api/subscription")
   );
 }

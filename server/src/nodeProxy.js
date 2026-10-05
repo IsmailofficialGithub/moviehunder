@@ -10,7 +10,9 @@ export function isProxiedApiPath(pathname) {
     p.startsWith("/api/auth") ||
     p.startsWith("/api/profiles") ||
     p.startsWith("/api/sync") ||
-    p.startsWith("/api/history/sync")
+    p.startsWith("/api/history/sync") ||
+    p.startsWith("/api/plans") ||
+    p.startsWith("/api/subscription")
   );
 }
 
