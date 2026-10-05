@@ -35,10 +35,11 @@ function CallbackInner() {
             access_token: access,
             refresh_token: refreshToken,
           });
-          await refresh();
+          const me = await refresh();
           runFullSync().catch(() => {});
           if (!cancelled) setMessage("Signed in. Redirecting…");
-          setTimeout(() => router.replace("/settings"), 600);
+          const target = me?.hasActivePlan ? "/" : "/signup/planform?step=2";
+          setTimeout(() => router.replace(target), 600);
           return;
         }
 

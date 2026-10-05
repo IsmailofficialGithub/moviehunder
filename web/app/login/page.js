@@ -8,7 +8,7 @@ import { googleStartUrl } from "../../lib/auth";
 import authStyles from "./auth.module.css";
 
 export default function LoginPage() {
-  const { login, isSignedIn } = useAuth();
+  const { login, isSignedIn, hasActivePlan, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,16 +17,26 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
-    if (isSignedIn) router.replace("/profiles");
-  }, [isSignedIn, router]);
+    if (!loading && isSignedIn) {
+      if (hasActivePlan) {
+        router.replace("/");
+      } else {
+        router.replace("/signup/planform?step=2");
+      }
+    }
+  }, [loading, isSignedIn, hasActivePlan, router]);
 
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
     setBusy(true);
     try {
-      await login({ email, password });
-      router.push("/profiles");
+      const res = await login({ email, password });
+      if (res?.me?.hasActivePlan) {
+        router.push("/");
+      } else {
+        router.push("/signup/planform?step=2");
+      }
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {

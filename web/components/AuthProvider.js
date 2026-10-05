@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
         setUser(null);
         setHasActivePlan(false);
         setSubscription(null);
-        return;
+        return null;
       }
       if (!session.access_token && session.refresh_token) {
         await refreshSession();
@@ -55,6 +55,7 @@ export function AuthProvider({ children }) {
         ensureUserStorage(me.user.id);
         syncGuestHistoryToServer().then(() => runFullSync()).catch(() => {});
       }
+      return me;
     } catch {
       clearSession();
       handleLogoutCleanup(null);
@@ -63,6 +64,7 @@ export function AuthProvider({ children }) {
       setHasPassword(false);
       setHasActivePlan(false);
       setSubscription(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -76,16 +78,16 @@ export function AuthProvider({ children }) {
     const data = await apiLogin(creds);
     setUser(data.user || null);
     if (data.user?.id) ensureUserStorage(data.user.id);
-    await hydrate();
-    return data;
+    const me = await hydrate();
+    return { ...data, me };
   }, [hydrate]);
 
   const signup = useCallback(async (creds) => {
     const data = await apiSignup(creds);
     setUser(data.user || null);
     if (data.user?.id) ensureUserStorage(data.user.id);
-    await hydrate();
-    return data;
+    const me = await hydrate();
+    return { ...data, me };
   }, [hydrate]);
 
   const logout = useCallback(async () => {

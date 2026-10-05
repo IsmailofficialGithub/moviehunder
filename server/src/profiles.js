@@ -2,6 +2,8 @@ import { getPrisma } from "./db.js";
 import { requireUser } from "./auth.js";
 
 export const PLAN_LIMITS = {
+  MOBILE: { screens: 1, includedProfiles: 1, maxExtraProfiles: 0 },
+  BASIC: { screens: 1, includedProfiles: 1, maxExtraProfiles: 1 },
   STANDARD_ADS: { screens: 1, includedProfiles: 2, maxExtraProfiles: 1 },
   STANDARD: { screens: 2, includedProfiles: 4, maxExtraProfiles: 2 },
   PREMIUM: { screens: 4, includedProfiles: 5, maxExtraProfiles: 4 },

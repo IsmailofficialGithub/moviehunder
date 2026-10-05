@@ -21,7 +21,7 @@ import styles from "./profiles.module.css";
 function ProfilesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isSignedIn, loading: authLoading } = useAuth();
+  const { user, isSignedIn, hasActivePlan, loading: authLoading } = useAuth();
 
   const [profiles, setProfiles] = useState([]);
   const [limits, setLimits] = useState(null);
@@ -69,8 +69,12 @@ function ProfilesContent() {
       router.replace("/login");
       return;
     }
+    if (!hasActivePlan) {
+      router.replace("/signup/planform?step=2");
+      return;
+    }
     loadData();
-  }, [authLoading, isSignedIn, router, loadData]);
+  }, [authLoading, isSignedIn, hasActivePlan, router, loadData]);
 
   useEffect(() => {
     if (searchParams.get("manage") === "true") {

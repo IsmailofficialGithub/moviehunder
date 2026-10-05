@@ -12,7 +12,7 @@ import styles from "../app/settings/settings.module.css";
 import authStyles from "../app/login/auth.module.css";
 
 export default function AccountSettings() {
-  const { user, loading, logout, providers, hasPassword, refresh } = useAuth();
+  const { user, loading, logout, providers, hasPassword, hasActivePlan, subscription, refresh } = useAuth();
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -131,6 +131,24 @@ export default function AccountSettings() {
           >
             Sign out
           </button>
+        </div>
+
+        <div className={styles.row}>
+          <div className={styles.rowText}>
+            <p className={styles.rowLabel}>Membership & Plan</p>
+            <p className={styles.rowHint}>
+              {hasActivePlan
+                ? `Active (${subscription?.tier || "Standard"} Plan)`
+                : "No active membership — plan required to stream"}
+            </p>
+          </div>
+          <Link
+            href="/signup/planform?step=2"
+            className={styles.rowAction}
+            style={{ textDecoration: "none", textAlign: "center" }}
+          >
+            {hasActivePlan ? "Change Plan" : "Choose a Plan"}
+          </Link>
         </div>
 
         <div className={styles.row}>
