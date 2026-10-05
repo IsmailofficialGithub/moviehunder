@@ -3,22 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Flame,
-  Film,
-  Tv,
-  ShieldCheck,
-  Zap,
-  Volume2,
-  Sparkles,
-  Check,
-  ArrowRight,
-  Lock,
-  Play,
-  Star,
-  Users,
-  DownloadCloud,
-} from "lucide-react";
 import { getPlans, startOnboarding } from "../../lib/api";
 import FaqAccordion from "./FaqAccordion";
 import LazyPoster from "../LazyPoster";
@@ -28,33 +12,33 @@ const FALLBACK_PLANS = [
   {
     code: "mobile",
     name: "Mobile",
-    priceText: "Rs250 / mo",
+    priceText: "Rs 250 / month",
     resolution: "480p SD",
     screens: 1,
-    devices: "Mobile, Tablet",
-    features: ["100% Ads-Free", "Unlimited Streaming", "Cancel Anytime"],
+    devices: "Mobile and Tablet",
+    features: ["Ads-Free Playback", "Unlimited Catalog Access", "Cancel Anytime"],
   },
   {
     code: "basic",
     name: "Basic",
-    priceText: "Rs450 / mo",
+    priceText: "Rs 450 / month",
     resolution: "720p HD",
     screens: 1,
     devices: "TV, Laptop, Mobile",
-    features: ["100% Ads-Free", "HD Streaming", "Offline Downloads", "Cancel Anytime"],
+    features: ["Ads-Free Playback", "HD 720p Quality", "Offline Downloads", "Cancel Anytime"],
   },
   {
     code: "standard",
     name: "Standard",
-    priceText: "Rs800 / mo",
+    priceText: "Rs 800 / month",
     resolution: "1080p Full HD",
     screens: 2,
     devices: "TV, Laptop, Mobile, Tablet",
     isPopular: true,
     features: [
-      "100% Ads-Free",
-      "Full HD 1080p",
-      "2 Screens at Once",
+      "Ads-Free Playback",
+      "Full HD 1080p Quality",
+      "2 Simultaneous Streams",
       "Offline Downloads",
       "Multi-Profile Support",
     ],
@@ -62,24 +46,24 @@ const FALLBACK_PLANS = [
   {
     code: "premium",
     name: "Premium",
-    priceText: "Rs1,100 / mo",
-    resolution: "4K Ultra HD + HDR",
+    priceText: "Rs 1,100 / month",
+    resolution: "4K Ultra HD and HDR",
     screens: 4,
-    devices: "All Devices & Smart TVs",
+    devices: "All Devices and Smart TVs",
     isUltimate: true,
     features: [
-      "100% Ads-Free",
-      "Cinema 4K Ultra HD + HDR",
-      "Dolby Atmos Sound",
-      "4 Screens at Once",
-      "Family & Kids Profiles",
+      "Ads-Free Playback",
+      "Cinema 4K Ultra HD and HDR",
+      "Dolby Audio Master",
+      "4 Simultaneous Streams",
+      "Family and Kids Profiles",
     ],
   },
 ];
 
 export default function LandingPage({ sections = [] }) {
   const router = useRouter();
-  const [startingPriceText, setStartingPriceText] = useState("Rs250/month");
+  const [startingPriceText, setStartingPriceText] = useState("Rs 250 / month");
   const [plans, setPlans] = useState([]);
   const [email, setEmail] = useState("");
   const [bottomEmail, setBottomEmail] = useState("");
@@ -151,15 +135,15 @@ export default function LandingPage({ sections = [] }) {
     return plans.map((p) => ({
       code: p.code,
       name: p.name,
-      priceText: `Rs${p.price?.toLocaleString()} / mo`,
+      priceText: `Rs ${p.price?.toLocaleString()} / month`,
       resolution: p.resolution || "HD",
       screens: p.screens || 1,
-      devices: p.screens > 2 ? "All Devices & Smart TVs" : p.screens > 1 ? "TV, Laptop, Mobile" : "Phone, Tablet",
+      devices: p.screens > 2 ? "All Devices and Smart TVs" : p.screens > 1 ? "TV, Laptop, Mobile" : "Phone and Tablet",
       isPopular: p.code === "standard",
       isUltimate: p.code === "premium",
       features: Array.isArray(p.features) && p.features.length > 0
         ? p.features
-        : ["100% Ads-Free", `${p.resolution || "HD"} Quality`, `${p.screens || 1} Screen simultaneous`],
+        : ["Ads-Free Playback", `${p.resolution || "HD"} Quality`, `${p.screens || 1} Screen simultaneous`],
     }));
   }, [plans]);
 
@@ -191,38 +175,37 @@ export default function LandingPage({ sections = [] }) {
 
         <div className={styles.heroContent}>
           <div className={styles.brandBadge}>
-            <Sparkles size={16} className={styles.brandBadgeIcon} />
-            <span>OffStream × Movies Hunder • Cinema Edition</span>
+            <span>OFFSTREAM CINEMA • MOVIES HUNDER OFFICIAL</span>
           </div>
 
           <h1 className={styles.heroTitle}>
-            Unlimited Cinema &amp; TV Series. <br className={styles.breakSm} />
+            Unlimited Cinema and TV Series. <br className={styles.breakSm} />
             <span className={styles.heroGradient}>Zero Ad Interruptions.</span>
           </h1>
 
           <p className={styles.heroSubtitle}>
-            Stream top Hollywood hits, Bollywood blockbusters, Hindi dubbed releases, and Korean dramas in crystal-clear 4K HDR.
-            Plans start at just <strong className={styles.highlightText}>{startingPriceText}</strong>. Cancel anytime with 1-click.
+            Stream premier Hollywood releases, Bollywood blockbusters, Hindi dubbed features, and Asian dramas in crystal-clear 4K HDR.
+            Plans start at <strong className={styles.highlightText}>{startingPriceText}</strong>. Cancel anytime with one click.
           </p>
 
-          {/* Quick Perks Bar */}
+          {/* Quick Perks Bar - Clean text labels, no icons or emojis */}
           <div className={styles.heroPerksBar}>
-            <span className={styles.perkChip}>⚡ Instant HD Playback</span>
-            <span className={styles.perkChip}>🍿 100% Ads-Free</span>
-            <span className={styles.perkChip}>🇮🇳 Hindi &amp; Dual Audio</span>
-            <span className={styles.perkChip}>📱 All Devices</span>
+            <span className={styles.perkChip}>Instant HD Playback</span>
+            <span className={styles.perkChip}>100% Ads-Free</span>
+            <span className={styles.perkChip}>Hindi and Dual Audio</span>
+            <span className={styles.perkChip}>All Devices Supported</span>
+            <span className={styles.perkChip}>4K Ultra HD</span>
           </div>
 
           {/* Email Onboarding Form */}
           {successEmail ? (
             <div className={styles.successCard}>
               <div className={styles.successCardHead}>
-                <Sparkles size={20} color="#bd84db" />
-                <span>Check your inbox to begin!</span>
+                <span>Check your inbox to get started</span>
               </div>
               <p className={styles.successCardText}>
                 We sent an instant account setup link to <strong>{successEmail}</strong>.<br />
-                Click the link in your email to select your plan. <em>Link expires in 15 minutes.</em>
+                Follow the link in your email to select your plan. Link expires in 15 minutes.
               </p>
             </div>
           ) : (
@@ -246,12 +229,7 @@ export default function LandingPage({ sections = [] }) {
                 className={styles.submitBtn}
                 disabled={loading}
               >
-                {loading ? "Sending link..." : (
-                  <>
-                    <span>Start Watching</span>
-                    <ArrowRight size={18} />
-                  </>
-                )}
+                {loading ? "Sending link..." : "Start Watching"}
               </button>
             </form>
           )}
@@ -265,12 +243,11 @@ export default function LandingPage({ sections = [] }) {
         <section className={styles.showcaseSection} aria-label="Trending on OffStream">
           <div className={styles.sectionHeader}>
             <div className={styles.sectionTag}>
-              <Flame size={16} color="#f97316" />
-              <span>Trending Right Now</span>
+              <span>TRENDING NOW</span>
             </div>
-            <h2 className={styles.sectionTitle}>Included with Your OffStream Membership</h2>
+            <h2 className={styles.sectionTitle}>Included with Your Membership</h2>
             <p className={styles.sectionSubtitle}>
-              Stream thousands of cinema releases, binge-worthy series, and Hindi dubbed exclusives immediately after joining.
+              Stream thousands of cinema releases, binge-worthy series, and multi-audio exclusives immediately after joining.
             </p>
           </div>
 
@@ -296,17 +273,14 @@ export default function LandingPage({ sections = [] }) {
                     <div className={styles.cardBadges}>
                       <span className={styles.qualityBadge}>4K HDR</span>
                       {isHindi ? (
-                        <span className={styles.hindiBadge}>🇮🇳 Hindi Dubbed</span>
+                        <span className={styles.hindiBadge}>HINDI DUBBED</span>
                       ) : item.badge ? (
-                        <span className={styles.audioBadge}>{String(item.badge)}</span>
+                        <span className={styles.audioBadge}>{String(item.badge).toUpperCase()}</span>
                       ) : null}
                     </div>
 
                     <div className={styles.cardHoverOverlay}>
-                      <div className={styles.playCircle}>
-                        <Lock size={20} />
-                      </div>
-                      <span className={styles.overlayText}>Unlock with Plan</span>
+                      <span className={styles.overlayPill}>Unlock with Plan</span>
                     </div>
                   </div>
 
@@ -316,8 +290,7 @@ export default function LandingPage({ sections = [] }) {
                       {item.year && <span>{item.year}</span>}
                       {item.rating && (
                         <span className={styles.cardRating}>
-                          <Star size={13} fill="#eab308" color="#eab308" />
-                          {item.rating}
+                          Rating {item.rating}
                         </span>
                       )}
                     </div>
@@ -329,8 +302,7 @@ export default function LandingPage({ sections = [] }) {
 
           <div className={styles.showcaseFooter}>
             <Link href="/signup/planform?step=2" className={styles.exploreBtn}>
-              <span>Explore All 10,000+ Movies &amp; Series</span>
-              <ArrowRight size={16} />
+              Explore All 10,000+ Titles
             </Link>
           </div>
         </section>
@@ -340,50 +312,41 @@ export default function LandingPage({ sections = [] }) {
       <section className={styles.featuresSection} aria-label="Why OffStream">
         <div className={styles.sectionHeader}>
           <div className={styles.sectionTag}>
-            <Sparkles size={16} color="#bd84db" />
-            <span>Cinema Excellence</span>
+            <span>CINEMA EXCELLENCE</span>
           </div>
           <h2 className={styles.sectionTitle}>Why Movie Lovers Choose OffStream</h2>
           <p className={styles.sectionSubtitle}>
-            Designed specifically for film connoisseurs and binge watchers who demand pure quality without compromises.
+            Designed specifically for film connoisseurs and series viewers who demand pure fidelity without compromises.
           </p>
         </div>
 
         <div className={styles.featuresGrid}>
           <div className={styles.featureCard}>
-            <div className={styles.featureIconWrap}>
-              <span className={styles.featureEmoji}>🚫</span>
-            </div>
+            <div className={styles.featureNumber}>01</div>
             <h3 className={styles.featureTitle}>100% Ads-Free Cinema</h3>
             <p className={styles.featureDescription}>
-              Never get interrupted by annoying popups, spam redirects, or mid-roll commercials. Experience pure, seamless movie immersion from start to finish.
+              Never get interrupted by popups, spam redirects, or mid-roll commercials. Experience pure, seamless movie immersion from beginning to end.
             </p>
           </div>
 
           <div className={styles.featureCard}>
-            <div className={styles.featureIconWrap}>
-              <span className={styles.featureEmoji}>🎧</span>
-            </div>
+            <div className={styles.featureNumber}>02</div>
             <h3 className={styles.featureTitle}>Massive Dual Audio Vault</h3>
             <p className={styles.featureDescription}>
-              Watch Hollywood blockbusters, South Indian action hits, Turkish drama, and Anime with crystal-clear Hindi dubbing and multi-language audio tracks.
+              Watch Hollywood blockbusters, South Indian action hits, Turkish drama, and Anime with studio-grade Hindi dubbing and multi-language audio tracks.
             </p>
           </div>
 
           <div className={styles.featureCard}>
-            <div className={styles.featureIconWrap}>
-              <span className={styles.featureEmoji}>💎</span>
-            </div>
-            <h3 className={styles.featureTitle}>Ultra HD 4K &amp; Dolby Sound</h3>
+            <div className={styles.featureNumber}>03</div>
+            <h3 className={styles.featureTitle}>Ultra HD 4K and Dolby Sound</h3>
             <p className={styles.featureDescription}>
               Theater-grade picture clarity and immersive surround sound optimized for large 4K Smart TVs, cinema projectors, and mobile OLED displays.
             </p>
           </div>
 
           <div className={styles.featureCard}>
-            <div className={styles.featureIconWrap}>
-              <span className={styles.featureEmoji}>📱</span>
-            </div>
+            <div className={styles.featureNumber}>04</div>
             <h3 className={styles.featureTitle}>Stream on All Your Screens</h3>
             <p className={styles.featureDescription}>
               Switch effortlessly between Android, iPhone, iPad, Windows, Mac, and Smart TV apps with synchronized watch progress and continue watching.
@@ -391,9 +354,7 @@ export default function LandingPage({ sections = [] }) {
           </div>
 
           <div className={styles.featureCard}>
-            <div className={styles.featureIconWrap}>
-              <span className={styles.featureEmoji}>⚡</span>
-            </div>
+            <div className={styles.featureNumber}>05</div>
             <h3 className={styles.featureTitle}>Zero-Buffer Edge Streaming</h3>
             <p className={styles.featureDescription}>
               Powered by high-speed global relay nodes that start videos instantaneously without lag, stutter, or annoying buffering circles.
@@ -401,10 +362,8 @@ export default function LandingPage({ sections = [] }) {
           </div>
 
           <div className={styles.featureCard}>
-            <div className={styles.featureIconWrap}>
-              <span className={styles.featureEmoji}>👨‍👩‍👧‍👦</span>
-            </div>
-            <h3 className={styles.featureTitle}>Profiles &amp; Kids Safe Zone</h3>
+            <div className={styles.featureNumber}>06</div>
+            <h3 className={styles.featureTitle}>Profiles and Family Safe Zone</h3>
             <p className={styles.featureDescription}>
               Create personalized profiles for family members with custom avatars, tailored recommendations, and protected spaces for children.
             </p>
@@ -416,8 +375,7 @@ export default function LandingPage({ sections = [] }) {
       <section className={styles.pricingSection} aria-label="Plans and Pricing">
         <div className={styles.sectionHeader}>
           <div className={styles.sectionTag}>
-            <Zap size={16} color="#38bdf8" />
-            <span>Transparent Pricing</span>
+            <span>TRANSPARENT PRICING</span>
           </div>
           <h2 className={styles.sectionTitle}>Simple Plans for Every Viewer</h2>
           <p className={styles.sectionSubtitle}>
@@ -456,7 +414,7 @@ export default function LandingPage({ sections = [] }) {
               <ul className={styles.planFeatures}>
                 {plan.features.map((feat, idx) => (
                   <li key={idx}>
-                    <Check size={16} className={styles.checkIcon} />
+                    <span className={styles.bulletDot} />
                     <span>{feat}</span>
                   </li>
                 ))}
@@ -469,8 +427,7 @@ export default function LandingPage({ sections = [] }) {
                 }`}
                 onClick={() => router.push(`/signup/planform?step=2&plan=${plan.code}`)}
               >
-                <span>Select {plan.name}</span>
-                <ArrowRight size={16} />
+                Select {plan.name}
               </button>
             </div>
           ))}
@@ -486,14 +443,14 @@ export default function LandingPage({ sections = [] }) {
           <div className={styles.bottomCtaHead}>
             <h2 className={styles.bottomTitle}>Ready for Unlimited Entertainment?</h2>
             <p className={styles.bottomSubtitle}>
-              Join thousands of happy viewers enjoying ad-free movies, series, and Hindi dubbed cinema today.
+              Join thousands of viewers enjoying ads-free movies, series, and Hindi dubbed cinema today.
             </p>
           </div>
 
           {successEmail ? (
             <div className={styles.successCard}>
               <p className={styles.successCardText}>
-                Account creation link sent to <strong>{successEmail}</strong>. Check your inbox to get started!
+                Account setup link sent to <strong>{successEmail}</strong>. Check your inbox to get started.
               </p>
             </div>
           ) : (
@@ -517,12 +474,7 @@ export default function LandingPage({ sections = [] }) {
                 className={styles.submitBtn}
                 disabled={loading}
               >
-                {loading ? "Sending..." : (
-                  <>
-                    <span>Get Started</span>
-                    <ArrowRight size={18} />
-                  </>
-                )}
+                {loading ? "Sending link..." : "Get Started"}
               </button>
             </form>
           )}
