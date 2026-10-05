@@ -86,13 +86,45 @@ export default function PlayClient() {
     } catch {}
   }
 
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, hasActivePlan, loading } = useAuth();
 
   useEffect(() => {
     if (isSignedIn === false && subjectId) {
       addHistoryItem(subjectId, { detailPath, title, poster, se, ep });
     }
   }, [isSignedIn, subjectId, detailPath, title, poster, se, ep]);
+
+  if (!loading && (!isSignedIn || !hasActivePlan)) {
+    return (
+      <main className={styles.main} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "70vh", padding: "20px" }}>
+        <div style={{ maxWidth: "460px", textAlign: "center", background: "#14141a", padding: "36px 24px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ fontSize: "2.5rem", marginBottom: "16px" }}>🔒</div>
+          <h2 style={{ fontSize: "1.75rem", fontWeight: "800", color: "#ffffff", marginBottom: "12px" }}>
+            Subscription Required
+          </h2>
+          <p style={{ color: "#a1a1aa", fontSize: "0.95rem", lineHeight: "1.5", marginBottom: "24px" }}>
+            An active OffStream subscription is required to stream movies and TV series. Choose a plan starting at Rs250/month.
+          </p>
+          <Link
+            href="/signup/planform?step=2"
+            style={{
+              display: "inline-block",
+              width: "100%",
+              padding: "14px 24px",
+              background: "linear-gradient(135deg, #5a00a2 0%, #3d0081 100%)",
+              color: "#ffffff",
+              fontWeight: "700",
+              borderRadius: "6px",
+              textDecoration: "none",
+              boxShadow: "0 4px 15px rgba(61, 0, 129, 0.4)",
+            }}
+          >
+            Choose Plan &amp; Watch Now
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   if (!detailPath && subjectId) {
     detailPath = subjectId;

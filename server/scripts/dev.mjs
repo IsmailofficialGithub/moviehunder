@@ -60,4 +60,4 @@ console.log("");
 run("api", "npx", ["wrangler", "dev", "--ip", "0.0.0.0", "--port", "8787"], {
   fatal: true,
 });
-run("relay", "node", ["play-relay.mjs"], { fatal: false });
+run("relay", "node", ["--watch", "play-relay.mjs"], { fatal: false });

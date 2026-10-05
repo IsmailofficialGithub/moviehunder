@@ -1,8 +1,6 @@
-import CatalogRows from "../components/CatalogRows";
+import HomeGateway from "../components/HomeGateway";
 import EmptyState from "../components/EmptyState";
 import { getHome } from "../lib/api";
-import BannerAd468x60 from "../components/ads/BannerAd468x60";
-import NativeBannerAd from "../components/ads/NativeBannerAd";
 
 export const revalidate = 300;
 
@@ -35,9 +33,7 @@ export default async function HomePage() {
         >
           Offstream — Free Movies &amp; TV Series Online (Movies Hunder)
         </h1>
-        <BannerAd468x60 />
-        <CatalogRows sections={data.sections || []} showHero />
-        <NativeBannerAd />
+        <HomeGateway sections={data.sections || []} />
       </main>
     );
   } catch {
