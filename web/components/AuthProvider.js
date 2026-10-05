@@ -28,6 +28,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState([]);
   const [hasPassword, setHasPassword] = useState(false);
+  const [hasActivePlan, setHasActivePlan] = useState(false);
+  const [subscription, setSubscription] = useState(null);
 
   const hydrate = useCallback(async () => {
     setLoading(true);
@@ -35,6 +37,8 @@ export function AuthProvider({ children }) {
       const session = getStoredSession();
       if (!session?.access_token && !session?.refresh_token) {
         setUser(null);
+        setHasActivePlan(false);
+        setSubscription(null);
         return;
       }
       if (!session.access_token && session.refresh_token) {
@@ -44,6 +48,8 @@ export function AuthProvider({ children }) {
       setUser(me.user || null);
       setProviders(me.providers || []);
       setHasPassword(Boolean(me.has_password));
+      setHasActivePlan(Boolean(me.hasActivePlan));
+      setSubscription(me.subscription || null);
       if (me.user) {
         storeSession({ user: me.user });
         ensureUserStorage(me.user.id);
@@ -55,6 +61,8 @@ export function AuthProvider({ children }) {
       setUser(null);
       setProviders([]);
       setHasPassword(false);
+      setHasActivePlan(false);
+      setSubscription(null);
     } finally {
       setLoading(false);
     }
@@ -87,6 +95,8 @@ export function AuthProvider({ children }) {
     setUser(null);
     setProviders([]);
     setHasPassword(false);
+    setHasActivePlan(false);
+    setSubscription(null);
   }, [user]);
 
   const value = useMemo(
@@ -95,13 +105,17 @@ export function AuthProvider({ children }) {
       loading,
       providers,
       hasPassword,
+      hasActivePlan,
+      subscription,
+      setHasActivePlan,
+      setSubscription,
       login,
       signup,
       logout,
       refresh: hydrate,
       isSignedIn: Boolean(user),
     }),
-    [user, loading, providers, hasPassword, login, signup, logout, hydrate]
+    [user, loading, providers, hasPassword, hasActivePlan, subscription, login, signup, logout, hydrate]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

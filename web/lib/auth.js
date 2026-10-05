@@ -164,6 +164,17 @@ export async function setPassword(password) {
   });
 }
 
+export async function fetchSubscription() {
+  return authFetch("/api/subscription");
+}
+
+export async function subscribeToPlan(planId, paymentMethod = { type: "card" }) {
+  return authFetch("/api/subscription/subscribe", {
+    method: "POST",
+    body: { planId, paymentMethod },
+  });
+}
+
 export function googleStartUrl({ client = "web" } = {}) {
   return `${apiBase()}/api/auth/google/start?client=${encodeURIComponent(client)}`;
 }
