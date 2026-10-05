@@ -46,6 +46,26 @@ body {
   flex-direction: column;
 }
 
+/* Lenis smooth scroll optimization rules */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+/* Disable pointer events during active scrolling so hovers don't fight frame rendering */
+.lenis-scrolling,
+.lenis-scrolling * {
+  pointer-events: none !important;
+}
+
 .appMain {
   flex: 1;
   min-height: 0;

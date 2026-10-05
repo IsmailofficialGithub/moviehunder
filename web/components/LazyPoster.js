@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import styles from "./LazyPoster.module.css";
 
-// Native off-thread lazy loading with smooth image load fade-in.
-// Uses browser native loading="lazy" & decoding="async" to eliminate JS state thrashing on scroll.
+// Native off-thread lazy loading with zero JS state thrashing on scroll.
+// Uses browser native loading="lazy" & decoding="async" for instant, hardware-accelerated rendering.
 export default function LazyPoster({
   src,
   alt = "",
@@ -12,15 +12,7 @@ export default function LazyPoster({
   height,
   className,
 }) {
-  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  const imgRef = useRef(null);
-
-  useEffect(() => {
-    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
-      setLoaded(true);
-    }
-  }, [src]);
 
   if (!src || failed) {
     return (
@@ -39,7 +31,6 @@ export default function LazyPoster({
       }}
     >
       <img
-        ref={imgRef}
         src={src}
         alt={alt}
         width={width}
@@ -47,11 +38,11 @@ export default function LazyPoster({
         loading="lazy"
         decoding="async"
         draggable={false}
-        onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
-        className={`${styles.img} ${loaded ? styles.loaded : ""}`}
+        className={styles.img}
       />
     </div>
   );
 }
+
 

@@ -59,6 +59,129 @@ const FALLBACK_SHOWCASE = [
   },
 ];
 
+const HERO_BACKDROP_POSTERS = [
+  {
+    slug: "doing-life-EAAt8vDor51",
+    name: "Doing Life",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/10/03/722fc7f56bab2fd28e5d95ac210019d0.webp",
+  },
+  {
+    slug: "coven-academy-UQietRFFzK3",
+    name: "Coven Academy",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/10/03/902874b08f6d0f9db1d65b58ab92966f-s.png",
+  },
+  {
+    slug: "kill-jackie-s6kGOZV8E54",
+    name: "Kill Jackie",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/10/03/cfbd63615f0f255c1135c2c7a83eee49.png",
+  },
+  {
+    slug: "runner-QOMZhgKwwg",
+    name: "Runner",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/28/0e35dc8679da7aba8cf1d4e62f802612.webp",
+  },
+  {
+    slug: "blood-legacy-Aau1lZfiH57",
+    name: "Blood Legacy Season 2",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/25/d61d99c796db5fcef8d8a767668115d0.png",
+  },
+  {
+    slug: "a-different-world-S5nSQAifJg9",
+    name: "A Different World",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/25/abade93fc0eabd7ebfba92fb488b52f8.webp",
+  },
+  {
+    slug: "the-love-hypothesis-8CNfawlQEK8",
+    name: "The Love Hypothesis",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/23/cfea48c317b394e757b5185782a70d75.webp",
+  },
+  {
+    slug: "the-fix-U4maQqLbH",
+    name: "The Fix",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/18/d03fc02fe897ffdb7b8b4f97477986ea.jpeg",
+  },
+  {
+    slug: "neagley-kgfRKfjK46",
+    name: "Neagley",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/16/258db67557b23779312dcad1458b9c0a.webp",
+  },
+  {
+    slug: "mobland-wWHa6Cu6fa5",
+    name: "MobLand Seaosn2",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/18/5fb7013fa1189d2ac3ce9d8b1127eb5a.jpeg",
+  },
+  {
+    slug: "the-scandal-mlNU8SlJXV8",
+    name: "The Scandal",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/18/816eea724206d8ae6f86778ab903c1fb.webp",
+  },
+  {
+    slug: "paris-has-fallen-MECZzYIddA8",
+    name: "Paris Has Fallen",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/23/dc4b3d7a95e7d56fd811f59c880cbad3.webp",
+  },
+  {
+    slug: "lanterns-yrpqwiUJSn9",
+    name: "Lanterns",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/08/17/54644d0c2c3709671a35bd0b366915e6.webp",
+  },
+  {
+    slug: "bleach-thousand-year-blood-war-IKoyJ28zSi8",
+    name: "Bleach: Thousand-Year Blood War",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/01/b4515dac7fe9fdf8fc461b299a9785df.png",
+  },
+  {
+    slug: "lioness-yDLLAaCaND1",
+    name: "Lioness",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/10/02/03390b80d1fe108c7513546c587f9db8.jpg",
+  },
+  {
+    slug: "reacher-e1nw56h5sj4",
+    name: "Reacher",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/30/2ada82f2c6c6eb0818608b97a3110281.jpg",
+  },
+  {
+    slug: "swat-exiles-mJV89dPysl5",
+    name: "SWAT Exiles",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/21/7f8f5c844960e6e6efd0c5481f7f52bb.jpg",
+  },
+  {
+    slug: "american-horror-story-cE1NdZDUoN7",
+    name: "American Horror Story",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/24/33a64a8c5d83773a95516d63a006c555.jpg",
+  },
+  {
+    slug: "beauty-in-black-E6NEe5Ha927",
+    name: "Beauty in Black",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/10/04/3f8487494d192c62311033753cb0bc55.jpg",
+  },
+  {
+    slug: "monster-MY4FMlRoAFa",
+    name: "Monster",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/10/04/a6124dff149feaab92d6c7e60498e328.jpg",
+  },
+  {
+    slug: "city-of-blood-english-wQ2OI6CHYua",
+    name: "City of Blood",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/15/89235d4d94850de617451ef8ee19bc3a.jpg",
+  },
+  {
+    slug: "the-scandal-english-4qe9RAlXnk3",
+    name: "The Scandal [English]",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/14/876fa95f0f03ebdfde01df32676be1fd.jpg",
+  },
+  {
+    slug: "a-love-other-than-yours-W77cR5lvfL4",
+    name: "A Love Other Than Yours",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/10/03/1b438cec5884144ef7d0a5674b095e2a.jpg",
+  },
+  {
+    slug: "the-gentlemen-efKGpux2bB4",
+    name: "The Gentlemen",
+    poster_url: "https://pbcdnw.aoneroom.com/image/2026/09/16/fc1841aea1c1572162d5d7317593a37a.jpg",
+  },
+];
+
 const FALLBACK_PLANS = [
   {
     code: "mobile",
@@ -157,8 +280,8 @@ export default function LandingPage({ sections = [] }) {
     };
   }, []);
 
-  // Extract real movies from sections or fallback instantly
-  const { trendingMovies, backdropMovies } = useMemo(() => {
+  // Extract real movies from sections for the showcase section
+  const trendingMovies = useMemo(() => {
     const list = [];
     if (Array.isArray(activeSections)) {
       activeSections.forEach((sec) => {
@@ -171,12 +294,7 @@ export default function LandingPage({ sections = [] }) {
         }
       });
     }
-    const finalTrending = list.length > 0 ? list.slice(0, 12) : FALLBACK_SHOWCASE;
-    const combined = list.length >= 12 ? list : [...list, ...FALLBACK_SHOWCASE, ...FALLBACK_SHOWCASE];
-    return {
-      trendingMovies: finalTrending,
-      backdropMovies: combined.slice(0, 24),
-    };
+    return list.length > 0 ? list.slice(0, 12) : FALLBACK_SHOWCASE;
   }, [activeSections]);
 
   const handleSubmit = async (e, inputEmail) => {
@@ -229,25 +347,23 @@ export default function LandingPage({ sections = [] }) {
     <div className={styles.landingWrapper}>
       {/* ── HERO SECTION (Cinema atmosphere with zero-blur poster backdrop) ── */}
       <section className={styles.hero} aria-label="Welcome">
-        {/* Dynamic Movie Poster Mosaic Backdrop (Hardware composited, zero CSS blur for 60fps smooth scrolling) */}
-        {backdropMovies.length > 0 && (
-          <div className={styles.heroBackdropMosaic} aria-hidden="true">
-            <div className={styles.mosaicRow}>
-              {backdropMovies.slice(0, 12).map((m, idx) => (
-                <div key={`m1-${m.slug || idx}-${idx}`} className={styles.mosaicItem}>
-                  <img src={m.poster_url} alt="" loading="eager" decoding="async" />
-                </div>
-              ))}
-            </div>
-            <div className={styles.mosaicRow}>
-              {backdropMovies.slice(12, 24).map((m, idx) => (
-                <div key={`m2-${m.slug || idx}-${idx}`} className={styles.mosaicItem}>
-                  <img src={m.poster_url} alt="" loading="lazy" decoding="async" />
-                </div>
-              ))}
-            </div>
+        {/* Dynamic Movie Poster Mosaic Backdrop (Stable, hardware composited, zero CSS blur for 60fps smooth scrolling) */}
+        <div className={styles.heroBackdropMosaic} aria-hidden="true">
+          <div className={styles.mosaicRow}>
+            {HERO_BACKDROP_POSTERS.slice(0, 12).map((m) => (
+              <div key={`m1-${m.slug}`} className={styles.mosaicItem}>
+                <img src={m.poster_url} alt="" loading="eager" decoding="async" />
+              </div>
+            ))}
           </div>
-        )}
+          <div className={styles.mosaicRow}>
+            {HERO_BACKDROP_POSTERS.slice(12, 24).map((m) => (
+              <div key={`m2-${m.slug}`} className={styles.mosaicItem}>
+                <img src={m.poster_url} alt="" loading="eager" decoding="async" />
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className={styles.heroAtmosphere} aria-hidden="true" />
 
