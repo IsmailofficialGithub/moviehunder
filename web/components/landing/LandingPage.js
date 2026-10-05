@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { getPlans, startOnboarding } from "../../lib/api";
 import FaqAccordion from "./FaqAccordion";
 import styles from "./LandingPage.module.css";
@@ -51,19 +50,6 @@ export default function LandingPage() {
 
   return (
     <div className={styles.landingWrapper}>
-      {/* Top Header */}
-      <header className={styles.header}>
-        <Link href="/" className={styles.brand}>
-          <span className={styles.brandName}>
-            Off<span className={styles.brandHighlight}>stream</span>
-          </span>
-          <span className={styles.brandSub}>· Movies Hunder</span>
-        </Link>
-        <Link href="/login" className={styles.signInBtn}>
-          Sign In
-        </Link>
-      </header>
-
       {/* Hero Section */}
       <section className={styles.hero} aria-label="Welcome">
         <div className={styles.heroContent}>
@@ -194,22 +180,6 @@ export default function LandingPage() {
           </form>
         )}
       </section>
-
-      {/* Footer */}
-      <footer className={styles.footer}>
-        <div className={styles.footerQuestions}>
-          Questions? Call <a href="mailto:support@offstream.co" className={styles.footerLink}>support@offstream.co</a>
-        </div>
-        <div className={styles.footerLinks}>
-          <Link href="/help" className={styles.footerLink}>FAQ & Help Center</Link>
-          <Link href="/terms" className={styles.footerLink}>Terms of Use</Link>
-          <Link href="/privacy" className={styles.footerLink}>Privacy Statement</Link>
-          <Link href="/login" className={styles.footerLink}>Account Sign In</Link>
-        </div>
-        <p className={styles.copyright}>
-          © {new Date().getFullYear()} OffStream & Movies Hunder. All rights reserved.
-        </p>
-      </footer>
     </div>
   );
 }

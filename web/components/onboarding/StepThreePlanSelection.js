@@ -101,7 +101,7 @@ export default function StepThreePlanSelection({ onProceed }) {
     <div className={styles.container}>
       <div className={styles.header}>
         <div className={styles.stepIndicator}>STEP 3 OF 3</div>
-        <h1 className={styles.title}>Choose the plan that's right for you</h1>
+        <h1 className={styles.title}>Choose the plan that&apos;s right for you</h1>
         <div className={styles.bullets}>
           <div className={styles.bulletItem}>
             <span className={styles.checkIcon}>✓</span>

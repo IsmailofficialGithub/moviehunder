@@ -137,7 +137,7 @@ export default function PaymentCheckoutModal({
           </div>
 
           <p className={styles.notice}>
-            🔒 Simulated test transaction. By clicking "Start Membership", you agree that your membership begins immediately. You may cancel online at any time.
+            🔒 Simulated test transaction. By clicking &quot;Start Membership&quot;, you agree that your membership begins immediately. You may cancel online at any time.
           </p>
 
           <button

@@ -48,7 +48,7 @@ export default function SiteHeader() {
 
   const settingsActive = pathname.startsWith("/settings");
 
-  const { isSignedIn, logout } = useAuth();
+  const { isSignedIn, hasActivePlan, logout } = useAuth();
   const [activeProfile, setActiveProfileState] = useState(null);
   const [allProfiles, setAllProfiles] = useState([]);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -210,6 +210,51 @@ export default function SiteHeader() {
   };
 
   const isPlayPage = pathname.startsWith("/play");
+  const isLandingMode =
+    (pathname === "/" && (!isSignedIn || !hasActivePlan)) ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/login");
+
+  if (isLandingMode) {
+    return (
+      <header className={styles.landingTopbar}>
+        <div className={styles.landingTopRow}>
+          <Link className={styles.landingBrand} href="/" aria-label="Offstream home">
+            <Image
+              src="/brand/logo-symbol.png"
+              alt="Offstream Logo"
+              width={38}
+              height={38}
+              className={styles.landingBrandLogo}
+              priority
+            />
+            <div className={styles.landingBrandText}>
+              <span className={styles.landingBrandName}>
+                Off<span className={styles.brandHighlight}>stream</span>
+              </span>
+              <span className={styles.landingBrandSub}>· Movies Hunder</span>
+            </div>
+          </Link>
+
+          <div className={styles.landingRight}>
+            {isSignedIn ? (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className={styles.landingSignOutBtn}
+              >
+                Sign Out
+              </button>
+            ) : (
+              <Link href="/login" className={styles.landingSignInBtn}>
+                Sign In
+              </Link>
+            )}
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className={`${styles.topbar} ${isPlayPage ? styles.topbarPlay : ""}`}>
