@@ -5,6 +5,7 @@ import GlobalAds from "../components/ads/GlobalAds";
 import { AuthProvider } from "../components/AuthProvider";
 import GuestSyncWorker from "../components/GuestSyncWorker";
 import SmoothScroll from "../components/SmoothScroll";
+import ServiceWorkerRegister from "../components/ServiceWorkerRegister";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -143,6 +144,7 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           <SmoothScroll />
+          <ServiceWorkerRegister />
           <GlobalAds />
           <GuestSyncWorker />
           <SiteHeader />

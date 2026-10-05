@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { isImageCached, markImageCached } from "../lib/imageCache";
 import styles from "./LazyPoster.module.css";
 
-// Native off-thread lazy loading with zero JS state thrashing on scroll.
-// Uses browser native loading="lazy" & decoding="async" for instant, hardware-accelerated rendering.
+// Native off-thread lazy loading with persistent image caching.
+// First time: fetches and stores in browser CacheStorage & memory cache.
+// Second time: instantly loads from cache with zero latency.
 export default function LazyPoster({
   src,
   alt = "",
@@ -13,6 +15,7 @@ export default function LazyPoster({
   className,
 }) {
   const [failed, setFailed] = useState(false);
+  const isCached = isImageCached(src);
 
   if (!src || failed) {
     return (
@@ -35,9 +38,10 @@ export default function LazyPoster({
         alt={alt}
         width={width}
         height={height}
-        loading="lazy"
+        loading={isCached ? "eager" : "lazy"}
         decoding="async"
         draggable={false}
+        onLoad={() => markImageCached(src)}
         onError={() => setFailed(true)}
         className={styles.img}
       />

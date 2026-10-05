@@ -17,10 +17,22 @@ export default function SmoothScroll() {
       orientation: "vertical",
       gestureOrientation: "vertical",
       smoothWheel: true,
-      touchMultiplier: 1.1,
+      touchMultiplier: 1.2,
       wheelMultiplier: 1.0,
-      infinite: false,
+      autoResize: true,
     });
+
+    // Automatically recalculate scroll limit whenever content height changes
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== "undefined" && content) {
+      resizeObserver = new ResizeObserver(() => {
+        lenis.resize();
+      });
+      resizeObserver.observe(content);
+    }
+
+    const onWindowResize = () => lenis.resize();
+    window.addEventListener("resize", onWindowResize);
 
     let rafId;
     function raf(time) {
@@ -32,6 +44,8 @@ export default function SmoothScroll() {
 
     return () => {
       cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", onWindowResize);
+      if (resizeObserver) resizeObserver.disconnect();
       lenis.destroy();
     };
   }, []);
