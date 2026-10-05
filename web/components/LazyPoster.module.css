@@ -2,10 +2,9 @@
   position: relative;
   overflow: hidden;
   border-radius: 12px;
-  background: var(--panel);
+  background: var(--panel, #181822);
   width: 100%;
   height: 100%;
-  contain: strict;
 }
 
 .img {
@@ -14,11 +13,21 @@
   object-fit: cover;
   display: block;
   border-radius: 12px;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.25s ease-out;
-  will-change: opacity;
 }
 
-.img.loaded {
-  opacity: 1;
+.fallbackText {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #71717a;
+  background: #181824;
 }
+

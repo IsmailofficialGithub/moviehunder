@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getPlans, startOnboarding } from "../../lib/api";
+import { getHome, getPlans, startOnboarding } from "../../lib/api";
 import FaqAccordion from "./FaqAccordion";
 import LazyPoster from "../LazyPoster";
 import styles from "./LandingPage.module.css";
@@ -116,11 +116,27 @@ export default function LandingPage({ sections = [] }) {
   const router = useRouter();
   const [startingPriceText, setStartingPriceText] = useState("Rs 250 / month");
   const [plans, setPlans] = useState([]);
+  const [activeSections, setActiveSections] = useState(Array.isArray(sections) ? sections : []);
   const [email, setEmail] = useState("");
   const [bottomEmail, setBottomEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [successEmail, setSuccessEmail] = useState("");
   const [error, setError] = useState("");
+
+  // Keep active sections in sync with SSR prop, and fetch client-side if initial prop is empty
+  useEffect(() => {
+    if (Array.isArray(sections) && sections.length > 0) {
+      setActiveSections(sections);
+    } else {
+      getHome()
+        .then((data) => {
+          if (Array.isArray(data?.sections) && data.sections.length > 0) {
+            setActiveSections(data.sections);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [sections]);
 
   // Fetch updated dynamic plan pricing in the background without blocking render
   useEffect(() => {
@@ -142,10 +158,10 @@ export default function LandingPage({ sections = [] }) {
   }, []);
 
   // Extract real movies from sections or fallback instantly
-  const trendingMovies = useMemo(() => {
+  const { trendingMovies, backdropMovies } = useMemo(() => {
     const list = [];
-    if (Array.isArray(sections)) {
-      sections.forEach((sec) => {
+    if (Array.isArray(activeSections)) {
+      activeSections.forEach((sec) => {
         if (Array.isArray(sec.movies)) {
           sec.movies.forEach((m) => {
             if (m?.poster_url && !list.some((item) => item.slug === m.slug)) {
@@ -155,8 +171,13 @@ export default function LandingPage({ sections = [] }) {
         }
       });
     }
-    return list.length > 0 ? list.slice(0, 10) : FALLBACK_SHOWCASE;
-  }, [sections]);
+    const finalTrending = list.length > 0 ? list.slice(0, 12) : FALLBACK_SHOWCASE;
+    const combined = list.length >= 12 ? list : [...list, ...FALLBACK_SHOWCASE, ...FALLBACK_SHOWCASE];
+    return {
+      trendingMovies: finalTrending,
+      backdropMovies: combined.slice(0, 24),
+    };
+  }, [activeSections]);
 
   const handleSubmit = async (e, inputEmail) => {
     if (e) e.preventDefault();
@@ -181,25 +202,53 @@ export default function LandingPage({ sections = [] }) {
 
   const displayPlans = useMemo(() => {
     if (!plans.length) return FALLBACK_PLANS;
-    return plans.map((p) => ({
-      code: p.code,
-      name: p.name,
-      priceText: `Rs ${p.price?.toLocaleString()} / month`,
-      resolution: p.resolution || "HD",
-      screens: p.screens || 1,
-      devices: p.screens > 2 ? "All Devices and Smart TVs" : p.screens > 1 ? "TV, Laptop, Mobile" : "Phone and Tablet",
-      isPopular: p.code === "standard",
-      isUltimate: p.code === "premium",
-      features: Array.isArray(p.features) && p.features.length > 0
-        ? p.features
-        : ["Ads-Free Playback", `${p.resolution || "HD"} Quality`, `${p.screens || 1} Screen simultaneous`],
-    }));
+    return plans.map((p, idx) => {
+      const planCode = p.code || p.id || `tier-${idx}`;
+      return {
+        code: planCode,
+        name: p.name || "Plan",
+        priceText: p.priceText || (p.price ? `Rs ${p.price.toLocaleString()} / month` : "Rs 250 / month"),
+        resolution: p.resolution || "HD",
+        screens: p.screens || 1,
+        devices: p.devices || (p.screens > 2 ? "All Devices and Smart TVs" : p.screens > 1 ? "TV, Laptop, Mobile" : "Phone and Tablet"),
+        isPopular: planCode === "standard",
+        isUltimate: planCode === "premium",
+        features: Array.isArray(p.features) && p.features.length > 0
+          ? p.features
+          : [
+              "Ads-Free Playback",
+              `${p.resolution || "HD"} Quality`,
+              `${p.screens || 1} Screen simultaneous`,
+              "Cancel Anytime",
+            ],
+      };
+    });
   }, [plans]);
 
   return (
     <div className={styles.landingWrapper}>
-      {/* ── HERO SECTION (Lightweight, zero-lag pure CSS atmosphere) ──────── */}
+      {/* ── HERO SECTION (Cinema atmosphere with zero-blur poster backdrop) ── */}
       <section className={styles.hero} aria-label="Welcome">
+        {/* Dynamic Movie Poster Mosaic Backdrop (Hardware composited, zero CSS blur for 60fps smooth scrolling) */}
+        {backdropMovies.length > 0 && (
+          <div className={styles.heroBackdropMosaic} aria-hidden="true">
+            <div className={styles.mosaicRow}>
+              {backdropMovies.slice(0, 12).map((m, idx) => (
+                <div key={`m1-${m.slug || idx}-${idx}`} className={styles.mosaicItem}>
+                  <img src={m.poster_url} alt="" loading="eager" decoding="async" />
+                </div>
+              ))}
+            </div>
+            <div className={styles.mosaicRow}>
+              {backdropMovies.slice(12, 24).map((m, idx) => (
+                <div key={`m2-${m.slug || idx}-${idx}`} className={styles.mosaicItem}>
+                  <img src={m.poster_url} alt="" loading="lazy" decoding="async" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className={styles.heroAtmosphere} aria-hidden="true" />
 
         <div className={styles.heroContent}>
@@ -288,7 +337,7 @@ export default function LandingPage({ sections = [] }) {
 
             return (
               <div
-                key={item.slug || `trending-${idx}`}
+                key={item.slug ? `${item.slug}-${idx}` : `trending-${idx}`}
                 className={styles.showcaseCard}
                 onClick={() => router.push("/signup/planform?step=2")}
               >
@@ -411,9 +460,9 @@ export default function LandingPage({ sections = [] }) {
         </div>
 
         <div className={styles.pricingGrid}>
-          {displayPlans.map((plan) => (
+          {displayPlans.map((plan, idx) => (
             <div
-              key={plan.code}
+              key={plan.code ? `${plan.code}-${idx}` : `plan-${idx}`}
               className={`${styles.planCard} ${plan.isPopular ? styles.planPopular : ""} ${
                 plan.isUltimate ? styles.planUltimate : ""
               }`}
@@ -439,8 +488,8 @@ export default function LandingPage({ sections = [] }) {
               </div>
 
               <ul className={styles.planFeatures}>
-                {plan.features.map((feat, idx) => (
-                  <li key={idx}>
+                {plan.features.map((feat, featIdx) => (
+                  <li key={`${plan.code}-feat-${featIdx}`}>
                     <span className={styles.bulletDot} />
                     <span>{feat}</span>
                   </li>
@@ -452,7 +501,7 @@ export default function LandingPage({ sections = [] }) {
                 className={`${styles.planBtn} ${
                   plan.isPopular || plan.isUltimate ? styles.planBtnPrimary : styles.planBtnSecondary
                 }`}
-                onClick={() => router.push(`/signup/planform?step=2&plan=${plan.code}`)}
+                onClick={() => router.push(`/signup/planform?step=2&plan=${encodeURIComponent(plan.code)}`)}
               >
                 Select {plan.name}
               </button>

@@ -51,7 +51,7 @@ export default function FaqAccordion() {
         {FAQS.map((item, idx) => {
           const isOpen = openIndex === idx;
           return (
-            <div key={idx} className={`${styles.faqItem} ${isOpen ? styles.faqItemActive : ""}`}>
+            <div key={`faq-${idx}`} className={`${styles.faqItem} ${isOpen ? styles.faqItemActive : ""}`}>
               <button
                 type="button"
                 className={styles.faqQuestion}

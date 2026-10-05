@@ -56,10 +56,12 @@ export function apiClientHeaders(extra = {}) {
     Accept: "application/json",
     ...extra,
   };
-  // Only attach app key outside the browser (SSR / Node)
+  // Only attach app key & origin outside the browser (SSR / Node)
   const isBrowser = typeof window !== "undefined";
   if (!isBrowser) {
     headers["X-MovieHunter-Client"] = "web";
+    const origin = getSiteUrl() || "http://localhost:3001";
+    if (origin) headers["Origin"] = origin;
     const key = getAppClientKey();
     if (key) headers["X-App-Key"] = key;
   }
