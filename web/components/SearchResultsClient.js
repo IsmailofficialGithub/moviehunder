@@ -3,6 +3,7 @@
 import EmptyState from "./EmptyState";
 import SafeSearchMeme from "./SafeSearchMeme";
 import TitleGrid from "./TitleGrid";
+import SubscriptionGate from "./SubscriptionGate";
 import {
   filterSafeCatalogItems,
   isSafeSearchBlocked,
@@ -38,8 +39,16 @@ export default function SearchResultsClient({
 
   const safeMovies = isBypass ? movies : filterSafeCatalogItems(movies);
   if (!safeMovies.length) {
-    return <EmptyState query={cleanQ || q} />;
+    return (
+      <SubscriptionGate>
+        <EmptyState query={cleanQ || q} />
+      </SubscriptionGate>
+    );
   }
 
-  return <TitleGrid title={`Results for "${cleanQ || q}"`} movies={safeMovies} />;
+  return (
+    <SubscriptionGate>
+      <TitleGrid title={`Results for "${cleanQ || q}"`} movies={safeMovies} />
+    </SubscriptionGate>
+  );
 }

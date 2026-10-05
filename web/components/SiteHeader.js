@@ -211,7 +211,8 @@ export default function SiteHeader() {
 
   const isPlayPage = pathname.startsWith("/play");
   const isLandingMode =
-    (pathname === "/" && (!isSignedIn || !hasActivePlan)) ||
+    !isSignedIn ||
+    !hasActivePlan ||
     pathname.startsWith("/signup") ||
     pathname.startsWith("/login");
 

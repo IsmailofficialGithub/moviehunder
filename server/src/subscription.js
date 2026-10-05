@@ -3,7 +3,7 @@ import { requireUser } from "./auth.js";
 import { getPublicPlans } from "./plans.js";
 
 const PLAN_TO_TIER = {
-  mobile: "STANDARD_ADS",
+  mobile: "MOBILE",
   basic: "BASIC",
   standard: "STANDARD",
   premium: "PREMIUM",

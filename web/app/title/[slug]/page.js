@@ -1,6 +1,7 @@
 import Link from "next/link";
 import DetailClient from "../../../components/DetailClient";
 import EmptyState from "../../../components/EmptyState";
+import SubscriptionGate from "../../../components/SubscriptionGate";
 import { getDetail, getEpisodes } from "../../../lib/api";
 import { getSiteUrl } from "../../../lib/config";
 import styles from "./title.module.css";
@@ -168,7 +169,9 @@ export default async function TitlePage({ params }) {
         <Link className={styles.back} href="/">
           ← Back
         </Link>
-        <DetailClient slug={slug} detail={detail} episodes={episodes} />
+        <SubscriptionGate>
+          <DetailClient slug={slug} detail={detail} episodes={episodes} />
+        </SubscriptionGate>
       </main>
     );
   } catch {
