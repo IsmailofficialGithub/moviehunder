@@ -70,16 +70,6 @@ export default function AppDownloadPrompt() {
     return () => window.removeEventListener(OPEN_APP_DOWNLOAD_EVENT, onOpen);
   }, [openModal]);
 
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem(DISMISS_KEY) === "1") return;
-      if (!isMobileBrowser()) return;
-      const t = setTimeout(() => openModal(true), 600);
-      return () => clearTimeout(t);
-    } catch {
-      /* private mode */
-    }
-  }, [openModal]);
 
   if (!open) return null;
 

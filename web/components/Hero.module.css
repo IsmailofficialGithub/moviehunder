@@ -193,8 +193,9 @@
   bottom: 16px;
   z-index: 3;
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 2px;
   pointer-events: none;
   opacity: 0.55;
   transition: opacity 0.25s ease;
@@ -207,24 +208,37 @@
 
 .dot {
   pointer-events: auto;
-  width: 6px;
-  height: 6px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.45);
+  background: transparent;
   cursor: pointer;
   padding: 0;
+  margin: 0;
+  touch-action: manipulation;
+}
+
+.dot::before {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
   transition:
     width 0.2s ease,
     background 0.2s ease;
 }
 
-.dot:hover {
-  background: rgba(255, 255, 255, 0.8);
+.dot:hover::before {
+  background: rgba(255, 255, 255, 0.85);
 }
 
-.dotOn {
-  width: 18px;
+.dotOn::before {
+  width: 22px;
   background: var(--secondary);
 }
 

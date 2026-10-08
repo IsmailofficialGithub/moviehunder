@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import BtnSpinner from "./BtnSpinner";
 import TitleCard from "./TitleCard";
+import LazyPoster from "./LazyPoster";
 import styles from "./DetailClient.module.css";
 
 function defaultEpisode(seasons) {
@@ -270,10 +271,10 @@ export default function DetailClient({ slug, detail, episodes }) {
       <div className={styles.hero}>
         <div className={styles.posterContainer}>
           {meta.poster ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <LazyPoster
               src={meta.poster}
               alt={meta.title || slug}
+              priority
               className={styles.poster}
             />
           ) : (

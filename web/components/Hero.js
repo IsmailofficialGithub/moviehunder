@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./Hero.module.css";
 
@@ -10,6 +11,7 @@ const AUTO_MS = 5500;
 export default function Hero({ items = [] }) {
   const slides = (items || []).filter((m) => m?.slug && m?.name).slice(0, MAX_SLIDES);
   const [index, setIndex] = useState(0);
+  const [imgError, setImgError] = useState(false);
   const timerRef = useRef(null);
   const touchRef = useRef({ x: 0, locked: false });
 
@@ -34,6 +36,10 @@ export default function Hero({ items = [] }) {
     return () => clearInterval(timerRef.current);
   }, [resetTimer]);
 
+  useEffect(() => {
+    setImgError(false);
+  }, [index]);
+
   if (!slides.length) return null;
 
   const item = slides[index];
@@ -57,15 +63,34 @@ export default function Hero({ items = [] }) {
     >
       {item.poster_url ? (
         <div className={styles.media} key={item.slug || index}>
-          {/* Single image — CSS blur layer uses the same paint, no 2nd decode */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={item.poster_url}
-            alt={item.name ? `${item.name} - Watch Free on Offstream` : "Featured Movie Poster"}
-            className={styles.image}
-            decoding="async"
-            fetchPriority="high"
-          />
+          {!imgError ? (
+            <Image
+              src={item.poster_url}
+              alt={
+                item.name
+                  ? `${item.name} - Watch Free on Offstream`
+                  : "Featured Movie Poster"
+              }
+              fill
+              priority={index === 0}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1280px"
+              quality={80}
+              className={styles.image}
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.poster_url}
+              alt={
+                item.name
+                  ? `${item.name} - Watch Free on Offstream`
+                  : "Featured Movie Poster"
+              }
+              className={styles.image}
+              decoding="async"
+            />
+          )}
         </div>
       ) : (
         <div className={styles.imageFallback} />

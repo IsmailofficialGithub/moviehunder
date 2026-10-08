@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { getWatchCache, listLocalWatch, parseTimestamp, pullWatchProgress } from "../lib/sync";
 import RowScroller from "./RowScroller";
+import LazyPoster from "./LazyPoster";
 import styles from "./ContinueWatchingRow.module.css";
 
 function formatTime(seconds) {
@@ -203,11 +204,10 @@ export default function ContinueWatchingRow() {
             >
               <div className={styles.posterWrap}>
                 {item.poster ? (
-                  <img
+                  <LazyPoster
                     src={item.poster}
                     alt={displayTitle}
                     className={styles.poster}
-                    loading="lazy"
                   />
                 ) : (
                   <div className={styles.fallback}>🎬</div>
