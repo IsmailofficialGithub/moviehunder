@@ -101,8 +101,11 @@ const styles = StyleSheet.create({
   searchPlaceholder: {
     flex: 1,
     fontSize: 13.5,
+    lineHeight: 18,
     color: "rgba(255, 255, 255, 0.55)",
     fontWeight: "400",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   avatarBtn: {
     width: 34,
@@ -131,6 +134,9 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 14,
+    lineHeight: 18,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
 });
 

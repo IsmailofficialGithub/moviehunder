@@ -388,6 +388,7 @@ export default function HomeScreen() {
       ) : showContent ? (
         <ScrollView
           ref={scrollRef}
+          style={styles.mainScroll}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           scrollEventThrottle={16}
@@ -466,6 +467,9 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  mainScroll: {
+    flex: 1,
+  },
   list: {
     paddingBottom: spacing.xl,
   },

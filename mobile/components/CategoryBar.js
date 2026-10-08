@@ -15,64 +15,68 @@ export const HOME_CATEGORIES = [
 
 export default function CategoryBar({ activeId, onChange }) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-    >
-      {HOME_CATEGORIES.map((cat) => {
-        const active = cat.id === activeId;
-        if (cat.kind === "live") {
+    <View style={styles.wrap}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+      >
+        {HOME_CATEGORIES.map((cat) => {
+          const active = cat.id === activeId;
+          if (cat.kind === "live") {
+            return (
+              <Pressable
+                key={cat.id}
+                onPress={() => onChange?.(cat.id)}
+                style={({ pressed }) => [
+                  styles.live,
+                  active && styles.liveActive,
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <Text style={styles.liveText}>LIVE</Text>
+                <Ionicons name="radio-outline" size={13} color="#fff" />
+              </Pressable>
+            );
+          }
           return (
             <Pressable
               key={cat.id}
               onPress={() => onChange?.(cat.id)}
               style={({ pressed }) => [
-                styles.live,
-                active && styles.liveActive,
+                styles.pill,
+                active && styles.pillActive,
                 pressed && { opacity: 0.8 },
               ]}
             >
-              <Text style={styles.liveText}>LIVE</Text>
-              <Ionicons name="radio-outline" size={12} color="#fff" />
+              <Text style={[styles.label, active && styles.labelActive]}>
+                {cat.label}
+              </Text>
             </Pressable>
           );
-        }
-        return (
-          <Pressable
-            key={cat.id}
-            onPress={() => onChange?.(cat.id)}
-            style={({ pressed }) => [
-              styles.pill,
-              active && styles.pillActive,
-              pressed && { opacity: 0.8 },
-            ]}
-          >
-            <Text style={[styles.label, active && styles.labelActive]}>
-              {cat.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: {
+    paddingVertical: 6,
+  },
   row: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    paddingBottom: spacing.sm,
     alignItems: "center",
     gap: 8,
   },
   live: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 5,
     backgroundColor: colors.live,
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    height: 34,
     borderRadius: radii.pill,
     elevation: 2,
     shadowColor: colors.live,
@@ -88,11 +92,14 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "900",
     fontSize: 11,
+    lineHeight: 14,
     letterSpacing: 0.5,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   pill: {
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    height: 34,
     borderRadius: radii.pill,
     backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderWidth: 1,
@@ -112,8 +119,11 @@ const styles = StyleSheet.create({
   label: {
     color: "rgba(255, 255, 255, 0.75)",
     fontSize: 13,
+    lineHeight: 18,
     fontWeight: "600",
     letterSpacing: 0.1,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   labelActive: {
     color: "#0c0c0e",
