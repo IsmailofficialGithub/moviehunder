@@ -158,17 +158,26 @@ function sectionsFromOperatingList(ops = []) {
   return sections;
 }
 
-function resolveNuxt(nuxt) {
+export function resolveNuxt(nuxt) {
+  const memo = new Map();
   function resolve(index, depth = 0) {
-    if (depth > 10) return null;
+    if (depth > 12) return null;
     if (typeof index !== "number" || index < 0 || index >= nuxt.length) return index;
+    if (memo.has(index)) return memo.get(index);
     const val = nuxt[index];
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const out = {};
+      memo.set(index, out);
       for (const [k, v] of Object.entries(val)) out[k] = resolve(v, depth + 1);
       return out;
     }
-    if (Array.isArray(val)) return val.map((v) => resolve(v, depth + 1));
+    if (Array.isArray(val)) {
+      const arr = [];
+      memo.set(index, arr);
+      for (let j = 0; j < val.length; j++) arr.push(resolve(val[j], depth + 1));
+      return arr;
+    }
+    memo.set(index, val);
     return val;
   }
   return resolve;
@@ -1107,17 +1116,7 @@ async function handleDetail(slug) {
   if (!Array.isArray(nuxt)) return json({ error: "Unexpected NUXT format" }, 500);
 
   // Resolve NUXT references
-  function resolve(index) {
-    if (typeof index !== "number" || index < 0 || index >= nuxt.length) return index;
-    const val = nuxt[index];
-    if (val && typeof val === "object" && !Array.isArray(val)) {
-      const out = {};
-      for (const [k, v] of Object.entries(val)) out[k] = resolve(v);
-      return out;
-    }
-    if (Array.isArray(val)) return val.map(resolve);
-    return val;
-  }
+  const resolve = resolveNuxt(nuxt);
 
   // Find movie metadata, seasons, cast, reviews
   let movieDict = null;
