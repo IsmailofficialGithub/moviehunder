@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Script from "next/script";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import AppDownloadPrompt from "../components/AppDownloadPrompt";
@@ -17,6 +18,7 @@ const inter = Inter({
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://offstream.co";
+const gaId = process.env.NEXT_PUBLIC_GA_ID || "G-Z38RNJP55E";
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
@@ -145,12 +147,26 @@ export default function RootLayout({ children }) {
           rel="dns-prefetch"
           href="https://api-moviehunder.ismailabbasi.qzz.io"
         />
+        <link rel="preconnect" href="https://www.googletagmanager.com" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
       <body>
+        {/* Google Analytics (gtag.js) */}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${gaId}');
+          `}
+        </Script>
         <Suspense fallback={null}>
           <NavigationProgressBar />
         </Suspense>
