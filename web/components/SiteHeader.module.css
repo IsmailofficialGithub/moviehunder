@@ -102,7 +102,7 @@
   position: relative;
   flex: 1;
   min-width: 0;
-  max-width: 340px;
+  max-width: 440px;
   margin-left: auto;
 }
 
@@ -111,26 +111,35 @@
   align-items: center;
   gap: 8px;
   height: 40px;
-  padding: 0 8px 0 12px;
-  background: #2a2a30;
-  border: 1px solid transparent;
-  border-radius: 12px;
+  padding: 0 4px 0 12px;
+  background: #121214;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
   transition:
     border-color 0.15s,
-    box-shadow 0.15s;
+    box-shadow 0.15s,
+    background 0.15s;
 }
 
 .searchBar:focus-within {
-  border-color: var(--accent-border);
-  box-shadow: 0 0 0 3px var(--accent-muted);
+  border-color: #3ea6ff;
+  box-shadow: 0 0 0 1px #3ea6ff, 0 4px 16px rgba(0, 0, 0, 0.5);
+  background: #0f0f10;
+}
+
+.searchBarLead {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .searchIcon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: #fff;
-  opacity: 0.85;
+  color: currentColor;
 }
 
 .searchBar input {
@@ -140,13 +149,13 @@
   border: 0;
   outline: none;
   background: transparent;
-  color: var(--text);
-  font-size: 13px;
+  color: #f1f1f1;
+  font-size: 14px;
   padding: 0;
 }
 
 .searchBar input::placeholder {
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .searchBar input::-webkit-search-cancel-button,
@@ -159,52 +168,57 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: 0;
+  border-radius: 50%;
   background: transparent;
   color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
   flex-shrink: 0;
+  transition:
+    color 0.12s,
+    background 0.12s;
 }
 
 .clearBtn svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .clearBtn:hover {
-  color: rgba(255, 255, 255, 0.85);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .searchSubmit {
   border: 0;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent), var(--primary));
-  color: #fff;
+  width: 38px;
+  height: 32px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(61, 0, 129, 0.35);
   transition:
-    filter 0.15s,
+    background 0.15s,
+    color 0.15s,
     transform 0.15s;
 }
 
 .searchSubmit svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 .searchSubmit:hover:not(:disabled) {
-  filter: brightness(1.1);
-  transform: scale(1.04);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
 }
 
 .searchSubmit:disabled {
@@ -212,6 +226,7 @@
   cursor: wait;
 }
 
+/* YouTube style dark suggestions card */
 .suggest {
   position: absolute;
   top: calc(100% + 6px);
@@ -219,51 +234,257 @@
   right: 0;
   z-index: 50;
   margin: 0;
-  padding: 0;
+  padding: 6px 0;
   list-style: none;
-  background: var(--panel-soft);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  max-height: 320px;
-  overflow: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  background: #212124;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
+  max-height: 360px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
-.suggest::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-.suggest li + li {
-  border-top: 1px solid var(--line);
-}
-
-.suggest button {
-  width: 100%;
+.historyRow,
+.suggestRow {
   display: flex;
   align-items: center;
-  gap: 10px;
-  text-align: left;
+  justify-content: space-between;
+  padding: 0 8px 0 12px;
+  min-height: 38px;
+  transition: background 0.12s;
+}
+
+.historyRow:hover,
+.suggestRow:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.suggestItemBtn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 8px 0;
   background: transparent;
   border: 0;
-  color: var(--text);
-  padding: 12px;
+  text-align: left;
   cursor: pointer;
   font-size: 14px;
 }
 
-.suggest button:hover {
-  background: var(--accent-muted);
+.historyIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #3ea6ff;
+  opacity: 0.85;
 }
 
 .suggestIcon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.historyText {
+  color: #3ea6ff;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestText {
+  color: #f1f1f1;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historyRemove {
+  background: transparent;
+  border: 0;
+  color: #3ea6ff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  opacity: 0.85;
+  transition: opacity 0.12s, text-decoration 0.12s;
+}
+
+.historyRemove:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* Insert into input arrow (↖) */
+.insertBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    transform 0.12s;
+}
+
+.insertBtn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.insertBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  transform: scale(1.08);
+}
+
+/* Mobile Fullscreen Search Overlay */
+.mobileOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #0f0f12;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeInOverlay 0.15s ease-out;
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobileTopBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0f0f12;
+}
+
+.mobileBackBtn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #f1f1f1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+
+.mobileBackBtn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mobileBackBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mobileSearchForm {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobileSearchBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 4px 0 14px;
+  background: #212124;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+}
+
+.mobileSearchBar input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font-size: 15px;
+  padding: 0;
+}
+
+.mobileSearchBar input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.mobileResults {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 0;
+}
+
+.mobileSuggestList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mobileHistoryRow,
+.mobileSuggestRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  min-height: 46px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.1s;
+}
+
+.mobileHistoryRow:active,
+.mobileSuggestRow:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mobileSuggestItemBtn {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 11px 0;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font-size: 15px;
 }
 
 .actions {
