@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.3.7",
+    "@vercel/speed-insights": "^2.0.0",
     "crypto-js": "^4.2.0",
     "jszip": "^3.10.1",
     "localforage": "^1.10.0",
