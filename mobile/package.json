@@ -46,6 +46,7 @@
     "build:preview": "eas build -p android --profile preview",
     "build:production": "eas build -p android --profile production",
     "build:bundle": "eas build -p android --profile production-bundle",
+    "emulator": "bash scripts/start-emulator.sh",
     "release": "npm run release:new",
     "release:new": "node scripts/release-new.mjs",
     "icons:generate": "node scripts/generate-icons.mjs"
