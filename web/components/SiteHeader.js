@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { Download } from "lucide-react";
 import { searchSuggest } from "../lib/api";
 import { filterSafeSuggestions, isSafeSearchBlocked } from "../lib/contentFilter";
 import { getGithubUrl } from "../lib/config";
@@ -87,6 +88,7 @@ export default function SiteHeader() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
   const [activeProfile, setActiveProfile] = useState(null);
+  const [avatarImgError, setAvatarImgError] = useState(false);
 
   useEffect(() => {
     try {
@@ -94,6 +96,28 @@ export default function SiteHeader() {
       if (stored) setActiveProfile(JSON.parse(stored));
     } catch {}
   }, [user]);
+
+  const userAvatar =
+    user?.avatar_url ||
+    user?.avatarUrl ||
+    user?.picture ||
+    user?.user_metadata?.avatar_url ||
+    user?.image ||
+    user?.avatar ||
+    null;
+
+  const profileAvatar = activeProfile?.avatar;
+  const isDicebear = typeof profileAvatar === "string" && profileAvatar.includes("dicebear");
+  const effectiveAvatar =
+    (!avatarImgError && ((isDicebear && userAvatar) ? userAvatar : (profileAvatar || userAvatar))) ||
+    null;
+
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [userAvatar, profileAvatar]);
+
+  const displayName = activeProfile?.name || user?.display_name || user?.name || "";
+  const initialLetter = displayName ? displayName.charAt(0).toUpperCase() : "";
 
   useEffect(() => {
     setProfileMenuOpen(false);
@@ -513,41 +537,12 @@ export default function SiteHeader() {
               </a>
               <button
                 type="button"
-                className={`${styles.iconBtn} ${styles.downloadBtn}`}
+                className={styles.downloadBtn}
                 onClick={() => openAppDownloadModal()}
                 aria-label="Download app"
                 title="Download app"
               >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <rect
-                    x="7"
-                    y="2"
-                    width="10"
-                    height="20"
-                    rx="2.2"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                  />
-                  <path
-                    d="M10 4.25h4"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M12 8.2v6.2m0 0l-2.4-2.4M12 14.4l2.4-2.4"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M10.5 19.5h3"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <Download size={13} strokeWidth={2.4} className={styles.downloadIcon} aria-hidden />
                 <span className={styles.downloadLabel}>App</span>
               </button>
               {/* Single Profile Avatar with dropdown for Profiles, History, Settings */}
@@ -559,18 +554,20 @@ export default function SiteHeader() {
                   aria-label="Profile and menu"
                   aria-haspopup="true"
                   aria-expanded={profileMenuOpen}
-                  title={activeProfile?.name || user?.display_name || "Account, History & Settings"}
+                  title={displayName || "Account, History & Settings"}
                 >
-                  {activeProfile?.avatar ? (
+                  {effectiveAvatar ? (
                     <img
-                      src={activeProfile.avatar}
-                      alt={activeProfile.name || "Avatar"}
+                      src={effectiveAvatar}
+                      alt={displayName || "Avatar"}
                       className={styles.avatarImg}
+                      referrerPolicy="no-referrer"
+                      onError={() => setAvatarImgError(true)}
                     />
                   ) : (
                     <div className={styles.avatarPlaceholder}>
-                      {user?.display_name ? (
-                        user.display_name.charAt(0).toUpperCase()
+                      {initialLetter ? (
+                        initialLetter
                       ) : (
                         <svg viewBox="0 0 24 24" fill="none" className={styles.avatarDefaultIcon} aria-hidden>
                           <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" strokeWidth="1.8" />
@@ -584,9 +581,30 @@ export default function SiteHeader() {
                 {profileMenuOpen ? (
                   <div className={styles.profileDropdown} role="menu">
                     <div className={styles.dropdownHeader}>
+                      <div className={styles.dropdownAvatar}>
+                        {effectiveAvatar ? (
+                          <img
+                            src={effectiveAvatar}
+                            alt={displayName || "Avatar"}
+                            className={styles.avatarImg}
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className={styles.avatarPlaceholder}>
+                            {initialLetter ? (
+                              initialLetter
+                            ) : (
+                              <svg viewBox="0 0 24 24" fill="none" className={styles.avatarDefaultIcon} aria-hidden>
+                                <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" strokeWidth="1.8" />
+                                <path d="M4 20c1.8-3.2 4.6-5 8-5s6.2 1.8 8 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                              </svg>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <div className={styles.dropdownUserInfo}>
                         <strong className={styles.dropdownUserName}>
-                          {activeProfile?.name || user?.display_name || (isSignedIn ? "Member" : "Guest")}
+                          {displayName || (isSignedIn ? "Member" : "Guest")}
                         </strong>
                         <span className={styles.dropdownUserMeta}>
                           {user?.email || (isSignedIn ? "Active Account" : "Offstream Free")}

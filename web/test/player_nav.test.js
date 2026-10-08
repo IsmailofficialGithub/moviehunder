@@ -131,3 +131,34 @@ test("SiteHeader has profile avatar button with dropdown containing profiles, hi
   );
 });
 
+test("SiteHeader uses Lucide Download icon, compact pill button, and supports Google OAuth avatar", () => {
+  const headerPath = path.join(__dirname, "../components/SiteHeader.js");
+  const headerSrc = fs.readFileSync(headerPath, "utf8");
+
+  // Download icon from lucide-react
+  assert.ok(
+    headerSrc.includes('import { Download } from "lucide-react"') ||
+      headerSrc.includes("Download"),
+    "SiteHeader must import Download from lucide-react"
+  );
+  assert.ok(
+    headerSrc.includes("<Download"),
+    "SiteHeader must render Lucide Download component"
+  );
+
+  // Google OAuth avatar support with no-referrer
+  assert.ok(
+    headerSrc.includes("avatar_url") && headerSrc.includes('referrerPolicy="no-referrer"'),
+    "SiteHeader must support user.avatar_url and include referrerPolicy=no-referrer for Google photos"
+  );
+
+  // Compact download button CSS
+  const headerCssPath = path.join(__dirname, "../components/SiteHeader.module.css");
+  const headerCss = fs.readFileSync(headerCssPath, "utf8");
+
+  assert.ok(
+    headerCss.includes(".downloadBtn") && headerCss.includes("border-radius: 9999px"),
+    "SiteHeader.module.css must style downloadBtn as a sleek compact pill"
+  );
+});
+

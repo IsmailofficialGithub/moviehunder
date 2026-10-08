@@ -61,6 +61,12 @@
   background-position: center;
 }
 
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .profileItem:hover .avatarBox {
   border-color: var(--accent, #e50914);
 }
