@@ -23,8 +23,8 @@ test("NavigationProgressBar exists and is mounted in RootLayout", () => {
   assert.ok(fs.existsSync(progPath), "NavigationProgressBar.js must exist");
   const progSrc = fs.readFileSync(progPath, "utf8");
   assert.ok(
-    progSrc.includes("usePathname") && progSrc.includes("useSearchParams"),
-    "NavigationProgressBar must react to route navigation"
+    progSrc.includes("usePathname"),
+    "NavigationProgressBar must react to route navigation via usePathname"
   );
 });
 

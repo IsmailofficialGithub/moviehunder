@@ -1,8 +1,73 @@
+.wrap {
+  width: 100%;
+  max-width: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 var(--page-pad, 28px) 16px;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a9aa3;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
-  gap: 16px;
-  padding: 0 28px;
-  justify-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 20px 16px;
+  padding: 0 var(--page-pad, 28px);
+  justify-items: stretch;
+  align-items: start;
   content-visibility: auto;
+}
+
+/* Force cards in the grid to take full 100% column width so there are no empty gaps */
+.grid > * {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: none !important;
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 0 16px 14px;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 16px 12px !important;
+    padding: 0 14px !important;
+  }
+}
+
+@media (max-width: 330px) {
+  .grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    padding: 0 12px !important;
+  }
 }

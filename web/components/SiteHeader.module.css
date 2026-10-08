@@ -717,13 +717,14 @@
     display: flex;
     width: 100%;
     flex-wrap: nowrap;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
-    gap: 0;
+    gap: 8px;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    padding: 2px 0 4px;
+    padding: 6px 12px 8px;
+    -webkit-overflow-scrolling: touch;
   }
 
   .nav::-webkit-scrollbar {
@@ -733,8 +734,29 @@
 
   .nav a {
     flex-shrink: 0;
-    font-size: 12px;
-    padding: 6px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .nav a:hover,
+  .nav a:active {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+  }
+
+  .nav a.active {
+    background: #ffffff !important;
+    color: #0c0c0e !important;
+    font-weight: 700 !important;
+    border-color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   }
 
   .playHint {

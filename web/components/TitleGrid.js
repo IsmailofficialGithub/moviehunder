@@ -8,10 +8,10 @@ export default function TitleGrid({ title, movies = [] }) {
   }
 
   return (
-    <div>
-      <div className="row-head">
-        <h2>{title}</h2>
-        <span>{movies.length} titles</span>
+    <div className={styles.wrap}>
+      <div className={styles.header}>
+        <h2 className={styles.title}>{title}</h2>
+        <span className={styles.count}>{movies.length} titles</span>
       </div>
       <div className={styles.grid}>
         {movies.slice(0, 60).map((item) => (
