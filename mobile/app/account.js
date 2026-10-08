@@ -398,6 +398,13 @@ export default function AccountScreen() {
                   <Text style={styles.infoRowSub}>v{appVersion}</Text>
                 </View>
               </View>
+              <Pressable
+                style={styles.actionRowBtn}
+                onPress={() => Linking.openURL("https://github.com/ismailofficialGithub/")}
+              >
+                <Ionicons name="logo-github" size={18} color={colors.secondary} />
+                <Text style={styles.actionRowText}>GitHub Repository</Text>
+              </Pressable>
             </View>
           </View>
 

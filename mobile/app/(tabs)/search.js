@@ -178,6 +178,15 @@ export default function SearchScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.q]);
 
+  useEffect(() => {
+    if (params.focus === "1" || params.focus === "true") {
+      const t = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [params.focus]);
+
   // Typing → suggest API only (never stores history)
   useEffect(() => {
     clearTimeout(suggestTimer.current);
