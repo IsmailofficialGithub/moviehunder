@@ -4,6 +4,8 @@ import AppDownloadPrompt from "../components/AppDownloadPrompt";
 import GlobalAds from "../components/ads/GlobalAds";
 import { AuthProvider } from "../components/AuthProvider";
 import GuestSyncWorker from "../components/GuestSyncWorker";
+import SmoothScroll from "../components/SmoothScroll";
+import ServiceWorkerRegister from "../components/ServiceWorkerRegister";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -47,9 +49,6 @@ export const metadata = {
     "south hindi dubbed",
   ],
   applicationName: "Offstream",
-  alternates: {
-    canonical: siteUrl,
-  },
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -142,12 +141,16 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <AuthProvider>
+          <SmoothScroll />
+          <ServiceWorkerRegister />
           <GlobalAds />
           <GuestSyncWorker />
           <SiteHeader />
           <div className="appMain">
-            {children}
-            <SiteFooter />
+            <div className="appScrollContent">
+              {children}
+              <SiteFooter />
+            </div>
           </div>
           <AppDownloadPrompt />
         </AuthProvider>

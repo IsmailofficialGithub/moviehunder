@@ -22,7 +22,7 @@ export default function Support() {
           If you are experiencing issues with the MovieHunter app, or have questions regarding your account, please reach out to us. 
         </p>
         <p>
-          <strong>Email:</strong> support@moviehunter.example.com
+          <strong>Email:</strong> support@offstream.co
         </p>
       </div>
 

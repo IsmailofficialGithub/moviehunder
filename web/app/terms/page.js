@@ -60,7 +60,7 @@ export default function TermsOfService() {
       <div className={styles.section}>
         <h2>6. Contact</h2>
         <p>
-          If you have any questions about these Terms, please contact us at support@moviehunter.example.com.
+          If you have any questions about these Terms, please contact us at support@offstream.co.
         </p>
       </div>
     </div>

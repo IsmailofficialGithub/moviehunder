@@ -2,7 +2,11 @@ import { Suspense } from "react";
 import PlayClient from "./PlayClient";
 
 export const metadata = {
-  title: "Play",
+  title: "Play · Offstream",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function PlayPage() {

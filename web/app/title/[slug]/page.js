@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import DetailClient from "../../../components/DetailClient";
-import EmptyState from "../../../components/EmptyState";
 import { getDetail, getEpisodes } from "../../../lib/api";
 import { getSiteUrl } from "../../../lib/config";
 import styles from "./title.module.css";
@@ -77,8 +77,10 @@ export async function generateMetadata({ params }) {
     };
   } catch {
     return {
-      title: `${decoded} - Watch Free Online | Movies Hunder`,
-      description: `Watch ${decoded} free in HD on Movies Hunder (offstream.co).`,
+      title: "Title Not Found · Offstream",
+      robots: {
+        index: false,
+      },
     };
   }
 }
@@ -93,6 +95,10 @@ export default async function TitlePage({ params }) {
       getDetail(slug),
       getEpisodes(slug).catch(() => null),
     ]);
+
+    if (!detail) {
+      notFound();
+    }
 
     const name =
       detail?.title || detail?.name || detail?.subject_title || slug;
@@ -172,14 +178,6 @@ export default async function TitlePage({ params }) {
       </main>
     );
   } catch {
-    return (
-      <main className="page">
-        <EmptyState
-          title="No items found"
-          hint="This title isn’t available."
-          actionLabel="Back to Home"
-        />
-      </main>
-    );
+    notFound();
   }
 }

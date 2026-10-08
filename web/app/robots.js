@@ -1,4 +1,4 @@
-import { getSiteUrl } from "../lib/config";
+import { getSiteUrl } from "../lib/config.js";
 
 export default function robots() {
   const siteUrl = getSiteUrl();
@@ -14,8 +14,8 @@ export default function robots() {
           "/profiles/",
           "/history/",
           "/auth/",
-          "/login",
-          "/signup",
+          "/play",
+          "/search",
         ],
       },
     ],
