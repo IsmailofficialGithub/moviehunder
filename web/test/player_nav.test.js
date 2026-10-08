@@ -100,3 +100,34 @@ test("StreamPlayer has 10s double-tap seek, fullscreen settings clickable fix, a
     "CSS must define centerOverlay"
   );
 });
+
+test("SiteHeader has profile avatar button with dropdown containing profiles, history, and settings", () => {
+  const headerPath = path.join(__dirname, "../components/SiteHeader.js");
+  const headerSrc = fs.readFileSync(headerPath, "utf8");
+
+  assert.ok(
+    headerSrc.includes("avatarBtn") && headerSrc.includes("profileDropdown"),
+    "SiteHeader must render avatarBtn and profileDropdown"
+  );
+  assert.ok(
+    headerSrc.includes('href="/profiles"'),
+    "Dropdown must contain link to /profiles"
+  );
+  assert.ok(
+    headerSrc.includes('href="/history"'),
+    "Dropdown must contain link to /history"
+  );
+  assert.ok(
+    headerSrc.includes('href="/settings"'),
+    "Dropdown must contain link to /settings"
+  );
+
+  const headerCssPath = path.join(__dirname, "../components/SiteHeader.module.css");
+  const headerCss = fs.readFileSync(headerCssPath, "utf8");
+
+  assert.ok(
+    headerCss.includes(".avatarBtn") && headerCss.includes(".profileDropdown"),
+    "SiteHeader.module.css must style avatarBtn and profileDropdown"
+  );
+});
+

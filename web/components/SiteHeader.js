@@ -17,6 +17,7 @@ import {
 import { openAppDownloadModal } from "./AppDownloadPrompt";
 import ActiveUsers from "./ActiveUsers";
 import BtnSpinner from "./BtnSpinner";
+import { useAuth } from "./AuthProvider";
 import styles from "./SiteHeader.module.css";
 
 const NAV = [
@@ -79,12 +80,42 @@ export default function SiteHeader() {
     return () => document.removeEventListener("click", onDoc);
   }, []);
 
+  const auth = useAuth();
+  const user = auth?.user;
+  const isSignedIn = auth?.isSignedIn;
+  const logout = auth?.logout;
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+  const [activeProfile, setActiveProfile] = useState(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("active_profile");
+      if (stored) setActiveProfile(JSON.parse(stored));
+    } catch {}
+  }, [user]);
+
+  useEffect(() => {
+    setProfileMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!profileMenuRef.current?.contains(e.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
+
   // Close overlays on Escape key
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === "Escape") {
         setOpen(false);
         setMobileSearchOpen(false);
+        setProfileMenuOpen(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -519,64 +550,125 @@ export default function SiteHeader() {
                 </svg>
                 <span className={styles.downloadLabel}>App</span>
               </button>
-              <Link
-                href="/login"
-                className={`${styles.iconBtn} ${
-                  pathname.startsWith("/login") || pathname.startsWith("/signup")
-                    ? styles.iconBtnOn
-                    : ""
-                }`}
-                aria-label="Account"
-                title="Account"
-              >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  />
-                  <path
-                    d="M4 20c1.8-3.2 4.6-5 8-5s6.2 1.8 8 5"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </Link>
-              <Link
-                href="/history"
-                className={`${styles.iconBtn} ${
-                  pathname.startsWith("/history") ? styles.iconBtnOn : ""
-                }`}
-                aria-label="Watch history"
-                title="Watch history"
-              >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Link>
-              <Link
-                href="/settings"
-                className={`${styles.iconBtn} ${
-                  settingsActive ? styles.iconBtnOn : ""
-                }`}
-                aria-label="Settings"
-              >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  />
-                  <path
-                    d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.6 7.6 0 0 0-1.7-1L15 4h-4l-.5 2.1a7.6 7.6 0 0 0-1.7 1l-2.3-.7-2 3.4 2 1.2a7.8 7.8 0 0 0 0 2l-2 1.2 2 3.4 2.3-.7a7.6 7.6 0 0 0 1.7 1L11 20h4l.5-2.1a7.6 7.6 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </Link>
+              {/* Single Profile Avatar with dropdown for Profiles, History, Settings */}
+              <div className={styles.profileMenuWrap} ref={profileMenuRef}>
+                <button
+                  type="button"
+                  className={`${styles.avatarBtn} ${profileMenuOpen ? styles.avatarBtnOpen : ""}`}
+                  onClick={() => setProfileMenuOpen((prev) => !prev)}
+                  aria-label="Profile and menu"
+                  aria-haspopup="true"
+                  aria-expanded={profileMenuOpen}
+                  title={activeProfile?.name || user?.display_name || "Account, History & Settings"}
+                >
+                  {activeProfile?.avatar ? (
+                    <img
+                      src={activeProfile.avatar}
+                      alt={activeProfile.name || "Avatar"}
+                      className={styles.avatarImg}
+                    />
+                  ) : (
+                    <div className={styles.avatarPlaceholder}>
+                      {user?.display_name ? (
+                        user.display_name.charAt(0).toUpperCase()
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" className={styles.avatarDefaultIcon} aria-hidden>
+                          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" strokeWidth="1.8" />
+                          <path d="M4 20c1.8-3.2 4.6-5 8-5s6.2 1.8 8 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        </svg>
+                      )}
+                    </div>
+                  )}
+                </button>
+
+                {profileMenuOpen ? (
+                  <div className={styles.profileDropdown} role="menu">
+                    <div className={styles.dropdownHeader}>
+                      <div className={styles.dropdownUserInfo}>
+                        <strong className={styles.dropdownUserName}>
+                          {activeProfile?.name || user?.display_name || (isSignedIn ? "Member" : "Guest")}
+                        </strong>
+                        <span className={styles.dropdownUserMeta}>
+                          {user?.email || (isSignedIn ? "Active Account" : "Offstream Free")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className={styles.dropdownDivider} />
+
+                    <Link
+                      href="/profiles"
+                      className={`${styles.dropdownItem} ${pathname.startsWith("/profiles") ? styles.dropdownItemActive : ""}`}
+                      onClick={() => setProfileMenuOpen(false)}
+                      role="menuitem"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" className={styles.dropdownItemIcon} aria-hidden>
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>Profiles</span>
+                    </Link>
+
+                    <Link
+                      href="/history"
+                      className={`${styles.dropdownItem} ${pathname.startsWith("/history") ? styles.dropdownItemActive : ""}`}
+                      onClick={() => setProfileMenuOpen(false)}
+                      role="menuitem"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" className={styles.dropdownItemIcon} aria-hidden>
+                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>Watch History</span>
+                    </Link>
+
+                    <Link
+                      href="/settings"
+                      className={`${styles.dropdownItem} ${pathname.startsWith("/settings") ? styles.dropdownItemActive : ""}`}
+                      onClick={() => setProfileMenuOpen(false)}
+                      role="menuitem"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" className={styles.dropdownItemIcon} aria-hidden>
+                        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.6 7.6 0 0 0-1.7-1L15 4h-4l-.5 2.1a7.6 7.6 0 0 0-1.7 1l-2.3-.7-2 3.4 2 1.2a7.8 7.8 0 0 0 0 2l-2 1.2 2 3.4 2.3-.7a7.6 7.6 0 0 0 1.7 1L11 20h4l.5-2.1a7.6 7.6 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                      </svg>
+                      <span>Settings</span>
+                    </Link>
+
+                    <div className={styles.dropdownDivider} />
+
+                    {isSignedIn ? (
+                      <button
+                        type="button"
+                        className={`${styles.dropdownItem} ${styles.dropdownLogout}`}
+                        onClick={async () => {
+                          setProfileMenuOpen(false);
+                          if (logout) await logout();
+                        }}
+                        role="menuitem"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" className={styles.dropdownItemIcon} aria-hidden>
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span>Sign Out</span>
+                      </button>
+                    ) : (
+                      <Link
+                        href="/login"
+                        className={`${styles.dropdownItem} ${styles.dropdownLogin}`}
+                        onClick={() => setProfileMenuOpen(false)}
+                        role="menuitem"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" className={styles.dropdownItemIcon} aria-hidden>
+                          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span>Sign In / Sign Up</span>
+                      </Link>
+                    )}
+                  </div>
+                ) : null}
+              </div>
 
             </>
           ) : null}
