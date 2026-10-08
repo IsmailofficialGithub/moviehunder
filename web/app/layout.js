@@ -4,8 +4,6 @@ import AppDownloadPrompt from "../components/AppDownloadPrompt";
 import GlobalAds from "../components/ads/GlobalAds";
 import { AuthProvider } from "../components/AuthProvider";
 import GuestSyncWorker from "../components/GuestSyncWorker";
-import SmoothScroll from "../components/SmoothScroll";
-import ServiceWorkerRegister from "../components/ServiceWorkerRegister";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -141,8 +139,6 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <AuthProvider>
-          <SmoothScroll />
-          <ServiceWorkerRegister />
           <GlobalAds />
           <GuestSyncWorker />
           <SiteHeader />

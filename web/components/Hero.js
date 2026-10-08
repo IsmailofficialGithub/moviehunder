@@ -61,7 +61,7 @@ export default function Hero({ items = [] }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={item.poster_url}
-            alt=""
+            alt={item.name ? `${item.name} - Watch Free on Offstream` : "Featured Movie Poster"}
             className={styles.image}
             decoding="async"
             fetchPriority="high"
@@ -154,6 +154,7 @@ export default function Hero({ items = [] }) {
                 key={s.slug || i}
                 type="button"
                 role="tab"
+                aria-label={`Slide ${i + 1}: ${s.name || "Featured"}`}
                 aria-selected={i === index}
                 className={`${styles.dot} ${i === index ? styles.dotOn : ""}`}
                 onClick={() => {

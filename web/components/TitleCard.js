@@ -55,7 +55,7 @@ export default function TitleCard({ item }) {
         ) : null}
         {item.rank ? <span className={styles.rank}>#{item.rank}</span> : null}
       </div>
-      <h3>{item.name || "Untitled"}</h3>
+      <span className={styles.cardTitle}>{item.name || "Untitled"}</span>
       {item.year || item.rating ? (
         <p className={styles.meta}>
           {item.year ? <span>{item.year}</span> : null}

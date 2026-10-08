@@ -67,5 +67,25 @@ test("catalog and movie title pages allow search crawler discovery without Subsc
   assert.ok(titlePage.includes("notFound()"), "TitlePage must call notFound() when title does not exist");
 });
 
+test("on-page SEO and LLM search optimization standards", () => {
+  // 1. No CSS-hidden H1 in page.js
+  const pageContent = fs.readFileSync(path.join(__dirname, "../app/page.js"), "utf-8");
+  assert.ok(!pageContent.includes('clip: "rect(0, 0, 0, 0)"'), "Must not use cloaked 1px h1");
 
+  // 2. Meta description fits under SERP 1000px limit (<= 150 characters)
+  const descMatch = pageContent.match(/description:\s*["'`]([^"'`]+)["'`]/);
+  assert.ok(descMatch && descMatch[1], "Page must have a meta description");
+  assert.ok(descMatch[1].length <= 150, `Meta description (${descMatch[1].length} chars) must be <= 150 chars to avoid 1000px truncation`);
 
+  // 3. TitleCard must not use <h3> (prevents 325-heading explosion on homepage)
+  const titleCardContent = fs.readFileSync(path.join(__dirname, "../components/TitleCard.js"), "utf-8");
+  assert.ok(!titleCardContent.includes("<h3>"), "TitleCard must not use h3 tags for micro-cards");
+
+  // 4. Hero image must have non-empty alt text
+  const heroContent = fs.readFileSync(path.join(__dirname, "../components/Hero.js"), "utf-8");
+  assert.ok(!heroContent.includes('alt=""'), "Hero image must not have empty alt attribute");
+
+  // 5. next.config.mjs must disable poweredByHeader
+  const nextConfigContent = fs.readFileSync(path.join(__dirname, "../next.config.mjs"), "utf-8");
+  assert.ok(nextConfigContent.includes("poweredByHeader: false"), "next.config.mjs must have poweredByHeader: false");
+});

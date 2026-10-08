@@ -126,10 +126,10 @@ export default function SiteHeader() {
   return (
     <header className={`${styles.topbar} ${isPlayPage ? styles.topbarPlay : ""}`}>
       <div className={styles.topRow}>
-        <Link className={styles.brand} href="/" aria-label="MovieHunter home">
+        <Link className={styles.brand} href="/" aria-label="Offstream home">
           <Image
             src="/brand/logo-symbol.png"
-            alt="MovieHunter"
+            alt="Offstream"
             width={112}
             height={112}
             className={styles.brandLogo}
