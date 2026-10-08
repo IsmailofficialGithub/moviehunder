@@ -76,10 +76,14 @@ export async function generateMetadata({ params }) {
       },
     };
   } catch {
+    const fallbackName = decoded
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
     return {
-      title: "Title Not Found · Offstream",
-      robots: {
-        index: false,
+      title: `${fallbackName} - Watch Free Online | Offstream`,
+      description: `Watch ${fallbackName} online free in HD on Offstream. Stream Hollywood, Bollywood, and series ads-free.`,
+      alternates: {
+        canonical: `${siteUrl}/title/${encodeURIComponent(decoded)}`,
       },
     };
   }

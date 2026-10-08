@@ -73,7 +73,9 @@
   pointer-events: auto;
 }
 
-.copy h1 {
+.copy h1,
+.copy h2,
+.heroTitle {
   margin: 0 0 8px;
   font-size: clamp(28px, 4vw, 40px);
   text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
@@ -289,7 +291,9 @@
     padding: 28px 16px 20px;
   }
 
-  .copy h1 {
+  .copy h1,
+  .copy h2,
+  .heroTitle {
     font-size: clamp(16px, 5vw, 22px);
     margin-bottom: 4px;
     white-space: nowrap;

@@ -18,7 +18,23 @@ export default function robots() {
           "/search",
         ],
       },
+      {
+        userAgent: ["Googlebot", "Googlebot-Image", "Bingbot", "Applebot"],
+        allow: "/",
+        disallow: [
+          "/api/",
+          "/settings/",
+          "/profiles/",
+          "/history/",
+          "/auth/",
+          "/play",
+          "/search",
+        ],
+      },
     ],
-    sitemap: `${siteUrl}/sitemap.xml`,
+    sitemap: [
+      `${siteUrl}/sitemap.xml`,
+    ],
+    host: siteUrl,
   };
 }

@@ -7,7 +7,7 @@ import {
   getRanking,
 } from "../../lib/api";
 
-export const dynamic = "force-dynamic";
+// Cache sitemap and revalidate every hour for instant responses
 export const revalidate = 3600;
 
 function escapeXml(unsafe) {

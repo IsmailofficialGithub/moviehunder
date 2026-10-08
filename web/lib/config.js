@@ -12,17 +12,31 @@ export function getSiteUrl() {
 }
 
 export function getApiBase() {
-  return (
-    process.env.NEXT_PUBLIC_API_BASE?.replace(/\/+$/, "") ||
-    "http://127.0.0.1:8787"
-  );
+  const envBase = process.env.NEXT_PUBLIC_API_BASE?.replace(/\/+$/, "");
+  if (envBase) {
+    if (process.env.NODE_ENV === "production" && (envBase.includes("127.0.0.1") || envBase.includes("localhost"))) {
+      return "https://api-moviehunder.ismailabbasi.qzz.io";
+    }
+    return envBase;
+  }
+  if (process.env.NODE_ENV === "production") {
+    return "https://api-moviehunder.ismailabbasi.qzz.io";
+  }
+  return "http://127.0.0.1:8787";
 }
 
 export function getPlayRelayBase() {
-  return (
-    process.env.NEXT_PUBLIC_PLAY_RELAY?.replace(/\/+$/, "") ||
-    "http://127.0.0.1:8788"
-  );
+  const envBase = process.env.NEXT_PUBLIC_PLAY_RELAY?.replace(/\/+$/, "");
+  if (envBase) {
+    if (process.env.NODE_ENV === "production" && (envBase.includes("127.0.0.1") || envBase.includes("localhost"))) {
+      return "https://trackese.api";
+    }
+    return envBase;
+  }
+  if (process.env.NODE_ENV === "production") {
+    return "https://trackese.api";
+  }
+  return "http://127.0.0.1:8788";
 }
 
 // Secret app key is strictly server-side. Never expose to client browser.
@@ -56,10 +70,13 @@ export function apiClientHeaders(extra = {}) {
     Accept: "application/json",
     ...extra,
   };
-  // Only attach app key outside the browser (SSR / Node)
+  // Only attach app key and explicit Origin outside the browser (SSR / Node)
   const isBrowser = typeof window !== "undefined";
   if (!isBrowser) {
     headers["X-MovieHunter-Client"] = "web";
+    const site = getSiteUrl();
+    headers["Origin"] = site;
+    headers["Referer"] = `${site}/`;
     const key = getAppClientKey();
     if (key) headers["X-App-Key"] = key;
   }

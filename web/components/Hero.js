@@ -99,7 +99,7 @@ export default function Hero({ items = [] }) {
         <p className={styles.eyebrow}>
           Featured{slides.length > 1 ? ` · ${index + 1}/${slides.length}` : ""}
         </p>
-        <h1>{item.name}</h1>
+        <h2 className={styles.heroTitle}>{item.name}</h2>
         <p>{item.badge || "Featured pick"}</p>
         <Link
           className={styles.cta}
