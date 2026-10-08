@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Film,
@@ -27,12 +27,62 @@ export default function SitemapClient({
   categories = [],
   genres = [],
   topTitles = [],
+  initialTitles = [],
   legal = [],
   userPages = [],
   siteUrl = "",
 }) {
+  const startingTitles = initialTitles.length > 0 ? initialTitles : topTitles;
+  const [titles, setTitles] = useState(startingTitles);
+  const [isLoadingDynamic, setIsLoadingDynamic] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+
+  // Fetch dynamic catalog titles asynchronously in the background on client mount
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchDynamicTitles = async () => {
+      try {
+        setIsLoadingDynamic(true);
+        const res = await fetch("/api/sitemap-titles");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && Array.isArray(data?.titles) && data.titles.length > 0) {
+          setTitles((prev) => {
+            const seen = new Set(prev.map((t) => t.slug));
+            const newItems = data.titles.filter((t) => t?.slug && !seen.has(t.slug));
+            if (newItems.length === 0) return prev;
+            return [...prev, ...newItems];
+          });
+        }
+      } catch (err) {
+        // Silently fallback to default hardcoded titles
+      } finally {
+        if (isMounted) {
+          setIsLoadingDynamic(false);
+        }
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      if ("requestIdleCallback" in window) {
+        const idleId = window.requestIdleCallback(() => fetchDynamicTitles(), {
+          timeout: 2000,
+        });
+        return () => {
+          isMounted = false;
+          if (window.cancelIdleCallback) window.cancelIdleCallback(idleId);
+        };
+      } else {
+        const timer = setTimeout(fetchDynamicTitles, 800);
+        return () => {
+          isMounted = false;
+          clearTimeout(timer);
+        };
+      }
+    }
+  }, []);
 
   const q = filterQuery.trim().toLowerCase();
 
@@ -55,13 +105,13 @@ export default function SitemapClient({
 
   // Filter titles
   const filteredTitles = useMemo(() => {
-    if (!q) return topTitles;
-    return topTitles.filter((t) =>
+    if (!q) return titles;
+    return titles.filter((t) =>
       (t.name || "").toLowerCase().includes(q) ||
       String(t.year || "").includes(q) ||
       (t.category || "").toLowerCase().includes(q)
     );
-  }, [topTitles, q]);
+  }, [titles, q]);
 
   // Filter legal
   const filteredLegal = useMemo(() => {
@@ -113,8 +163,10 @@ export default function SitemapClient({
             <span className={styles.statLabel}>Curated Genres</span>
           </div>
           <div className={styles.statItem}>
-            <span className={styles.statNumber}>{topTitles.length}+</span>
-            <span className={styles.statLabel}>Indexed Titles</span>
+            <span className={styles.statNumber}>{titles.length}+</span>
+            <span className={styles.statLabel}>
+              {isLoadingDynamic ? "Syncing Catalog..." : "Indexed Titles"}
+            </span>
           </div>
           <div className={styles.statItem}>
             <span className={styles.statNumber}>100%</span>
@@ -244,7 +296,9 @@ export default function SitemapClient({
               <Film size={20} />
               <span>Featured Catalog Index</span>
             </h2>
-            <span className={styles.sectionCount}>{filteredTitles.length} items</span>
+            <span className={styles.sectionCount}>
+              {filteredTitles.length} items {isLoadingDynamic ? "• loading more..." : ""}
+            </span>
           </div>
 
           <div className={styles.titlesGrid}>

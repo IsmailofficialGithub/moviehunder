@@ -6,6 +6,7 @@ import {
   getAnimation,
   getRanking,
 } from "../../lib/api";
+import { DEFAULT_TITLES } from "../../lib/defaultSitemapData";
 
 // Cache sitemap and revalidate every hour for instant responses
 export const revalidate = 3600;
@@ -38,8 +39,19 @@ export async function GET() {
     { loc: `${siteUrl}/privacy`, lastmod: nowIso, changefreq: "monthly", priority: "0.4" },
   ];
 
-  // Dynamic catalog titles
+  // Dynamic catalog titles, pre-seeded with default items for guaranteed instant responses
   const titlesMap = new Map();
+
+  for (const item of DEFAULT_TITLES) {
+    if (item?.slug) {
+      titlesMap.set(item.slug, {
+        loc: `${siteUrl}/title/${encodeURIComponent(item.slug)}`,
+        lastmod: nowIso,
+        changefreq: "weekly",
+        priority: "0.8",
+      });
+    }
+  }
 
   const addItems = (items) => {
     if (!Array.isArray(items)) return;
@@ -76,7 +88,11 @@ export async function GET() {
   };
 
   try {
-    const results = await Promise.allSettled([
+    const timeoutPromise = new Promise((resolve) =>
+      setTimeout(() => resolve("timeout"), 3500)
+    );
+
+    const fetchPromise = Promise.allSettled([
       getHome(),
       getMovies(),
       getTvSeries(),
@@ -84,13 +100,17 @@ export async function GET() {
       getRanking(),
     ]);
 
-    for (const res of results) {
-      if (res.status !== "fulfilled" || !res.value) continue;
-      const data = res.value;
-      if (data.sections) addSections(data.sections);
-      if (data.movies) addItems(data.movies);
-      if (data.items) addItems(data.items);
-      if (data.ranking) addItems(data.ranking);
+    const winner = await Promise.race([fetchPromise, timeoutPromise]);
+
+    if (winner !== "timeout" && Array.isArray(winner)) {
+      for (const res of winner) {
+        if (res.status !== "fulfilled" || !res.value) continue;
+        const data = res.value;
+        if (data.sections) addSections(data.sections);
+        if (data.movies) addItems(data.movies);
+        if (data.items) addItems(data.items);
+        if (data.ranking) addItems(data.ranking);
+      }
     }
   } catch (err) {
     console.error("[Sitemap XML Route] Error fetching dynamic catalog:", err?.message);
