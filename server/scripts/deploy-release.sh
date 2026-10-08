@@ -123,16 +123,21 @@ fi
 echo "[7/7] Running post-deploy health checks (3 attempts)..."
 health_passed=false
 
+echo "Waiting 6s for PM2 processes to warm up..."
+sleep 6
+
 for attempt in 1 2 3; do
   echo "Health check attempt $attempt/3..."
-  sleep 5
+  if [ "$attempt" -gt 1 ]; then
+    sleep 5
+  fi
 
-  # Check local Worker port 8787
-  code_api=$(curl -s -o /dev/null -w "%{http_code}" -m 5 http://127.0.0.1:8787/api || echo "000")
+  # Check local Worker port 8787 (requires Origin or X-App-Key header)
+  code_api=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -H "Origin: https://offstream.co" http://127.0.0.1:8787/api || echo "000")
   # Check local Relay port 8788
-  code_relay=$(curl -s -o /dev/null -w "%{http_code}" -m 5 http://127.0.0.1:8788/play_replay/ || echo "000")
+  code_relay=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -H "Origin: https://offstream.co" http://127.0.0.1:8788/health || echo "000")
   # Check public Cloudflare Edge
-  code_edge=$(curl -s -o /dev/null -w "%{http_code}" -m 8 https://api.offstream.co/api || echo "000")
+  code_edge=$(curl -s -o /dev/null -w "%{http_code}" -m 8 -H "Origin: https://offstream.co" https://api.offstream.co/api || echo "000")
 
   echo "  - Local API (8787):    HTTP $code_api"
   echo "  - Local Relay (8788):  HTTP $code_relay"
@@ -156,3 +161,4 @@ else
   echo "ERROR: Health check failed on all 3 attempts!"
   rollback
 fi
+

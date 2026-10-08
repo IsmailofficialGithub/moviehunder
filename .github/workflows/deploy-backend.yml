@@ -124,8 +124,10 @@ jobs:
           echo "Ensuring transfer directory on server..."
           $SSH_CMD "$SSH_USER@$SSH_HOST" "mkdir -p $DEPLOY_PATH/transfer"
 
-          echo "Copying release bundle and verified env files to server..."
-          $SCP_CMD release.tar.gz server/.env server/.dev.vars "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/transfer/"
+          echo "Copying release bundle, deploy script, and verified env files to server..."
+          $SCP_CMD release.tar.gz server/scripts/deploy-release.sh server/.env server/.dev.vars "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/transfer/"
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "chmod +x $DEPLOY_PATH/transfer/deploy-release.sh"
 
           echo "Triggering deployment script on server..."
-          $SSH_CMD "$SSH_USER@$SSH_HOST" "DEPLOY_PATH=$DEPLOY_PATH GIT_SHA=$GIT_SHA $DEPLOY_PATH/server/scripts/deploy-release.sh"
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "DEPLOY_PATH=$DEPLOY_PATH GIT_SHA=$GIT_SHA bash $DEPLOY_PATH/transfer/deploy-release.sh"
+
