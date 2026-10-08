@@ -5,14 +5,14 @@ import { friendlyPageError } from "../../lib/errors";
 export const revalidate = 300;
 
 export const metadata = {
-  title: "Watch TV Series & Shows Online Free — Full Episodes",
+  title: "Watch Free TV Shows Online — Stream TV Series Free | Offstream",
   description:
-    "Binge popular TV series, web series, Korean dramas, and Hindi dubbed seasons online free on Offstream (offstream.co).",
+    "Watch free TV shows and episodic series online on Offstream (offstream.co). Stream trending dramas, web series, Korean dramas, and Hindi dubbed seasons with zero ads.",
   alternates: {
     canonical: "https://offstream.co/tv-series",
   },
   openGraph: {
-    title: "Watch TV Series & Shows Online Free | Offstream",
+    title: "Watch Free TV Shows Online — Stream TV Series Free | Offstream",
     description: "Stream full seasons and episodes of top TV series ads-free on Offstream (offstream.co).",
     url: "https://offstream.co/tv-series",
     siteName: "Offstream",

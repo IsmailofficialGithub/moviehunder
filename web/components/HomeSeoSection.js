@@ -6,24 +6,24 @@ import styles from "./HomeSeoSection.module.css";
 
 const FAQS = [
   {
-    q: "What is Offstream (offstream.co)?",
-    a: "Offstream is a free online entertainment platform where you can stream thousands of movies, TV series, anime, and Asian dramas in high definition without subscription fees or registration.",
+    q: "Where can I watch free movies and TV shows online?",
+    a: "You can watch free movies and TV shows online right here on Offstream (offstream.co). We offer a massive catalog of full movies, episodic television series, anime, and dramas available to stream in HD without registration or subscription fees.",
   },
   {
-    q: "Is watching movies on Offstream completely free?",
-    a: "Yes. All content across movies, series, animation, and music is 100% free to watch online in full HD quality with no hidden costs.",
+    q: "How can I stream free full movies online without paying?",
+    a: "Offstream provides free movies to stream across all popular genres including Action, Drama, Comedy, Sci-Fi, Horror, and Romance. Simply select any movie title and start streaming full movies online instantly in HD quality.",
+  },
+  {
+    q: "What makes Offstream one of the best free movie streaming sites in 2026?",
+    a: "Offstream delivers high-speed playback, zero subscription paywalls, multi-server redundancy, Hindi dubbed cinema, and synchronized subtitles, making it one of the top free online movie streaming platforms in 2026.",
   },
   {
     q: "Does Offstream offer Hindi dubbed cinema and dual-audio titles?",
     a: "Yes. Offstream features a dedicated collection of Hindi dubbed Hollywood blockbusters, Bollywood releases, South Indian action hits, and Asian dramas with synchronized multi-language subtitles.",
   },
   {
-    q: "Can I download the Offstream / MovieHunter app on mobile?",
-    a: "Yes. You can install the official MovieHunter Android app directly onto your phone or tablet for fast, native playback with episode tracking and offline download capabilities.",
-  },
-  {
-    q: "How often is the movie and series catalog updated?",
-    a: "Our catalog is refreshed multiple times every day with the latest theatrical releases, trending television episodes, anime broadcasts, and top rankings.",
+    q: "Can I watch free movies on mobile and Smart TVs?",
+    a: "Yes. Offstream is fully responsive and optimized for mobile browsers, Smart TVs, desktop, and tablets, with an official MovieHunter Android app available for fast mobile streaming.",
   },
 ];
 
@@ -56,10 +56,10 @@ export default function HomeSeoSection() {
 
       <div className={styles.header}>
         <h1 className={styles.mainTitle}>
-          Offstream — Watch Free Movies &amp; TV Series Online
+          Watch Free Movies and TV Shows Online | Offstream
         </h1>
         <p className={styles.introText}>
-          Welcome to <strong>Offstream</strong> (offstream.co), your premier home for streaming free movies and television series online with zero subscription walls. Experience Hollywood blockbusters, Bollywood releases, Hindi dubbed cinema, Korean dramas, anime, and trending TV shows in crisp high-definition video with synchronized multi-language subtitles.
+          Welcome to <strong>Offstream</strong> (offstream.co) — one of the top free online movie streaming sites in 2026. Discover thousands of free movies to stream, watch free full movies online, and stream trending TV shows in ultra HD with zero subscription fees. Whether you want to watch free movies online, explore fresh movies to watch online for free, or enjoy Hollywood, Bollywood, and Hindi dubbed releases, Offstream delivers an uninterrupted streaming experience.
         </p>
       </div>
 

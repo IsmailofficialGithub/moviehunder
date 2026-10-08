@@ -5,15 +5,15 @@ import { friendlyPageError } from "../../lib/errors";
 export const revalidate = 300;
 
 export const metadata = {
-  title: "Free Movies Online — Hollywood, Bollywood & Hindi Dubbed",
+  title: "Watch Free Movies Online — Free Movies to Stream | Offstream",
   description:
-    "Stream thousands of free movies in HD on Offstream (offstream.co). Watch Hollywood blockbusters, Bollywood hits, and Hindi dubbed cinema ads-free.",
+    "Watch free movies online in HD on Offstream (offstream.co). Stream thousands of free full movies, Hollywood hits, Bollywood cinema, and Hindi dubbed movies ads-free.",
   alternates: {
     canonical: "https://offstream.co/movies",
   },
   openGraph: {
-    title: "Free Movies Online — Hollywood, Bollywood & Hindi Dubbed | Offstream",
-    description: "Stream free movies in HD with zero ads on Offstream (offstream.co).",
+    title: "Watch Free Movies Online — Free Movies to Stream | Offstream",
+    description: "Stream free full movies online in HD with zero ads on Offstream.",
     url: "https://offstream.co/movies",
     siteName: "Offstream",
   },
