@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import LazyPoster from "./LazyPoster";
 import styles from "./TitleCard.module.css";
@@ -14,7 +15,16 @@ function isHindiItem(item) {
 }
 
 export default function TitleCard({ item }) {
+  const [isNavigating, setIsNavigating] = useState(false);
   const slug = item?.slug || "";
+
+  useEffect(() => {
+    if (isNavigating) {
+      const timer = setTimeout(() => setIsNavigating(false), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [isNavigating]);
+
   if (!slug) return null;
 
   const hindi = isHindiItem(item);
@@ -25,19 +35,31 @@ export default function TitleCard({ item }) {
       : null;
 
   const handleCardClick = (e) => {
-    if (!ADS_CONFIG.ENABLE_ADS || ADS_CONFIG.RANDOM_WRONG_CARD_CLICK_PERCENT <= 0) return;
-    
-    // Check if the user falls into the wrong click percentage
-    const randomChance = Math.random() * 100;
-    if (randomChance < ADS_CONFIG.RANDOM_WRONG_CARD_CLICK_PERCENT) {
+    if (isNavigating) {
       e.preventDefault();
-      // Open the ad in a new tab instead of navigating
-      window.open(ADS_CONFIG.DIRECT_LINK_URL, "_blank");
+      return;
     }
+
+    if (ADS_CONFIG.ENABLE_ADS && ADS_CONFIG.RANDOM_WRONG_CARD_CLICK_PERCENT > 0) {
+      const randomChance = Math.random() * 100;
+      if (randomChance < ADS_CONFIG.RANDOM_WRONG_CARD_CLICK_PERCENT) {
+        e.preventDefault();
+        window.open(ADS_CONFIG.DIRECT_LINK_URL, "_blank");
+        return;
+      }
+    }
+
+    setIsNavigating(true);
   };
 
   return (
-    <Link href={`/title/${encodeURIComponent(slug)}`} className={styles.card} onClick={handleCardClick}>
+    <Link
+      href={`/title/${encodeURIComponent(slug)}`}
+      prefetch={true}
+      className={`${styles.card} ${isNavigating ? styles.navigating : ""}`}
+      onClick={handleCardClick}
+      aria-busy={isNavigating}
+    >
       <div className={styles.posterWrap}>
         {item.poster_url ? (
           <LazyPoster
@@ -54,6 +76,12 @@ export default function TitleCard({ item }) {
           </span>
         ) : null}
         {item.rank ? <span className={styles.rank}>#{item.rank}</span> : null}
+
+        {isNavigating ? (
+          <div className={styles.navLoadingOverlay}>
+            <div className={styles.navSpinner} />
+          </div>
+        ) : null}
       </div>
       <span className={styles.cardTitle}>{item.name || "Untitled"}</span>
       {item.year || item.rating ? (

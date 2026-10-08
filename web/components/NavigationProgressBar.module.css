@@ -1,0 +1,19 @@
+.barContainer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 9999999;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  overflow: hidden;
+  background: transparent;
+}
+
+.bar {
+  height: 100%;
+  background: linear-gradient(90deg, #9333ea, #bd84db, #3ea6ff, #60a5fa);
+  box-shadow: 0 0 12px rgba(189, 132, 219, 0.85), 0 0 4px rgba(62, 166, 255, 0.9);
+  border-radius: 0 999px 999px 0;
+}

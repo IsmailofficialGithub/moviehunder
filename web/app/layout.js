@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import AppDownloadPrompt from "../components/AppDownloadPrompt";
@@ -6,6 +7,7 @@ import { AuthProvider } from "../components/AuthProvider";
 import GuestSyncWorker from "../components/GuestSyncWorker";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Inter } from "next/font/google";
+import NavigationProgressBar from "../components/NavigationProgressBar";
 import "./globals.css";
 
 const inter = Inter({
@@ -138,6 +140,9 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
+        <Suspense fallback={null}>
+          <NavigationProgressBar />
+        </Suspense>
         <AuthProvider>
           <GlobalAds />
           <GuestSyncWorker />

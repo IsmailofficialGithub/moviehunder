@@ -341,6 +341,34 @@ export default function StreamPlayer({
   const suppressClickRef = useRef(false);
   const pointerDownPosRef = useRef(null);
 
+  // Double-tap / double-click 10s seek
+  const [seekRipple, setSeekRipple] = useState(null);
+  const seekRippleTimerRef = useRef(null);
+  const tapStateRef = useRef({ lastTapTime: 0, lastX: 0, lastY: 0 });
+
+  const triggerSeek = useCallback((side) => {
+    if (!videoRef.current) return;
+    const delta = side === "left" ? -10 : 10;
+    const current = videoRef.current.currentTime || 0;
+    const duration = videoRef.current.duration || Infinity;
+    const target = Math.max(0, Math.min(duration, current + delta));
+    videoRef.current.currentTime = target;
+    setVideoTime(target);
+
+    if (seekRippleTimerRef.current) clearTimeout(seekRippleTimerRef.current);
+    setSeekRipple((prev) => {
+      const sameSide = prev && prev.side === side;
+      return {
+        side,
+        amount: sameSide ? prev.amount + 10 : 10,
+        id: Date.now(),
+      };
+    });
+    seekRippleTimerRef.current = setTimeout(() => {
+      setSeekRipple(null);
+    }, 750);
+  }, []);
+
   const endHoldSpeed = useCallback(() => {
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
@@ -360,6 +388,15 @@ export default function StreamPlayer({
   }, []);
 
   const handlePointerDown = useCallback((e) => {
+    // If pointer is inside modals or dialogs, let it pass cleanly
+    if (
+      e.target?.closest?.(
+        `.${styles.settingsModal}, .${styles.subModal}, .${styles.settingsPanel}, .${styles.subPanel}`
+      )
+    ) {
+      return;
+    }
+
     // Only primary mouse button or touch/pen
     if (e.pointerType === "mouse" && e.button !== 0) return;
 
@@ -371,6 +408,34 @@ export default function StreamPlayer({
     );
     if (isInteractive) return;
 
+    // Detect double-tap on mobile/touch
+    const now = Date.now();
+    const prevTime = tapStateRef.current.lastTapTime;
+    const prevX = tapStateRef.current.lastX;
+    const prevY = tapStateRef.current.lastY;
+    const dt = now - prevTime;
+    const dx = Math.abs(e.clientX - prevX);
+    const dy = Math.abs(e.clientY - prevY);
+
+    const controllerEl = e.currentTarget || videoRef.current;
+    const rect = controllerEl?.getBoundingClientRect
+      ? controllerEl.getBoundingClientRect()
+      : { left: 0, width: window.innerWidth };
+    const isLeft = e.clientX < rect.left + rect.width / 2;
+    const tapSide = isLeft ? "left" : "right";
+
+    if (dt < 320 && dx < 60 && dy < 60) {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      suppressClickRef.current = true;
+      tapStateRef.current = { lastTapTime: 0, lastX: 0, lastY: 0 };
+      triggerSeek(tapSide);
+      return;
+    }
+
+    tapStateRef.current = { lastTapTime: now, lastX: e.clientX, lastY: e.clientY };
     pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
 
     if (!videoRef.current) return;
@@ -389,13 +454,13 @@ export default function StreamPlayer({
       if (videoRef.current.paused) {
         videoRef.current.play().catch(() => {});
       }
-    }, 220);
+    }, 240);
 
     const onWindowPointerMove = (moveEvt) => {
       if (pointerDownPosRef.current && !isHolding2xRef.current) {
-        const dx = moveEvt.clientX - pointerDownPosRef.current.x;
-        const dy = moveEvt.clientY - pointerDownPosRef.current.y;
-        if (Math.hypot(dx, dy) > 20) {
+        const moveDx = moveEvt.clientX - pointerDownPosRef.current.x;
+        const moveDy = moveEvt.clientY - pointerDownPosRef.current.y;
+        if (Math.hypot(moveDx, moveDy) > 20) {
           if (holdTimerRef.current) {
             clearTimeout(holdTimerRef.current);
             holdTimerRef.current = null;
@@ -414,19 +479,49 @@ export default function StreamPlayer({
     window.addEventListener("pointermove", onWindowPointerMove);
     window.addEventListener("pointerup", onWindowPointerUp);
     window.addEventListener("pointercancel", onWindowPointerUp);
-  }, [endHoldSpeed]);
+  }, [endHoldSpeed, triggerSeek]);
 
   const handlePointerUp = useCallback(() => {
     endHoldSpeed();
   }, [endHoldSpeed]);
 
   const handleClickCapture = useCallback((e) => {
+    // If click is inside settings or subtitles modal, never suppress or block!
+    if (
+      e.target?.closest?.(
+        `.${styles.settingsModal}, .${styles.subModal}, .${styles.settingsPanel}, .${styles.subPanel}`
+      )
+    ) {
+      return;
+    }
     if (suppressClickRef.current) {
       e.preventDefault();
       e.stopPropagation();
       suppressClickRef.current = false;
     }
   }, []);
+
+  const handleDoubleClick = useCallback(
+    (e) => {
+      if (
+        e.target?.closest?.(
+          `button, a, input, select, textarea, media-play-button, media-time-range, media-volume-range, media-playback-rate-button, media-fullscreen-button, media-mute-button, [role="button"], .${styles.settingsModal}, .${styles.subModal}, .${styles.controlsWrapper}, .${styles.centerNavBtn}`
+        )
+      ) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      suppressClickRef.current = true;
+      const controllerEl = e.currentTarget || videoRef.current;
+      const rect = controllerEl?.getBoundingClientRect
+        ? controllerEl.getBoundingClientRect()
+        : { left: 0, width: window.innerWidth };
+      const isLeft = e.clientX < rect.left + rect.width / 2;
+      triggerSeek(isLeft ? "left" : "right");
+    },
+    [triggerSeek]
+  );
 
   // Cleanup hold timer on unmount
   useEffect(() => {
@@ -1109,9 +1204,12 @@ export default function StreamPlayer({
       {settingsOpen ? (
         <FullscreenPortal>
         <div
+          slot="middle-chrome"
           className={styles.settingsModal}
           role="dialog"
           aria-modal="true"
+          onClickCapture={(e) => e.stopPropagation()}
+          onPointerDownCapture={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
@@ -1221,9 +1319,12 @@ export default function StreamPlayer({
       {subPanelOpen ? (
         <FullscreenPortal>
         <div
+          slot="middle-chrome"
           className={styles.subModal}
           role="dialog"
           aria-modal="true"
+          onClickCapture={(e) => e.stopPropagation()}
+          onPointerDownCapture={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
@@ -1908,6 +2009,7 @@ export default function StreamPlayer({
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
             onClickCapture={handleClickCapture}
+            onDoubleClick={handleDoubleClick}
           >
             <video
               ref={videoRef}
@@ -1929,6 +2031,30 @@ export default function StreamPlayer({
               <div className={styles.speed2xBanner} aria-live="polite">
                 <FastForward size={16} className={styles.speed2xIcon} />
                 <span>2X Speed</span>
+              </div>
+            ) : null}
+            {seekRipple ? (
+              <div
+                className={
+                  seekRipple.side === "left"
+                    ? styles.seekRippleLeft
+                    : styles.seekRippleRight
+                }
+                key={seekRipple.id}
+                aria-live="polite"
+              >
+                <div className={styles.seekRippleArc} />
+                <div className={styles.seekRippleBadge}>
+                  <RotateCcw
+                    size={28}
+                    className={`${styles.seekRippleIcon} ${
+                      seekRipple.side === "right" ? styles.flipIcon : ""
+                    }`}
+                  />
+                  <span className={styles.seekRippleText}>
+                    {seekRipple.side === "left" ? `-${seekRipple.amount}s` : `+${seekRipple.amount}s`}
+                  </span>
+                </div>
               </div>
             ) : null}
             <div
