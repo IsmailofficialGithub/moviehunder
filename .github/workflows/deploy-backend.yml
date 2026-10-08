@@ -23,6 +23,12 @@ jobs:
   test:
     name: Test & Quality Gate
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:testpassword@127.0.0.1:5432/Test_movies?schema=public
+      AUTH_JWT_SECRET: super-secure-jwt-secret-that-is-at-least-32-chars-long
+      APP_PUBLIC_URL: https://offstream.co
+      GOOGLE_REDIRECT_URI: https://api.offstream.co/api/auth/google/callback
+      CORS_ALLOWED_ORIGIN_SUFFIXES: offstream.co
     services:
       postgres:
         image: postgres:16-alpine
