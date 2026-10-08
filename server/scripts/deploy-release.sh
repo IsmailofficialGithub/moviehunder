@@ -68,7 +68,8 @@ rollback() {
 
   echo "[ROLLBACK] Regenerating Prisma and restarting PM2..."
   cd "$SERVER_DIR"
-  npx prisma generate || true
+  npm install --no-audit --no-fund --production=false || true
+  npx --no-install prisma generate || true
   sudo /usr/bin/pm2 restart moviehunter-api moviehunter-relay --update-env || true
 
   echo "========================================="
@@ -97,17 +98,17 @@ fi
 # 5. Install dependencies and run migrations
 echo "[5/7] Installing dependencies & running database migrations..."
 cd "$SERVER_DIR"
-if ! npm ci --production=false; then
-  echo "ERROR: npm ci failed"
+if ! npm install --no-audit --no-fund --production=false; then
+  echo "ERROR: npm install failed"
   rollback
 fi
 
-if ! npx prisma generate; then
+if ! npx --no-install prisma generate; then
   echo "ERROR: prisma generate failed"
   rollback
 fi
 
-if ! npx prisma migrate deploy; then
+if ! npx --no-install prisma migrate deploy; then
   echo "ERROR: prisma migrate deploy failed"
   rollback
 fi
