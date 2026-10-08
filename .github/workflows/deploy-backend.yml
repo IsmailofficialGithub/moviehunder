@@ -1,0 +1,125 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+      - payment/profiles
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deploy to production even from non-main branch'
+        type: boolean
+        default: false
+
+concurrency:
+  group: moviehunter-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test & Quality Gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: Test_movies
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Validate Prisma Schema
+        working-directory: server
+        run: npx prisma validate
+
+      - name: Run Prisma Migrations on Test DB
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://postgres:testpassword@127.0.0.1:5432/Test_movies?schema=public
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+
+      - name: Run Test Suite
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://postgres:testpassword@127.0.0.1:5432/Test_movies?schema=public
+          AUTH_JWT_SECRET: super-secure-jwt-secret-that-is-at-least-32-chars-long
+          APP_PUBLIC_URL: https://offstream.co
+          GOOGLE_REDIRECT_URI: https://api.offstream.co/api/auth/google/callback
+          CORS_ALLOWED_ORIGIN_SUFFIXES: offstream.co
+        run: node --test test/*.test.js
+
+  deploy:
+    name: Deploy to Production
+    needs: test
+    if: github.ref == 'refs/heads/main' || inputs.force_deploy == true || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate and Validate .env Artifact
+        working-directory: server
+        env:
+          RAW_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+        run: node scripts/generate-env.mjs
+
+      - name: Package Release
+        run: |
+          tar -czf release.tar.gz -C server --exclude='node_modules' --exclude='.wrangler' --exclude='test' .
+
+      - name: Deploy via SSH & Execute Rollback Guard
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+
+          SSH_CMD="ssh -i ~/.ssh/id_deploy -p $SSH_PORT -o StrictHostKeyChecking=no"
+          SCP_CMD="scp -i ~/.ssh/id_deploy -P $SSH_PORT -o StrictHostKeyChecking=no"
+
+          echo "Ensuring transfer directory on server..."
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "mkdir -p $DEPLOY_PATH/transfer"
+
+          echo "Copying release bundle and verified env files to server..."
+          $SCP_CMD release.tar.gz server/.env server/.dev.vars "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/transfer/"
+
+          echo "Triggering deployment script on server..."
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "DEPLOY_PATH=$DEPLOY_PATH GIT_SHA=$GIT_SHA $DEPLOY_PATH/server/scripts/deploy-release.sh"
