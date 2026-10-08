@@ -1,5 +1,19 @@
 {
   "releases": {
+    "0.0.9": {
+      "summary": "Google Play compliant update flow, update gate freeze fixes, and stability improvements.",
+      "added": [
+        "Google Play store update link integration for store builds"
+      ],
+      "changed": [
+        "Soft update mechanism so users are never blocked from accessing the app"
+      ],
+      "fixed": [
+        "Resolved download hang on in-app updater",
+        "Removed restricted Android package install permissions"
+      ],
+      "removed": []
+    },
     "0.0.6": {
       "summary": "Full in-app installer fix with Android package installation permissions and hold-to-2x player upgrades.",
       "added": [
