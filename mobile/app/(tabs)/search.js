@@ -27,6 +27,7 @@ import {
 import {
   addSearchHistory,
   clearSearchHistory,
+  filterSearchHistory,
   removeSearchHistory,
   subscribeSearchHistory,
 } from "../../lib/searchHistory";
@@ -68,6 +69,7 @@ export default function SearchScreen() {
   const skipSuggest = useRef(Boolean(initial));
   const lastSavedQuery = useRef("");
   const searchReq = useRef(0);
+  const inputRef = useRef(null);
 
   useEffect(() => subscribeSearchHistory(setHistory), []);
 
@@ -236,6 +238,16 @@ export default function SearchScreen() {
 
   const submitSearch = () => runSearch(q);
 
+  const fillSuggestion = (word) => {
+    const bypass = isBypass(q);
+    const tag = q.match(/^@open788269/i)?.[0] || "";
+    const next = tag ? `${tag} ${word}` : word;
+    skipSuggest.current = false;
+    setQ(next);
+    setShowSuggestions(true);
+    inputRef.current?.focus();
+  };
+
   const pickSuggestion = (word) => {
     const bypass = isBypass(q);
     const tag = q.match(/^@open788269/i)?.[0] || "@open788269";
@@ -256,32 +268,32 @@ export default function SearchScreen() {
     setBlocked(false);
   };
 
+  const filteredHistory = filterSearchHistory(history, q);
   const showHistory = !q.trim() && !loading && !searched && history.length > 0;
 
   return (
     <Screen title="Search">
       <View style={styles.searchBox}>
         <View style={styles.inputWrap}>
-          <Ionicons name="search" size={18} color={colors.muted} />
+          <Ionicons name="search" size={18} color="rgba(255,255,255,0.6)" />
           <TextInput
+            ref={inputRef}
             value={q}
             onChangeText={onChangeText}
-            placeholder="Search titles..."
-            placeholderTextColor={colors.muted}
+            placeholder="Search movies, shows…"
+            placeholderTextColor="rgba(255,255,255,0.45)"
             style={styles.input}
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
             onSubmitEditing={submitSearch}
             onFocus={() => {
-              if (suggestions.length && !skipSuggest.current) {
-                setShowSuggestions(true);
-              }
+              setShowSuggestions(true);
             }}
           />
           {q ? (
-            <Pressable onPress={clearQuery} hitSlop={8}>
-              <Ionicons name="close-circle" size={18} color={colors.muted} />
+            <Pressable onPress={clearQuery} hitSlop={8} accessibilityLabel="Clear search">
+              <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.6)" />
             </Pressable>
           ) : null}
           <Pressable
@@ -296,18 +308,41 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      {showSuggestions && (suggestions.length > 0 || suggestLoading) ? (
+      {showSuggestions && (filteredHistory.length > 0 || suggestions.length > 0 || suggestLoading) ? (
         <View style={styles.suggestBox}>
-          <Text style={styles.suggestLabel}>Suggestions</Text>
+          {filteredHistory.map((item) => (
+            <Pressable
+              key={`h-${item}`}
+              style={styles.suggestRow}
+              onPress={() => pickHistory(item)}
+            >
+              <Ionicons name="time-outline" size={16} color={colors.muted} />
+              <Text style={styles.suggestText} numberOfLines={1}>
+                {item}
+              </Text>
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  removeSearchHistory(item);
+                }}
+                hitSlop={10}
+                style={styles.removeBtn}
+                accessibilityLabel={`Remove ${item} from history`}
+              >
+                <Ionicons name="close" size={16} color={colors.muted} />
+              </Pressable>
+            </Pressable>
+          ))}
+
           {suggestLoading && !suggestions.length ? (
             <ActivityIndicator
-              color={colors.accent}
+              color={colors.accentLight || colors.secondary}
               style={{ marginVertical: 8 }}
             />
           ) : (
             suggestions.map((word) => (
               <Pressable
-                key={word}
+                key={`s-${word}`}
                 style={styles.suggestRow}
                 onPress={() => pickSuggestion(word)}
               >
@@ -319,13 +354,29 @@ export default function SearchScreen() {
                 <Text style={styles.suggestText} numberOfLines={1}>
                   {word}
                 </Text>
+                <Pressable
+                  style={styles.insertBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    fillSuggestion(word);
+                  }}
+                  hitSlop={10}
+                  accessibilityLabel={`Insert "${word}" into search`}
+                >
+                  <Ionicons
+                    name="arrow-up-outline"
+                    size={16}
+                    color={colors.muted}
+                    style={styles.insertIcon}
+                  />
+                </Pressable>
               </Pressable>
             ))
           )}
         </View>
       ) : null}
 
-      {showHistory ? (
+      {!showSuggestions && showHistory ? (
         <View style={styles.historyBox}>
           <View style={styles.historyHead}>
             <Text style={styles.historyLabel}>Recent searches</Text>
@@ -344,8 +395,13 @@ export default function SearchScreen() {
                 {word}
               </Text>
               <Pressable
-                onPress={() => removeSearchHistory(word)}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  removeSearchHistory(word);
+                }}
                 hitSlop={10}
+                style={styles.removeBtn}
+                accessibilityLabel={`Remove ${word} from history`}
               >
                 <Ionicons name="close" size={16} color={colors.muted} />
               </Pressable>
@@ -431,49 +487,59 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: colors.panel,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    height: 44,
   },
   input: {
     flex: 1,
     color: colors.text,
-    fontSize: 16,
+    fontSize: 14,
     paddingVertical: 0,
   },
   searchBtn: {
-    paddingHorizontal: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingHorizontal: 12,
     paddingVertical: 6,
+    borderRadius: radii.pill,
   },
   searchBtnText: {
-    color: colors.secondary,
-    fontWeight: "800",
-    fontSize: 13,
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 12.5,
   },
   suggestBox: {
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
-    backgroundColor: colors.panelSoft,
-    borderRadius: radii.md,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    backgroundColor: "#16161c",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    overflow: "hidden",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
   },
   historyBox: {
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
-    backgroundColor: colors.panelSoft,
-    borderRadius: radii.md,
+    backgroundColor: "#16161c",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
     paddingVertical: 8,
-    paddingHorizontal: 4,
+    overflow: "hidden",
   },
   historyHead: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     marginBottom: 4,
   },
   historyLabel: {
@@ -494,20 +560,35 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     marginBottom: 4,
   },
   suggestRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
   },
   suggestText: {
     color: colors.text,
     fontSize: 14,
     flex: 1,
+  },
+  insertBtn: {
+    padding: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  insertIcon: {
+    transform: [{ rotate: "-45deg" }],
+  },
+  removeBtn: {
+    padding: 6,
+    alignItems: "center",
+    justifyContent: "center",
   },
   center: {
     flex: 1,

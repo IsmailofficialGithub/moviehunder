@@ -110,3 +110,12 @@ export async function clearSearchHistory() {
   notify();
   return [];
 }
+
+/** Filter local search history by prefix/substring. */
+export function filterSearchHistory(list = [], query = "") {
+  if (!query || !query.trim()) return (list || []).slice(0, 8);
+  const q = query.toLowerCase().trim();
+  return (list || [])
+    .filter((item) => item.toLowerCase().includes(q))
+    .slice(0, 6);
+}

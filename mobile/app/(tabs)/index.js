@@ -309,6 +309,10 @@ export default function HomeScreen() {
         router.push("/history");
         return;
       }
+      if (id === "songs") {
+        router.push("/(tabs)/songs");
+        return;
+      }
       if (id === category) return;
       saveTabScroll(scrollKey, scrollYRef.current);
       scrollRef.current?.scrollTo({ y: 0, animated: false });

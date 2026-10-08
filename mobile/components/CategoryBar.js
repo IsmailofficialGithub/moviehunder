@@ -4,11 +4,12 @@ import { colors, radii, spacing } from "../lib/theme";
 
 export const HOME_CATEGORIES = [
   { id: "live", label: "LIVE", kind: "live" },
-  { id: "trending", label: "Trending" },
-  { id: "movie", label: "Movie" },
-  { id: "tv", label: "TV" },
+  { id: "trending", label: "All" },
+  { id: "movie", label: "Movies" },
+  { id: "tv", label: "TV Series" },
   { id: "animation", label: "Anime" },
   { id: "ranking", label: "Top" },
+  { id: "songs", label: "Songs" },
   { id: "history", label: "History" },
 ];
 
@@ -26,7 +27,11 @@ export default function CategoryBar({ activeId, onChange }) {
             <Pressable
               key={cat.id}
               onPress={() => onChange?.(cat.id)}
-              style={[styles.live, active && styles.liveActive]}
+              style={({ pressed }) => [
+                styles.live,
+                active && styles.liveActive,
+                pressed && { opacity: 0.8 },
+              ]}
             >
               <Text style={styles.liveText}>LIVE</Text>
               <Ionicons name="radio-outline" size={12} color="#fff" />
@@ -37,12 +42,15 @@ export default function CategoryBar({ activeId, onChange }) {
           <Pressable
             key={cat.id}
             onPress={() => onChange?.(cat.id)}
-            style={styles.item}
+            style={({ pressed }) => [
+              styles.pill,
+              active && styles.pillActive,
+              pressed && { opacity: 0.8 },
+            ]}
           >
             <Text style={[styles.label, active && styles.labelActive]}>
               {cat.label}
             </Text>
-            {active ? <View style={styles.underline} /> : null}
           </Pressable>
         );
       })}
@@ -53,47 +61,63 @@ export default function CategoryBar({ activeId, onChange }) {
 const styles = StyleSheet.create({
   row: {
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
     paddingBottom: spacing.sm,
     alignItems: "center",
-    gap: 18,
+    gap: 8,
   },
   live: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: colors.live,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: radii.pill,
+    elevation: 2,
+    shadowColor: colors.live,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
   },
   liveActive: {
-    opacity: 0.95,
+    borderWidth: 1.5,
+    borderColor: "#fff",
   },
   liveText: {
     color: "#fff",
     fontWeight: "900",
     fontSize: 11,
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
   },
-  item: {
-    paddingVertical: 6,
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
     alignItems: "center",
+    justifyContent: "center",
+  },
+  pillActive: {
+    backgroundColor: "#ffffff",
+    borderColor: "#ffffff",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   label: {
-    color: colors.muted,
-    fontSize: 15,
+    color: "rgba(255, 255, 255, 0.75)",
+    fontSize: 13,
     fontWeight: "600",
+    letterSpacing: 0.1,
   },
   labelActive: {
-    color: colors.secondary,
-    fontWeight: "800",
-  },
-  underline: {
-    marginTop: 5,
-    height: 3,
-    width: "100%",
-    minWidth: 28,
-    borderRadius: 2,
-    backgroundColor: colors.secondary,
+    color: "#0c0c0e",
+    fontWeight: "700",
   },
 });
+
