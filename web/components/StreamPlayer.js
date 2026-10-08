@@ -699,13 +699,16 @@ export default function StreamPlayer({
   }, []);
 
   useEffect(() => {
-    if (!subPanelOpen) return;
+    if (!subPanelOpen && !settingsOpen) return;
     const onKey = (e) => {
-      if (e.key === "Escape") setSubPanelOpen(false);
+      if (e.key === "Escape") {
+        setSubPanelOpen(false);
+        setSettingsOpen(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [subPanelOpen]);
+  }, [subPanelOpen, settingsOpen]);
 
   const load = useCallback(async () => {
     if (!subjectId || !detailPath) {
@@ -837,7 +840,8 @@ export default function StreamPlayer({
     if (!mounted) return;
     const video = videoRef.current;
     if (!video || !src) return;
-    let resume = Number(initialTime) || 0;
+    let resume = resumeAtRef.current > 0 ? resumeAtRef.current : Number(initialTime) || 0;
+    resumeAtRef.current = 0;
 
     // Reset retry counter every time the src changes (new episode or quality change)
     videoRetryCount.current = 0;
@@ -1208,8 +1212,12 @@ export default function StreamPlayer({
           className={styles.settingsModal}
           role="dialog"
           aria-modal="true"
-          onClickCapture={(e) => e.stopPropagation()}
-          onPointerDownCapture={(e) => e.stopPropagation()}
+          onClickCapture={(e) => {
+            if (e.target === e.currentTarget) e.stopPropagation();
+          }}
+          onPointerDownCapture={(e) => {
+            if (e.target === e.currentTarget) e.stopPropagation();
+          }}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
@@ -1233,13 +1241,15 @@ export default function StreamPlayer({
               <h2>Settings</h2>
               <button
                 type="button"
-                className={styles.removeBtn}
+                className={styles.iconCloseBtn}
                 onClick={(e) => {
                   e.stopPropagation();
                   setSettingsOpen(false);
                 }}
+                title="Close settings"
+                aria-label="Close settings"
               >
-                Close
+                <X size={15} />
               </button>
             </div>
 
@@ -1323,8 +1333,12 @@ export default function StreamPlayer({
           className={styles.subModal}
           role="dialog"
           aria-modal="true"
-          onClickCapture={(e) => e.stopPropagation()}
-          onPointerDownCapture={(e) => e.stopPropagation()}
+          onClickCapture={(e) => {
+            if (e.target === e.currentTarget) e.stopPropagation();
+          }}
+          onPointerDownCapture={(e) => {
+            if (e.target === e.currentTarget) e.stopPropagation();
+          }}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
@@ -2118,7 +2132,8 @@ export default function StreamPlayer({
                   className={styles.bottomIconBtn}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSubPanelOpen(true);
+                    setSubPanelOpen((v) => !v);
+                    setSettingsOpen(false);
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onPointerUp={(e) => e.stopPropagation()}
@@ -2131,7 +2146,8 @@ export default function StreamPlayer({
                   className={styles.bottomIconBtn}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSettingsOpen(true);
+                    setSettingsOpen((v) => !v);
+                    setSubPanelOpen(false);
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onPointerUp={(e) => e.stopPropagation()}
