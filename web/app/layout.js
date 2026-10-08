@@ -206,30 +206,18 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={inter.className}>
       <head>
-        <link rel="preconnect" href="https://pbcdnw.aoneroom.com" />
-        <link rel="dns-prefetch" href="https://pbcdnw.aoneroom.com" />
-        <link
-          rel="preconnect"
-          href="https://api-moviehunder.ismailabbasi.qzz.io"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="dns-prefetch"
-          href="https://api-moviehunder.ismailabbasi.qzz.io"
-        />
-        <link rel="preconnect" href="https://www.googletagmanager.com" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
       <body>
-        {/* Google Analytics (gtag.js) */}
+        {/* Google Analytics (gtag.js) - loaded lazily to preserve fast LCP and 0 TBT */}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
-          strategy="afterInteractive"
+          strategy="lazyOnload"
         />
-        <Script id="google-analytics" strategy="afterInteractive">
+        <Script id="google-analytics" strategy="lazyOnload">
           {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}

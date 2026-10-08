@@ -40,7 +40,7 @@ export default function LazyPoster({
             width={Number(width)}
             height={Number(height)}
             priority={priority}
-            quality={75}
+            quality={70}
             draggable={false}
             onLoad={() => setLoaded(true)}
             onError={() => setUseFallback(true)}
@@ -53,7 +53,7 @@ export default function LazyPoster({
             fill
             sizes={sizes}
             priority={priority}
-            quality={75}
+            quality={70}
             draggable={false}
             onLoad={() => setLoaded(true)}
             onError={() => setUseFallback(true)}

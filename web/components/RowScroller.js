@@ -22,16 +22,25 @@ export default function RowScroller({ children }) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    update();
+
+    // Defer initial layout measurement to avoid forcing synchronous reflow during page load
+    const rafId = requestAnimationFrame(() => {
+      update();
+    });
+
     el.addEventListener("scroll", update, { passive: true });
-    const ro = new ResizeObserver(update);
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(update);
+    });
     ro.observe(el);
+
     return () => {
+      cancelAnimationFrame(rafId);
       el.removeEventListener("scroll", update);
       ro.disconnect();
       cancelAnimationFrame(animRef.current);
     };
-  }, [update, children]);
+  }, [update]);
 
   const scrollBy = (dir) => {
     const el = ref.current;

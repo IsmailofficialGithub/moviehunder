@@ -73,8 +73,9 @@ export default function Hero({ items = [] }) {
               }
               fill
               priority={index === 0}
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1280px"
-              quality={80}
+              fetchPriority={index === 0 ? "high" : "auto"}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 1200px"
+              quality={70}
               className={styles.image}
               onError={() => setImgError(true)}
             />
