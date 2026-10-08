@@ -1,5 +1,5 @@
 {
-  "latest_version": "0.0.8",
+  "latest_version": "0.0.9",
   "min_supported_version": "0.0.1",
   "update_type": "soft",
   "env": {
@@ -7,11 +7,24 @@
     "play_relay": "",
     "app_client_key": ""
   },
-  "release_notes": "Show only downloaded episodes in series list and clean up notification text format",
-  "release_metadata": {},
+  "release_notes": "Google Play compliant update flow, update gate freeze fixes, and stability improvements.\n\nAdded\n- Google Play store update link integration for store builds\n\nChanged\n- Soft update mechanism so users are never blocked from accessing the app\n\nFixed\n- Resolved download hang on in-app updater\n- Removed restricted Android package install permissions",
+  "release_metadata": {
+    "summary": "Google Play compliant update flow, update gate freeze fixes, and stability improvements.",
+    "added": [
+      "Google Play store update link integration for store builds"
+    ],
+    "changed": [
+      "Soft update mechanism so users are never blocked from accessing the app"
+    ],
+    "fixed": [
+      "Resolved download hang on in-app updater",
+      "Removed restricted Android package install permissions"
+    ],
+    "removed": []
+  },
   "android": {
-    "version_code": 8,
-    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.8/moviehunter-0.0.8.apk",
+    "version_code": 9,
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.9/moviehunter-0.0.9.apk",
     "force": false
   }
 }
