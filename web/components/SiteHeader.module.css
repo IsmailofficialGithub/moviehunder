@@ -350,42 +350,37 @@
   height: 17px;
 }
 
-.insertBtn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  transform: scale(1.08);
+.mobileSearchTrigger {
+  display: none;
 }
 
 /* Mobile Fullscreen Search Overlay */
 .mobileOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  background: #0f0f12;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: fadeInOverlay 0.15s ease-out;
-}
-
-@keyframes fadeInOverlay {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 999999 !important;
+  background: #0f0f12 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  box-sizing: border-box;
 }
 
 .mobileTopBar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: #0f0f12;
+  flex-shrink: 0;
 }
 
 .mobileBackBtn {
@@ -397,19 +392,20 @@
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: #f1f1f1;
+  color: #fff;
   cursor: pointer;
   flex-shrink: 0;
+  padding: 0;
   transition: background 0.12s;
 }
 
 .mobileBackBtn svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
-.mobileBackBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
+.mobileBackBtn:active {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .mobileSearchForm {
@@ -421,10 +417,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 40px;
+  height: 42px;
   padding: 0 4px 0 14px;
   background: #212124;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 9999px;
 }
 
@@ -436,7 +432,7 @@
   outline: none;
   background: transparent;
   color: #fff;
-  font-size: 15px;
+  font-size: 16px; /* 16px prevents iOS Safari auto-zoom */
   padding: 0;
 }
 
@@ -444,11 +440,21 @@
   color: rgba(255, 255, 255, 0.45);
 }
 
+.mobileSearchBar input::-webkit-search-cancel-button,
+.mobileSearchBar input::-webkit-search-decoration,
+.mobileSearchBar input::-webkit-search-results-button,
+.mobileSearchBar input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none !important;
+}
+
 .mobileResults {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 6px 0;
+  background: #0f0f12;
+  padding: 4px 0;
 }
 
 .mobileSuggestList {
@@ -462,10 +468,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
-  min-height: 46px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  transition: background 0.1s;
+  padding: 0 16px;
+  min-height: 48px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0f0f12;
 }
 
 .mobileHistoryRow:active,
@@ -479,12 +485,66 @@
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 11px 0;
+  padding: 12px 0;
   background: transparent;
   border: 0;
   text-align: left;
   cursor: pointer;
   font-size: 15px;
+}
+
+.mobileResults .historyText {
+  color: #3ea6ff;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobileResults .suggestText {
+  color: #f1f1f1;
+  font-size: 15px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobileResults .historyRemove {
+  background: transparent;
+  border: 0;
+  color: #3ea6ff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobileResults .insertBtn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.mobileResults .insertBtn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mobileResults .insertBtn:active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
 }
 
 .actions {
@@ -564,27 +624,44 @@
   }
 
   .search {
+    display: none !important;
+  }
+
+  .mobileSearchTrigger {
     grid-area: search;
-    flex: unset;
-    max-width: none;
-    margin-left: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 12px;
+    background: #1c1c20;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 9999px;
+    color: rgba(255, 255, 255, 0.55);
+    cursor: pointer;
+    flex: 1;
     min-width: 0;
+    text-align: left;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
   }
 
-  .searchBar {
-    height: 36px;
-    padding: 0 6px 0 10px;
-    border-radius: 10px;
+  .mobileSearchTrigger:hover,
+  .mobileSearchTrigger:active {
+    background: #25252a;
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #fff;
   }
 
-  .searchBar input {
+  .mobileSearchTriggerText {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 13px;
-  }
-
-  .searchSubmit {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.55);
   }
 
   .actions {
