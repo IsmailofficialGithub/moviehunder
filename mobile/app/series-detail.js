@@ -18,14 +18,18 @@ import DownloadSheet from "../components/DownloadSheet";
 import { getDetail } from "../lib/api";
 import { colors, radii, spacing } from "../lib/theme";
 import {
+  canPlayPartial,
+  enqueueAllSeasons,
   etaSecondsOf,
   fetchSeasonCatalog,
   formatBytes,
   formatEta,
   hydrateDownloads,
+  pauseAllDownloads,
   pauseDownload,
   progressOf,
   removeDownload,
+  resumeAllDownloads,
   resumeDownload,
   retryDownload,
   subscribeDownloads,
@@ -122,7 +126,8 @@ export default function SeriesDetailScreen() {
     const first = episodes[0];
     return {
       title: first.title,
-      poster: first.poster,
+      poster: first.posterLocalUri || first.poster,
+      posterLocalUri: first.posterLocalUri,
       subjectId,
       detailPath,
       episodes,
@@ -163,7 +168,8 @@ export default function SeriesDetailScreen() {
 
   const openPlay = (epItem) => {
     if (!epItem) return;
-    const isCompleted = epItem.status === "completed" && !epItem.pending;
+    const isPlayable =
+      (epItem.status === "completed" || canPlayPartial(epItem)) && !epItem.pending;
     router.push({
       pathname: "/play",
       params: {
@@ -172,10 +178,10 @@ export default function SeriesDetailScreen() {
         se: String(epItem.se || activeSeasonNum),
         ep: String(epItem.ep || "1"),
         title: `${epItem.title || pack?.title || richMeta?.title || "Series"} · S${epItem.se || activeSeasonNum}E${epItem.ep || 1}`,
-        poster: epItem.poster || epItem.thumbnail || pack?.poster || richMeta?.poster || "",
+        poster: epItem.posterLocalUri || epItem.poster || epItem.thumbnail || pack?.posterLocalUri || pack?.poster || richMeta?.poster || "",
         kind: "series",
         autoplay: "1",
-        ...(isCompleted ? { downloadId: encodeURIComponent(epItem.id) } : {}),
+        ...(isPlayable ? { downloadId: encodeURIComponent(epItem.id) } : {}),
       },
     });
   };
@@ -208,10 +214,136 @@ export default function SeriesDetailScreen() {
     );
   };
 
-  // Download all for active season
+  const hasDownloading = useMemo(
+    () =>
+      episodes.some(
+        (e) => e.status === "downloading" || e.status === "queued" || e.pending
+      ),
+    [episodes]
+  );
+
+  const hasPaused = useMemo(
+    () =>
+      !hasDownloading &&
+      episodes.some((e) => e.status === "paused" || e.status === "failed"),
+    [hasDownloading, episodes]
+  );
+
+  const currentSeasonDownloading = useMemo(
+    () =>
+      (currentSeason?.episodes || []).some(
+        (e) => e.status === "downloading" || e.status === "queued" || e.pending
+      ),
+    [currentSeason]
+  );
+
+  const currentSeasonPaused = useMemo(
+    () =>
+      !currentSeasonDownloading &&
+      (currentSeason?.episodes || []).some(
+        (e) => e.status === "paused" || e.status === "failed"
+      ),
+    [currentSeasonDownloading, currentSeason]
+  );
+
+  const onPauseAll = async () => {
+    const toPause = episodes
+      .filter(
+        (e) => e.status === "downloading" || e.status === "queued" || e.pending
+      )
+      .map((e) => e.id);
+    if (!toPause.length) return;
+    await pauseAllDownloads(toPause);
+  };
+
+  const onResumeAll = async () => {
+    const toResume = episodes
+      .filter((e) => e.status === "paused" || e.status === "failed")
+      .map((e) => e.id);
+    if (!toResume.length) return;
+    await resumeAllDownloads(toResume);
+  };
+
+  const onPauseSeason = async (seasonNum) => {
+    const targetEpisodes = (currentSeason?.episodes || episodes).filter(
+      (e) =>
+        (Number(e.se) === Number(seasonNum) || !seasonNum) &&
+        (e.status === "downloading" || e.status === "queued" || e.pending)
+    );
+    const ids = targetEpisodes.map((e) => e.id);
+    if (!ids.length) return;
+    await pauseAllDownloads(ids);
+  };
+
+  const onResumeSeason = async (seasonNum) => {
+    const targetEpisodes = (currentSeason?.episodes || episodes).filter(
+      (e) =>
+        (Number(e.se) === Number(seasonNum) || !seasonNum) &&
+        (e.status === "paused" || e.status === "failed")
+    );
+    const ids = targetEpisodes.map((e) => e.id);
+    if (!ids.length) return;
+    await resumeAllDownloads(ids);
+  };
+
+  const onDownloadAllSeasons = async () => {
+    try {
+      const res = await enqueueAllSeasons({
+        subjectId,
+        detailPath,
+        title: pack?.title || richMeta?.title || "Series",
+        poster: pack?.poster || richMeta?.poster || null,
+        preferredHeight: 720,
+      });
+      Alert.alert(
+        "Download Series",
+        `Queued ${res.queued} episode${res.queued === 1 ? "" : "s"} across all seasons (${res.skipped} already saved or queued).`
+      );
+    } catch (err) {
+      Alert.alert(
+        "Download",
+        toUserMessage(err, "Couldn't queue all seasons. Try again.")
+      );
+    }
+  };
+
+  // Download all for active season (or prompt all seasons if multiple)
   const onDownloadSeason = () => {
     const sNum = Number(currentSeason?.season ?? activeSeasonNum ?? 1);
     const first = currentSeason?.episodes?.[0];
+    const availableSeasons = catalog?.seasons || [];
+
+    if (availableSeasons.length > 1) {
+      Alert.alert(
+        "Download Series",
+        `Select download option for "${pack?.title || richMeta?.title || "Series"}":`,
+        [
+          {
+            text: `Download Season ${sNum}`,
+            onPress: () => {
+              setDlSheet({
+                mode: "season",
+                subjectId,
+                detailPath,
+                title: pack?.title || richMeta?.title || "Series",
+                poster: pack?.poster || richMeta?.poster || null,
+                se: String(first?.se ?? sNum),
+                ep: String(first?.ep ?? 1),
+                season: sNum,
+                kind: "series",
+              });
+            },
+          },
+          {
+            text: `Download All Seasons (${availableSeasons.length} Seasons)`,
+            onPress: onDownloadAllSeasons,
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+      return;
+    }
+
     setDlSheet({
       mode: "season",
       subjectId,
@@ -316,7 +448,7 @@ export default function SeriesDetailScreen() {
   if (!pack && !episodes.length) return null;
 
   const title = richMeta?.title || pack?.title || "Series";
-  const poster = richMeta?.poster || pack?.poster || "";
+  const poster = pack?.posterLocalUri || richMeta?.poster || pack?.poster || "";
   const description = richMeta?.description || richMeta?.overview || "";
   const rating = richMeta?.imdb_rating || richMeta?.rating || null;
   const releaseYear = richMeta?.release_date ? String(richMeta.release_date).slice(0, 4) : "";
@@ -416,15 +548,39 @@ export default function SeriesDetailScreen() {
               </Text>
             </Pressable>
 
-            <Pressable
-              style={styles.dlAllBtn}
-              onPress={onDownloadSeason}
-              accessibilityRole="button"
-              accessibilityLabel="Download All"
-            >
-              <Ionicons name="download-outline" size={16} color={colors.accentLight} />
-              <Text style={styles.dlAllText}>Download All</Text>
-            </Pressable>
+            <View style={styles.heroActionRow}>
+              <Pressable
+                style={styles.dlAllBtn}
+                onPress={onDownloadSeason}
+                accessibilityRole="button"
+                accessibilityLabel="Download All"
+              >
+                <Ionicons name="download-outline" size={15} color={colors.accentLight} />
+                <Text style={styles.dlAllText} numberOfLines={1}>Download All</Text>
+              </Pressable>
+
+              {hasDownloading ? (
+                <Pressable
+                  style={styles.pauseAllBtn}
+                  onPress={onPauseAll}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pause All"
+                >
+                  <Ionicons name="pause" size={14} color="#fbbf24" />
+                  <Text style={styles.pauseAllText} numberOfLines={1}>Pause All</Text>
+                </Pressable>
+              ) : hasPaused ? (
+                <Pressable
+                  style={styles.resumeAllBtn}
+                  onPress={onResumeAll}
+                  accessibilityRole="button"
+                  accessibilityLabel="Resume All"
+                >
+                  <Ionicons name="play" size={14} color={colors.accentLight} />
+                  <Text style={styles.resumeAllText} numberOfLines={1}>Resume All</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -482,29 +638,55 @@ export default function SeriesDetailScreen() {
               </Text>
             )}
 
-            <Pressable
-              style={[styles.moreBtn, catalogOpen && styles.moreBtnActive]}
-              onPress={onFetchMore}
-              disabled={catalogBusy}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Download More"
-            >
-              {catalogBusy ? (
-                <ActivityIndicator size="small" color={colors.accentLight} />
-              ) : (
-                <>
-                  <Ionicons
-                    name={catalogOpen ? "chevron-up" : "cloud-download-outline"}
-                    size={14}
-                    color={colors.accentLight}
-                  />
-                  <Text style={styles.moreBtnText}>
-                    {catalogOpen ? "Hide More" : "More"}
-                  </Text>
-                </>
-              )}
-            </Pressable>
+            <View style={styles.seasonBarActions}>
+              {currentSeasonDownloading ? (
+                <Pressable
+                  style={styles.seasonActionBtn}
+                  onPress={() => onPauseSeason(currentSeason?.season)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Pause Season ${currentSeason?.season ?? 1}`}
+                >
+                  <Ionicons name="pause" size={12} color="#fbbf24" />
+                  <Text style={styles.seasonActionPauseText}>Pause</Text>
+                </Pressable>
+              ) : currentSeasonPaused ? (
+                <Pressable
+                  style={styles.seasonActionBtn}
+                  onPress={() => onResumeSeason(currentSeason?.season)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Resume Season ${currentSeason?.season ?? 1}`}
+                >
+                  <Ionicons name="play" size={12} color={colors.accentLight} />
+                  <Text style={styles.seasonActionResumeText}>Resume</Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                style={[styles.moreBtn, catalogOpen && styles.moreBtnActive]}
+                onPress={onFetchMore}
+                disabled={catalogBusy}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Download More"
+              >
+                {catalogBusy ? (
+                  <ActivityIndicator size="small" color={colors.accentLight} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={catalogOpen ? "chevron-up" : "cloud-download-outline"}
+                      size={14}
+                      color={colors.accentLight}
+                    />
+                    <Text style={styles.moreBtnText}>
+                      {catalogOpen ? "Hide More" : "More"}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
           </View>
 
           {catalogOpen && catalog?.seasons?.length ? (
@@ -520,6 +702,19 @@ export default function SeriesDetailScreen() {
                   <Text style={styles.hideMoreText}>Hide</Text>
                 </Pressable>
               </View>
+              {catalog.seasons.length > 1 ? (
+                <Pressable
+                  style={styles.dlAllSeasonsBannerBtn}
+                  onPress={onDownloadAllSeasons}
+                  accessibilityRole="button"
+                  accessibilityLabel="Download all seasons"
+                >
+                  <Ionicons name="download-outline" size={15} color={colors.accentInk} />
+                  <Text style={styles.dlAllSeasonsBannerText}>
+                    Download All {catalog.seasons.length} Seasons
+                  </Text>
+                </Pressable>
+              ) : null}
               {catalog.seasons.map((s) => {
                 const missingCount = (s.episodes || []).filter(
                   (e) => !isEpDownloaded(s.season, e.ep)
@@ -657,7 +852,7 @@ export default function SeriesDetailScreen() {
                 epItem.overview ||
                 description ||
                 `Episode ${epNum} of ${title}.`;
-              const thumbUri = epItem.thumbnail || epItem.image || epItem.poster || poster;
+              const thumbUri = epItem.posterLocalUri || epItem.thumbnail || epItem.image || epItem.poster || poster;
 
               return (
                 <View key={epItem.id || `${epItem.se}-${epItem.ep}-${idx}`} style={styles.episodeRow}>
@@ -1004,22 +1199,70 @@ const styles = StyleSheet.create({
     color: colors.accentInk,
     fontWeight: "800",
   },
+  heroActionRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
   dlAllBtn: {
+    flex: 1,
     backgroundColor: colors.accentMuted,
     borderWidth: 1,
     borderColor: colors.accentBorder,
     borderRadius: 10,
     paddingVertical: 9,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 6,
+    gap: 5,
   },
   dlAllText: {
     color: colors.accentLight,
     fontWeight: "700",
-    fontSize: 13,
+    fontSize: 12.5,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+  },
+  pauseAllBtn: {
+    flex: 1,
+    backgroundColor: "rgba(251, 191, 36, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(251, 191, 36, 0.35)",
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 5,
+  },
+  pauseAllText: {
+    color: "#fbbf24",
+    fontWeight: "700",
+    fontSize: 12.5,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+  },
+  resumeAllBtn: {
+    flex: 1,
+    backgroundColor: "rgba(189, 132, 219, 0.16)",
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 5,
+  },
+  resumeAllText: {
+    color: colors.accentLight,
+    fontWeight: "700",
+    fontSize: 12.5,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   chips: {
     flexDirection: "row",
@@ -1102,6 +1345,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  seasonBarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  seasonActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  seasonActionPauseText: {
+    color: "#fbbf24",
+    fontSize: 12,
+    fontWeight: "700",
+    includeFontPadding: false,
+  },
+  seasonActionResumeText: {
+    color: colors.accentLight,
+    fontSize: 12,
+    fontWeight: "700",
+    includeFontPadding: false,
+  },
   moreBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1154,6 +1425,21 @@ const styles = StyleSheet.create({
     color: colors.accentLight,
     fontWeight: "700",
     paddingLeft: 8,
+  },
+  dlAllSeasonsBannerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  dlAllSeasonsBannerText: {
+    color: colors.accentInk,
+    fontWeight: "700",
+    fontSize: 13,
   },
   seasonBlock: {
     gap: 8,

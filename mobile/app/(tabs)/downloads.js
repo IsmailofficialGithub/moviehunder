@@ -33,12 +33,15 @@ import {
   hydrateDownloads,
   isEpisodeCovered,
   canPlayPartial,
+  enqueueAllSeasons,
   isPartialOnly,
   moveDownloadFromVault,
   moveDownloadsToVault,
+  pauseAllDownloads,
   pauseDownload,
   progressOf,
   removeDownload,
+  resumeAllDownloads,
   resumeDownload,
   subscribeDownloads,
 } from "../../lib/downloads";
@@ -310,9 +313,9 @@ function MovieCard({
       android_ripple={{ color: "rgba(255,255,255,0.08)" }}
     >
       <View style={styles.netflixThumbWrap}>
-        {item.poster ? (
+        {item.posterLocalUri || item.poster ? (
           <Image
-            source={{ uri: item.poster }}
+            source={{ uri: item.posterLocalUri || item.poster }}
             style={styles.netflixThumb}
             contentFit="cover"
             cachePolicy="memory-disk"
@@ -506,6 +509,8 @@ function SeriesPack({
   onPlay,
   onPause,
   onResume,
+  onPausePack,
+  onResumePack,
   onDelete,
   onDeleteAll,
   onRestoreFromVault,
@@ -569,7 +574,9 @@ function SeriesPack({
         : "cloud-download-outline";
 
   const thumbUri =
+    pack.posterLocalUri ||
     pack.poster ||
+    pack.episodes.find((e) => e.posterLocalUri || e.poster || e.thumbnail)?.posterLocalUri ||
     pack.episodes.find((e) => e.poster || e.thumbnail)?.poster ||
     pack.episodes.find((e) => e.poster || e.thumbnail)?.thumbnail ||
     "";
@@ -643,12 +650,55 @@ function SeriesPack({
           ) : null}
         </View>
 
-        <Ionicons
-          name={vaultMode && expanded ? "chevron-down" : "chevron-forward"}
-          size={20}
-          color="#ffffff"
-          style={styles.netflixChevron}
-        />
+        <View style={styles.packRightCol}>
+          {isDownloading ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                onPausePack?.(pack);
+              }}
+              style={styles.packQuickBtn}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={`Pause downloading ${pack.title}`}
+            >
+              <Ionicons name="pause-circle" size={26} color="#fbbf24" />
+            </Pressable>
+          ) : isPaused ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                onResumePack?.(pack);
+              }}
+              style={styles.packQuickBtn}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={`Resume downloading ${pack.title}`}
+            >
+              <Ionicons name="play-circle" size={26} color={colors.accentLight} />
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                onDownloadSeason?.(1);
+              }}
+              style={styles.packQuickBtn}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={`Download more episodes of ${pack.title}`}
+            >
+              <Ionicons name="download-outline" size={20} color={colors.accentLight} />
+            </Pressable>
+          )}
+
+          <Ionicons
+            name={vaultMode && expanded ? "chevron-down" : "chevron-forward"}
+            size={18}
+            color="rgba(255,255,255,0.7)"
+            style={styles.netflixChevron}
+          />
+        </View>
       </Pressable>
 
       {expanded ? (
@@ -938,10 +988,6 @@ export default function DownloadsScreen() {
     const preparing = list.find((d) => d.id === preparingId);
     if (!preparing) return;
     setTab(isSeriesItem(preparing) ? "series" : "movies");
-    if (isSeriesItem(preparing)) {
-      const key = `${preparing.subjectId}|${preparing.detailPath}`;
-      setExpanded((prev) => ({ ...prev, [key]: true }));
-    }
   }, [preparingId]);
 
   useEffect(() => {
@@ -951,10 +997,10 @@ export default function DownloadsScreen() {
     );
     if (!match) return;
     setTab(isSeriesItem(match) ? "series" : "movies");
-    if (isSeriesItem(match)) {
+    if (vaultMode && isSeriesItem(match)) {
       setExpanded((prev) => ({ ...prev, [expandKey]: true }));
     }
-  }, [expandKey, list.length]);
+  }, [expandKey, list.length, vaultMode]);
 
   const visibleList = useMemo(
     () => list.filter((d) => (vaultMode ? d.inVault : !d.inVault)),
@@ -975,6 +1021,7 @@ export default function DownloadsScreen() {
           key,
           title: d.title,
           poster: d.poster,
+          posterLocalUri: d.posterLocalUri,
           subjectId: d.subjectId,
           detailPath: d.detailPath,
           episodes: [],
@@ -982,6 +1029,7 @@ export default function DownloadsScreen() {
       }
       const pack = map.get(key);
       if (!pack.poster && d.poster) pack.poster = d.poster;
+      if (!pack.posterLocalUri && d.posterLocalUri) pack.posterLocalUri = d.posterLocalUri;
       pack.episodes.push(d);
     }
     for (const pack of map.values()) {
@@ -997,6 +1045,25 @@ export default function DownloadsScreen() {
       return latestB - latestA;
     });
   }, [visibleList]);
+
+  const anySeriesDownloading = useMemo(
+    () =>
+      seriesPacks.some((p) =>
+        p.episodes.some(
+          (e) => e.status === "downloading" || e.status === "queued" || e.pending
+        )
+      ),
+    [seriesPacks]
+  );
+
+  const anySeriesPaused = useMemo(
+    () =>
+      !anySeriesDownloading &&
+      seriesPacks.some((p) =>
+        p.episodes.some((e) => e.status === "paused" || e.status === "failed")
+      ),
+    [anySeriesDownloading, seriesPacks]
+  );
 
   const onStorageTap = async () => {
     const now = Date.now();
@@ -1080,7 +1147,8 @@ export default function DownloadsScreen() {
   };
 
   const onPlay = (item) => {
-    const isCompleted = item.status === "completed" && !item.pending;
+    const isPlayable =
+      (item.status === "completed" || canPlayPartial(item)) && !item.pending;
     router.push({
       pathname: "/play",
       params: {
@@ -1092,10 +1160,10 @@ export default function DownloadsScreen() {
           isSeriesItem(item)
             ? `${item.title} · S${item.se}E${item.ep}`
             : item.title,
-        poster: item.poster || "",
+        poster: item.posterLocalUri || item.poster || "",
         kind: isSeriesItem(item) ? "series" : "movie",
         autoplay: "1",
-        ...(isCompleted ? { downloadId: encodeURIComponent(item.id) } : {}),
+        ...(isPlayable ? { downloadId: encodeURIComponent(item.id) } : {}),
       },
     });
   };
@@ -1131,6 +1199,44 @@ export default function DownloadsScreen() {
   };
 
   const onPause = (item) => pauseDownload(item.id);
+
+  const onPausePack = async (pack) => {
+    const ids = pack.episodes
+      .filter(
+        (e) => e.status === "downloading" || e.status === "queued" || e.pending
+      )
+      .map((e) => e.id);
+    if (!ids.length) return;
+    await pauseAllDownloads(ids);
+  };
+
+  const onResumePack = async (pack) => {
+    const ids = pack.episodes
+      .filter((e) => e.status === "paused" || e.status === "failed")
+      .map((e) => e.id);
+    if (!ids.length) return;
+    await resumeAllDownloads(ids);
+  };
+
+  const onPauseAllSeries = async () => {
+    const ids = seriesPacks
+      .flatMap((p) => p.episodes)
+      .filter(
+        (e) => e.status === "downloading" || e.status === "queued" || e.pending
+      )
+      .map((e) => e.id);
+    if (!ids.length) return;
+    await pauseAllDownloads(ids);
+  };
+
+  const onResumeAllSeries = async () => {
+    const ids = seriesPacks
+      .flatMap((p) => p.episodes)
+      .filter((e) => e.status === "paused" || e.status === "failed")
+      .map((e) => e.id);
+    if (!ids.length) return;
+    await resumeAllDownloads(ids);
+  };
 
   const onResume = async (item) => {
     if (item.pending || !item.sourceUrl) {
@@ -1505,36 +1611,79 @@ export default function DownloadsScreen() {
               ));
             }
             if (viewTab === "series") {
-              return seriesPacks.map((pack) => (
-                <SeriesPack
-                  key={pack.key}
-                  pack={pack}
-                  watchMap={watchMap}
-                  expanded={!!expanded[pack.key]}
-                  onToggle={() =>
-                    vaultMode
-                      ? togglePack(pack.key)
-                      : router.push({
-                        pathname: "/series-detail",
-                        params: { packKey: encodeURIComponent(pack.key) },
-                      })
-                  }
-                  onPlay={onPlay}
-                  onPause={onPause}
-                  onResume={onResume}
-                  onDelete={onDelete}
-                  onDeleteAll={() => onDeletePack(pack)}
-                  onRestoreFromVault={onRestoreFromVault}
-                  vaultMode={vaultMode}
-                  catalog={vaultMode ? undefined : catalogByPack[pack.key]}
-                  catalogBusy={catalogBusyKey === pack.key}
-                  onFetchMore={() => onFetchMore(pack)}
-                  onDownloadSeason={(se) => onDownloadSeason(pack, se)}
-                  onDownloadEpisode={(se, ep) =>
-                    onDownloadEpisode(pack, se, ep)
-                  }
-                />
-              ));
+              return (
+                <>
+                  {!vaultMode && (anySeriesDownloading || anySeriesPaused) ? (
+                    <View style={styles.seriesGlobalBar}>
+                      <View style={styles.seriesGlobalLeft}>
+                        <Ionicons
+                          name={anySeriesDownloading ? "arrow-down-circle" : "pause-circle"}
+                          size={18}
+                          color={anySeriesDownloading ? colors.accentLight : "#fbbf24"}
+                        />
+                        <Text style={styles.seriesGlobalHint}>
+                          {anySeriesDownloading ? "Episodes downloading" : "Downloads paused"}
+                        </Text>
+                      </View>
+                      {anySeriesDownloading ? (
+                        <Pressable
+                          style={styles.seriesGlobalActionBtn}
+                          onPress={onPauseAllSeries}
+                          hitSlop={8}
+                          accessibilityRole="button"
+                          accessibilityLabel="Pause all series downloads"
+                        >
+                          <Ionicons name="pause" size={13} color="#fbbf24" />
+                          <Text style={styles.seriesGlobalPauseText}>Pause All</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          style={styles.seriesGlobalActionBtn}
+                          onPress={onResumeAllSeries}
+                          hitSlop={8}
+                          accessibilityRole="button"
+                          accessibilityLabel="Resume all series downloads"
+                        >
+                          <Ionicons name="play" size={13} color={colors.accentLight} />
+                          <Text style={styles.seriesGlobalResumeText}>Resume All</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ) : null}
+                  {seriesPacks.map((pack) => (
+                    <SeriesPack
+                      key={pack.key}
+                      pack={pack}
+                      watchMap={watchMap}
+                      expanded={vaultMode && !!expanded[pack.key]}
+                      onToggle={() =>
+                        vaultMode
+                          ? togglePack(pack.key)
+                          : router.push({
+                            pathname: "/series-detail",
+                            params: { packKey: encodeURIComponent(pack.key) },
+                          })
+                      }
+                      onPlay={onPlay}
+                      onPause={onPause}
+                      onResume={onResume}
+                      onPausePack={() => onPausePack(pack)}
+                      onResumePack={() => onResumePack(pack)}
+                      onDelete={onDelete}
+                      onDeleteAll={() => onDeletePack(pack)}
+                      onRestoreFromVault={onRestoreFromVault}
+                      vaultMode={vaultMode}
+                      catalog={vaultMode ? undefined : catalogByPack[pack.key]}
+                      catalogBusy={catalogBusyKey === pack.key}
+                      onFetchMore={() => onFetchMore(pack)}
+                      onDownloadSeason={(se) => onDownloadSeason(pack, se)}
+                      onDownloadEpisode={(se, ep) =>
+                        onDownloadEpisode(pack, se, ep)
+                      }
+                    />
+                  ))}
+                </>
+              );
             }
             return songs.map((item) => (
               <SongCard
@@ -1807,6 +1956,57 @@ const styles = StyleSheet.create({
   },
   netflixChevron: {
     opacity: 0.75,
+  },
+  packRightCol: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  packQuickBtn: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  seriesGlobalBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 12,
+  },
+  seriesGlobalLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  seriesGlobalHint: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  seriesGlobalActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.full,
+  },
+  seriesGlobalPauseText: {
+    color: "#fbbf24",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  seriesGlobalResumeText: {
+    color: colors.accentLight,
+    fontSize: 12,
+    fontWeight: "600",
   },
   netflixActionWrap: {
     paddingLeft: 4,

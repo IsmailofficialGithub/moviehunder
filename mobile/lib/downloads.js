@@ -1,7 +1,7 @@
 // In-app download manager — resumable, quality-aware, space-conscious.
 // Uses expo-file-system/legacy DownloadResumable + AsyncStorage.
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { getEpisodes } from "./api";
 import { getCachedStreams, prefetchStreams } from "./streamCache";
@@ -17,6 +17,7 @@ import {
 const STORE_KEY = "flick.downloads.v1";
 const SETTINGS_STORE_KEY = "flick.downloads.settings.v1";
 const ROOT = `${FileSystem.documentDirectory || ""}flick-dl/`;
+const THUMBS_ROOT = `${FileSystem.documentDirectory || ""}flick-dl/thumbs/`;
 const PROGRESS_THROTTLE_MS = 400;
 
 let downloadSettings = {
@@ -111,12 +112,29 @@ export function subscribeDownloadSettings(fn) {
   return () => settingsListeners.delete(fn);
 }
 
-// Automatically resume downloads when user returns to app
-AppState.addEventListener("change", (nextState) => {
+// Automatically resume downloads when user returns to app,
+// and snapshot resume state when app goes to background so Android killer cannot reset progress
+AppState.addEventListener("change", async (nextState) => {
   if (nextState === "active") {
     if (downloadSettings.autoResume) {
       pumpQueue();
     }
+  } else if (nextState === "background" || nextState === "inactive") {
+    for (const [id, task] of tasks.entries()) {
+      try {
+        const cur = items.get(id);
+        if (cur?.fileUri) {
+          const info = await FileSystem.getInfoAsync(cur.fileUri).catch(() => null);
+          const bytes = info?.exists && typeof info.size === "number" ? info.size : (cur.bytesWritten || 0);
+          if (bytes > 0 && Platform.OS === "android") {
+            patch(id, { bytesWritten: bytes, resumeData: String(bytes) });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    persist().catch(() => {});
   }
 });
 
@@ -131,9 +149,13 @@ async function ensureRoot() {
   if (!FileSystem.documentDirectory) {
     throw new Error("Storage unavailable on this device");
   }
-  const info = await FileSystem.getInfoAsync(ROOT);
+  const info = await FileSystem.getInfoAsync(ROOT).catch(() => ({}));
   if (!info.exists) {
     await FileSystem.makeDirectoryAsync(ROOT, { intermediates: true });
+  }
+  const thumbInfo = await FileSystem.getInfoAsync(THUMBS_ROOT).catch(() => ({}));
+  if (!thumbInfo.exists) {
+    await FileSystem.makeDirectoryAsync(THUMBS_ROOT, { intermediates: true });
   }
 }
 
@@ -181,6 +203,10 @@ export async function hydrateDownloads() {
               const dlSub = String(row.subtitleUri).match(/flick-dl\/[^?#]+/);
               if (dlSub) row.subtitleUri = `${FileSystem.documentDirectory}${dlSub[0]}`;
             }
+            if (row.posterLocalUri && FileSystem.documentDirectory) {
+              const dlThumb = String(row.posterLocalUri).match(/flick-dl\/thumbs\/[^?#]+/);
+              if (dlThumb) row.posterLocalUri = `${FileSystem.documentDirectory}${dlThumb[0]}`;
+            }
             items.set(row.id, row);
 
           }
@@ -194,10 +220,13 @@ export async function hydrateDownloads() {
       emit(true);
       pumpQueue();
 
-      // Check if any completed or active downloads are missing offline subtitles
+      // Check if any completed or active downloads are missing offline subtitles or posters
       for (const row of items.values()) {
         if (!row.subtitleUri && row.status !== "failed" && !row.pending) {
           downloadSubtitleForDownload(row).catch(() => {});
+        }
+        if (!row.posterLocalUri && (row.poster || row.thumbnail) && !row.pending) {
+          downloadPosterForDownload(row).catch(() => {});
         }
       }
     }
@@ -448,6 +477,73 @@ export async function downloadSubtitleForDownload(item) {
   }
 }
 
+// Generate consistent local filename for movie/series poster or video thumbnail
+export function posterFileNameFor(item) {
+  if (!item) return "poster.jpg";
+  const rawKey = item.id || `${item.subjectId || "sub"}_${item.detailPath || "dl"}${Number(item.se) > 0 ? `_s${item.se}e${item.ep}` : ""}`;
+  const safe = String(rawKey)
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 100);
+  return `${safe}.jpg`;
+}
+
+// Download remote movie poster / video thumbnail locally so offline playback displays it
+export async function downloadPosterForDownload(item) {
+  const rawUrl = item?.poster || item?.thumbnail;
+  if (!rawUrl || typeof rawUrl !== "string" || !rawUrl.startsWith("http")) return null;
+  try {
+    await ensureRoot();
+    const fileName = posterFileNameFor(item);
+    const localUri = `${THUMBS_ROOT}${fileName}`;
+
+    // 1. If already saved and exists on disk with valid size, update item record and return
+    const info = await FileSystem.getInfoAsync(localUri).catch(() => ({}));
+    if (info.exists && (info.size == null || info.size > 200)) {
+      if (item.id && items.get(item.id)?.posterLocalUri !== localUri) {
+        patch(item.id, { posterLocalUri: localUri });
+      }
+      return localUri;
+    }
+
+    // 2. Download remote image file locally
+    const dlResult = await FileSystem.downloadAsync(rawUrl, localUri).catch(() => null);
+    if (dlResult?.uri) {
+      if (item.id) {
+        patch(item.id, { posterLocalUri: dlResult.uri });
+      }
+      return dlResult.uri;
+    }
+  } catch {
+    // Ignore background poster download error
+  }
+  return null;
+}
+
+// Resolve real on-disk poster URI (handles rebased documentDirectory paths across app builds)
+export async function resolveDownloadPosterUri(item) {
+  if (!item) return "";
+  const docRoot = FileSystem.documentDirectory || "";
+  const fileName = posterFileNameFor(item);
+  const expectedLocal = `${docRoot}flick-dl/thumbs/${fileName}`;
+
+  if (item.posterLocalUri) {
+    const info = await FileSystem.getInfoAsync(item.posterLocalUri).catch(() => null);
+    if (info?.exists && (info.size == null || info.size > 200)) {
+      return item.posterLocalUri;
+    }
+  }
+
+  const candInfo = await FileSystem.getInfoAsync(expectedLocal).catch(() => null);
+  if (candInfo?.exists && (candInfo.size == null || candInfo.size > 200)) {
+    if (item.id && items.get(item.id)?.posterLocalUri !== expectedLocal) {
+      patch(item.id, { posterLocalUri: expectedLocal });
+    }
+    return expectedLocal;
+  }
+
+  return item.poster || item.thumbnail || "";
+}
+
 
 // Find the real on-disk URI for a download (handles stale documentDirectory paths).
 export async function resolveDownloadFileUri(item) {
@@ -598,10 +694,12 @@ function onProgress(id, { totalBytesWritten, totalBytesExpectedToWrite }) {
     speedSamples.set(id, { t: now, bytes: written, rate: 0 });
   }
 
-  // Periodically snapshot resumeData so if the process is killed by Android (e.g. user opens Instagram),
-  // progress is saved and download resumes smoothly
+  // On Android, resumeData is the string representing downloaded bytes offset.
+  // Keep it updated so progress can resume from disk on abrupt kill or network drop.
   let resumeData = undefined;
-  if (now - lastResumeSnapshot >= 5000) {
+  if (Platform.OS === "android" && written > 0) {
+    resumeData = String(written);
+  } else if (now - lastResumeSnapshot >= 5000) {
     lastResumeSnapshot = now;
     try {
       const task = tasks.get(id);
@@ -650,11 +748,36 @@ async function startTask(id) {
 
   const latest = items.get(id) || item;
 
-  // Pre-fetch subtitles in background while user is connected
+  // Pre-fetch subtitles and local poster in background while user is connected
   downloadSubtitleForDownload(latest).catch(() => {});
+  downloadPosterForDownload(latest).catch(() => {});
+
+  let resumeData = latest.resumeData;
+  // Check file on disk: if already partially downloaded, ensure resumeData matches on-disk bytes
+  try {
+    const realUri = (await resolveDownloadFileUri(latest)) || latest.fileUri;
+    const info = await FileSystem.getInfoAsync(realUri).catch(() => null);
+    if (info?.exists && typeof info.size === "number" && info.size > 0) {
+      const onDiskBytes = info.size;
+      const total = latest.totalBytes || latest.sizeHint || 0;
+      if (total <= 0 || onDiskBytes < total) {
+        if (!resumeData && Platform.OS === "android") {
+          resumeData = String(onDiskBytes);
+        }
+        if (onDiskBytes > (latest.bytesWritten || 0)) {
+          patch(id, {
+            bytesWritten: onDiskBytes,
+            fileUri: realUri,
+            ...(resumeData ? { resumeData } : {}),
+          });
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
 
   const callback = (data) => onProgress(id, data);
-
 
   let task;
   try {
@@ -663,7 +786,7 @@ async function startTask(id) {
       latest.fileUri,
       {},
       callback,
-      latest.resumeData || undefined
+      resumeData || undefined
     );
     tasks.set(id, task);
   } catch (err) {
@@ -679,7 +802,7 @@ async function startTask(id) {
   }
 
   try {
-    const result = latest.resumeData
+    const result = resumeData
       ? await task.resumeAsync()
       : await task.downloadAsync();
 
@@ -689,7 +812,7 @@ async function startTask(id) {
         id,
         {
           status: "paused",
-          resumeData: savable.resumeData || latest.resumeData,
+          resumeData: savable.resumeData || resumeData || latest.resumeData,
           bytesPerSec: undefined,
         },
         { emitNow: true }
@@ -731,11 +854,11 @@ async function startTask(id) {
     );
     tasks.delete(id);
     speedSamples.delete(id);
-    // Ensure subtitle is downloaded if not finished earlier
+    // Ensure subtitle and local poster are downloaded if not finished earlier
     downloadSubtitleForDownload(items.get(id) || latest).catch(() => {});
+    downloadPosterForDownload(items.get(id) || latest).catch(() => {});
     notifyDownloadComplete(items.get(id) || latest).catch(() => {});
   } catch (err) {
-
     let resumeData = latest.resumeData;
     try {
       const savable = task.savable?.();
@@ -743,6 +866,26 @@ async function startTask(id) {
     } catch {
       // ignore
     }
+
+    // Inspect on-disk file size to preserve downloaded bytes on connection failure
+    let writtenBytes = latest.bytesWritten || 0;
+    try {
+      const realUri = (await resolveDownloadFileUri(latest)) || latest.fileUri;
+      const info = await FileSystem.getInfoAsync(realUri).catch(() => null);
+      if (info?.exists && typeof info.size === "number" && info.size > 0) {
+        writtenBytes = Math.max(writtenBytes, info.size);
+        if (!resumeData && Platform.OS === "android") {
+          resumeData = String(info.size);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (!resumeData && writtenBytes > 0 && Platform.OS === "android") {
+      resumeData = String(writtenBytes);
+    }
+
     tasks.delete(id);
     speedSamples.delete(id);
     patch(
@@ -750,6 +893,7 @@ async function startTask(id) {
       {
         status: "failed",
         error: toUserMessage(err, "Download failed. Check your connection."),
+        bytesWritten: writtenBytes,
         resumeData,
         bytesPerSec: undefined,
       },
@@ -837,6 +981,7 @@ export async function enqueueDownload({
     detailPath: String(detailPath),
     title: String(title || detailPath),
     poster: poster || null,
+    posterLocalUri: null,
     se: String(se),
     ep: String(ep),
     resolution: source.resolution || (height ? `${height}p` : "Auto"),
@@ -856,8 +1001,9 @@ export async function enqueueDownload({
   emit(true);
   pumpQueue();
 
-  // Immediately download subtitles in background when enqueued
+  // Immediately download subtitles and poster in background when enqueued
   downloadSubtitleForDownload(item).catch(() => {});
+  downloadPosterForDownload(item).catch(() => {});
 
   return item;
 }
@@ -1084,6 +1230,72 @@ export async function fetchSeasonCatalog(detailPath) {
   };
 }
 
+// Enqueue all seasons of a series from the API (skipping already downloaded/queued episodes).
+export async function enqueueAllSeasons({
+  subjectId,
+  detailPath,
+  title,
+  poster,
+  preferredHeight = 720,
+}) {
+  await hydrateDownloads();
+  const data = await getEpisodes(detailPath);
+  const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
+  if (!seasons.length) {
+    throw new Error("No seasons found for this series");
+  }
+
+  let totalQueued = 0;
+  let totalSkipped = 0;
+  let totalCount = 0;
+
+  for (const s of seasons) {
+    try {
+      const res = await enqueueSeason({
+        subjectId,
+        detailPath,
+        title,
+        poster,
+        season: s.season,
+        preferredHeight,
+      });
+      totalQueued += res.queued;
+      totalSkipped += res.skipped;
+      totalCount += res.total;
+    } catch {
+      // Continue with remaining seasons
+    }
+  }
+
+  return {
+    queued: totalQueued,
+    skipped: totalSkipped,
+    total: totalCount,
+  };
+}
+
+export async function pauseAllDownloads(ids) {
+  await hydrateDownloads();
+  const targetIds = Array.isArray(ids) ? ids : Array.from(items.keys());
+  for (const id of targetIds) {
+    const item = items.get(id);
+    if (item && (item.status === "downloading" || item.status === "queued" || item.pending)) {
+      await pauseDownload(id);
+    }
+  }
+}
+
+export async function resumeAllDownloads(ids) {
+  await hydrateDownloads();
+  const targetIds = Array.isArray(ids) ? ids : Array.from(items.keys());
+  for (const id of targetIds) {
+    const item = items.get(id);
+    if (item && (item.status === "paused" || item.status === "failed")) {
+      await resumeDownload(id);
+    }
+  }
+}
+
 export async function pauseDownload(id) {
   const task = tasks.get(id);
   const item = items.get(id);
@@ -1115,7 +1327,30 @@ export async function resumeDownload(id) {
   await hydrateDownloads();
   const item = items.get(id);
   if (!item || item.status === "completed") return;
-  patch(id, { status: "queued", userPaused: false, error: undefined }, { emitNow: true });
+
+  let resumeData = item.resumeData;
+  if (!resumeData && Platform.OS === "android" && item.fileUri) {
+    try {
+      const realUri = (await resolveDownloadFileUri(item)) || item.fileUri;
+      const info = await FileSystem.getInfoAsync(realUri).catch(() => null);
+      if (info?.exists && typeof info.size === "number" && info.size > 0) {
+        resumeData = String(info.size);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  patch(
+    id,
+    {
+      status: "queued",
+      userPaused: false,
+      error: undefined,
+      ...(resumeData ? { resumeData } : {}),
+    },
+    { emitNow: true }
+  );
   pumpQueue();
 }
 
@@ -1154,6 +1389,18 @@ export async function removeDownload(id) {
   if (subUri && !otherUsingSub) {
     try {
       await FileSystem.deleteAsync(subUri, { idempotent: true });
+    } catch {
+      // ignore
+    }
+  }
+  const thumbFile = item ? posterFileNameFor(item) : "";
+  const thumbUri = thumbFile ? `${THUMBS_ROOT}${thumbFile}` : "";
+  const otherUsingThumb = [...items.values()].some(
+    (d) => d.id !== id && posterFileNameFor(d) === thumbFile
+  );
+  if (thumbUri && !otherUsingThumb) {
+    try {
+      await FileSystem.deleteAsync(thumbUri, { idempotent: true });
     } catch {
       // ignore
     }
