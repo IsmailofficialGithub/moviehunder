@@ -4,6 +4,7 @@ import AppDownloadPrompt from "../components/AppDownloadPrompt";
 import GlobalAds from "../components/ads/GlobalAds";
 import { AuthProvider } from "../components/AuthProvider";
 import GuestSyncWorker from "../components/GuestSyncWorker";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -150,6 +151,7 @@ export default function RootLayout({ children }) {
           </div>
           <AppDownloadPrompt />
         </AuthProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
