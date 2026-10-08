@@ -3,6 +3,7 @@
  * Parallel to video downloads.js, without movie/season assumptions.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState, Platform } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 
 const STORE_KEY = "flick.music.downloads.v1";
@@ -113,6 +114,28 @@ function patch(id, partial, { emitNow = false } = {}) {
   return next;
 }
 
+AppState.addEventListener("change", async (nextState) => {
+  if (nextState === "active") {
+    pumpQueue();
+  } else if (nextState === "background" || nextState === "inactive") {
+    for (const [id, task] of tasks.entries()) {
+      try {
+        const cur = items.get(id);
+        if (cur?.fileUri) {
+          const info = await FileSystem.getInfoAsync(cur.fileUri).catch(() => null);
+          const bytes = info?.exists && typeof info.size === "number" ? info.size : (cur.bytesWritten || 0);
+          if (bytes > 0 && Platform.OS === "android") {
+            patch(id, { bytesWritten: bytes, resumeData: String(bytes) });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    persist().catch(() => {});
+  }
+});
+
 export async function hydrateMusicDownloads() {
   if (hydrated) return;
   if (hydratePromise) return hydratePromise;
@@ -220,9 +243,16 @@ function pumpQueue() {
 }
 
 function onProgress(id, { totalBytesWritten, totalBytesExpectedToWrite }) {
+  const written = totalBytesWritten || 0;
+  const total = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : 0;
+  let resumeData = undefined;
+  if (Platform.OS === "android" && written > 0) {
+    resumeData = String(written);
+  }
   patch(id, {
-    bytesWritten: totalBytesWritten || 0,
-    totalBytes: totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : 0,
+    bytesWritten: written,
+    totalBytes: total,
+    ...(resumeData ? { resumeData } : {}),
   });
 }
 
@@ -263,6 +293,26 @@ async function startTask(id) {
   );
 
   const latest = items.get(id) || item;
+
+  let resumeData = latest.resumeData;
+  try {
+    const info = await FileSystem.getInfoAsync(latest.fileUri).catch(() => null);
+    if (info?.exists && typeof info.size === "number" && info.size > 0) {
+      const onDiskBytes = info.size;
+      const total = latest.totalBytes || 0;
+      if (total <= 0 || onDiskBytes < total) {
+        if (!resumeData && Platform.OS === "android") {
+          resumeData = String(onDiskBytes);
+        }
+        if (onDiskBytes > (latest.bytesWritten || 0)) {
+          patch(id, { bytesWritten: onDiskBytes, ...(resumeData ? { resumeData } : {}) });
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   let task;
   try {
     task = FileSystem.createDownloadResumable(
@@ -270,7 +320,7 @@ async function startTask(id) {
       latest.fileUri,
       {},
       (data) => onProgress(id, data),
-      latest.resumeData || undefined
+      resumeData || undefined
     );
     tasks.set(id, task);
   } catch (err) {
@@ -288,7 +338,7 @@ async function startTask(id) {
   }
 
   try {
-    const result = latest.resumeData
+    const result = resumeData
       ? await task.resumeAsync()
       : await task.downloadAsync();
 
@@ -298,7 +348,7 @@ async function startTask(id) {
         id,
         {
           status: "paused",
-          resumeData: savable.resumeData || latest.resumeData,
+          resumeData: savable.resumeData || resumeData || latest.resumeData,
         },
         { emitNow: true }
       );
@@ -333,12 +383,31 @@ async function startTask(id) {
     } catch {
       /* ignore */
     }
+
+    let writtenBytes = latest.bytesWritten || 0;
+    try {
+      const info = await FileSystem.getInfoAsync(latest.fileUri).catch(() => null);
+      if (info?.exists && typeof info.size === "number" && info.size > 0) {
+        writtenBytes = Math.max(writtenBytes, info.size);
+        if (!resumeData && Platform.OS === "android") {
+          resumeData = String(info.size);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (!resumeData && writtenBytes > 0 && Platform.OS === "android") {
+      resumeData = String(writtenBytes);
+    }
+
     tasks.delete(id);
     patch(
       id,
       {
         status: "failed",
         error: err?.message || "Download failed",
+        bytesWritten: writtenBytes,
         resumeData,
       },
       { emitNow: true }
@@ -415,16 +484,29 @@ export async function resumeMusicDownload(id) {
   if (!item) return null;
   if (item.status === "completed") return item;
 
+  let resumeData = item.resumeData;
+  if (!resumeData && Platform.OS === "android" && item.fileUri) {
+    try {
+      const info = await FileSystem.getInfoAsync(item.fileUri).catch(() => null);
+      if (info?.exists && typeof info.size === "number" && info.size > 0) {
+        resumeData = String(info.size);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   // Prefer a fresh stream URL when not mid-resume.
-  const sourceUrl = item.resumeData
+  const sourceUrl = resumeData
     ? item.sourceUrl
-    : streamUrlForTrackId(item.id);
+    : streamUrlForTrackId(item.id) || item.sourceUrl;
   patch(
     item.id,
     {
       status: "queued",
       sourceUrl,
       error: undefined,
+      ...(resumeData ? { resumeData } : {}),
     },
     { emitNow: true }
   );

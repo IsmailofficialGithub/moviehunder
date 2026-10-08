@@ -25,13 +25,19 @@
       "android": {
         "buildType": "apk"
       },
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_DISTRIBUTION": "github"
+      }
     },
     "production-bundle": {
       "android": {
         "buildType": "app-bundle"
       },
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_DISTRIBUTION": "playstore"
+      }
     }
   },
   "submit": {

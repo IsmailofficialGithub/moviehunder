@@ -28,6 +28,8 @@ import {
   searchTitles,
 } from "../../lib/api";
 import {
+  canPlayPartial,
+  findDownload,
   hydrateDownloads,
   progressOf as downloadProgressOf,
   subscribeDownloads,
@@ -496,6 +498,17 @@ export default function TitleScreen() {
       Alert.alert("Unavailable", "Playback isn’t available for this title.");
       return;
     }
+    const dlItem = findDownload({
+      subjectId: String(subjectId),
+      detailPath: slug,
+      se: String(se ?? 0),
+      ep: String(ep ?? 0),
+    });
+    const isPlayable =
+      dlItem &&
+      (dlItem.status === "completed" || canPlayPartial(dlItem)) &&
+      !dlItem.pending;
+
     prefetchStreams({
       subjectId: String(subjectId),
       detailPath: slug,
@@ -510,10 +523,11 @@ export default function TitleScreen() {
         se: String(se ?? 0),
         ep: String(ep ?? 0),
         title: meta.title || slug,
-        poster: meta.poster || "",
+        poster: dlItem?.posterLocalUri || meta.poster || "",
         kind: isSeries ? "series" : "movie",
         duration: String(meta.duration || ""),
         autoplay: "1",
+        ...(isPlayable ? { downloadId: encodeURIComponent(dlItem.id) } : {}),
       },
     });
   };

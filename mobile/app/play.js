@@ -30,18 +30,22 @@ import {
   proxiedMediaUrl,
   watchStreamUrl,
 } from "../lib/stream";
-import { getCachedStreams, prefetchStreams } from "../lib/streamCache";
+import { clearStreamCooldown, getCachedStreams, prefetchStreams } from "../lib/streamCache";
 import { colors, radii, spacing } from "../lib/theme";
 import { toUserMessage } from "../lib/userFacingError";
 import { cleanSearchTitle, cueAtTime, makeSubtitleTrack } from "../lib/subtitles";
 import { downloadSubtitle, searchSubtitles } from "../lib/subtitlesApi";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  canPlayPartial,
+  findDownload,
   getDownloadById,
   getDownloads,
   hydrateDownloads,
   isSeriesItem,
   packKeyFromItem,
+  progressOf,
+  resolveDownloadFileUri,
   subscribeDownloads,
   subtitleFileNameFor,
   downloadSubtitleForDownload,
@@ -225,6 +229,7 @@ export default function PlayScreen() {
 
   const resumeAtRef = useRef(0);
   const fallbackTried = useRef(false);
+  const offlineRecoverAttempts = useRef(0);
   const hideTimer = useRef(null);
   const singleTapTimer = useRef(null);
   const lastTapRef = useRef({ t: 0, side: "" });
@@ -670,13 +675,34 @@ export default function PlayScreen() {
   useEffect(() => {
     const sub = player.addListener("statusChange", (payload) => {
       if (payload?.status === "error" || payload?.error) {
-        // Fall back to online streaming if offline file failed and we have online info
-        if (offlineUri && subjectId && detailPath) {
-          setOfflineUri("");
-          setChipHint("Offline playback error · Streaming online");
-          load();
+        // If an offline file had a transient decoder or buffer error, recover offline playback!
+        // Never wipe offlineUri or attempt online stream lookup when watching offline!
+        if (offlineUri) {
+          if (offlineRecoverAttempts.current < 2) {
+            offlineRecoverAttempts.current += 1;
+            try {
+              const cur = player.currentTime || 0;
+              loadedUriRef.current = "";
+              if (typeof player.replaceAsync === "function") {
+                player.replaceAsync(offlineUri).then(() => {
+                  if (cur > 0) player.currentTime = cur;
+                  player.play();
+                }).catch(() => {});
+              } else {
+                player.replace(offlineUri, true);
+                if (cur > 0) player.currentTime = cur;
+                player.play();
+              }
+              return;
+            } catch {
+              // fall through to offline error state
+            }
+          }
+          setError("Offline playback interrupted. Tap Retry to reload the video.");
+          setStatus("error");
           return;
         }
+
         if (!fallbackTried.current) {
           fallbackTried.current = true;
           setUseWatchFallback(true);
@@ -690,7 +716,7 @@ export default function PlayScreen() {
       }
     });
     return () => sub.remove();
-  }, [player, offlineUri, subjectId, detailPath, load]);
+  }, [player, offlineUri, load]);
 
   useEffect(() => {
     const sub = player.addListener("timeUpdate", () => {
@@ -862,239 +888,273 @@ export default function PlayScreen() {
     return () => clearInterval(id);
   }, [qualityMode, status, sources, qualityIndex, player]);
 
-  // Resolve offline file by download id (route params mangle file:// URIs)
+  const vaultPlayUriRef = useRef("");
+
   useEffect(() => {
-    if (!downloadId) {
-      setOfflineUri("");
-      setOfflineReady(true);
-      return;
-    }
-    let cancelled = false;
-    const vaultPlayRef = { uri: "" };
-    setOfflineReady(false);
-    (async () => {
+    return () => {
+      if (vaultPlayUriRef.current) {
+        releaseVaultPlayUri(vaultPlayUriRef.current).catch(() => {});
+        vaultPlayUriRef.current = "";
+      }
+    };
+  }, []);
+
+  const loadRef = useRef(null);
+
+  const loadOffline = useCallback(
+    async (targetItem) => {
+      setOfflineReady(false);
+      setError("");
+      setStatus("loading");
       try {
         await hydrateDownloads();
-        const item = getDownloadById(downloadId);
-        if (!item?.fileUri) {
+        const item =
+          targetItem ||
+          (downloadId ? getDownloadById(downloadId) : null) ||
+          findDownload({ subjectId, detailPath, se, ep });
+
+        if (!item) {
           if (subjectId && detailPath) {
-            if (!cancelled) {
-              setOfflineUri("");
-              setOfflineReady(true);
-              setChipHint("Streaming online");
-            }
+            setOfflineUri("");
+            setOfflineReady(true);
+            setChipHint("Streaming online");
+            if (loadRef.current) loadRef.current({ force: true });
             return;
           }
-          if (!cancelled) {
-            setError("Downloaded file not found.");
-            setStatus("error");
-            setOfflineReady(true);
-          }
+          setError("Downloaded file not found.");
+          setStatus("error");
+          setOfflineReady(true);
           return;
         }
 
-        let playFileUri = item.fileUri;
-        if (item.inVault) {
-          if (!isVaultUnlocked()) {
-            if (!cancelled) {
-              setError(
-                "This file is in Movie Safe. Unlock the vault from Downloads (tap Device storage 5 times), then play again."
-              );
-              setStatus("error");
-              setOfflineReady(true);
-            }
+        let playFileUri = (await resolveDownloadFileUri(item)) || item.fileUri;
+        if (!playFileUri) {
+          if (subjectId && detailPath) {
+            setOfflineUri("");
+            setOfflineReady(true);
+            setChipHint("Streaming online");
+            if (loadRef.current) loadRef.current({ force: true });
             return;
           }
+          setError("Downloaded file not found.");
+          setStatus("error");
+          setOfflineReady(true);
+          return;
+        }
+
+        if (item.inVault) {
+          if (!isVaultUnlocked()) {
+            setError(
+              "This file is in Movie Safe. Unlock the vault from Downloads (tap Device storage 5 times), then play again."
+            );
+            setStatus("error");
+            setOfflineReady(true);
+            return;
+          }
+          if (vaultPlayUriRef.current) {
+            releaseVaultPlayUri(vaultPlayUriRef.current).catch(() => {});
+          }
           playFileUri = await prepareVaultPlayUri(item);
-          vaultPlayRef.uri = playFileUri;
+          vaultPlayUriRef.current = playFileUri;
         }
 
         const info = await FileSystem.getInfoAsync(playFileUri);
         const minBytes = 256 * 1024;
         const isCompleted = item.status === "completed";
-        if (!info.exists || (info.size != null && info.size < minBytes) || !isCompleted) {
+        const isPartial = canPlayPartial(item);
+
+        if (
+          !info.exists ||
+          (info.size != null && info.size < minBytes) ||
+          (!isCompleted && !isPartial)
+        ) {
           if (subjectId && detailPath) {
-            if (!cancelled) {
-              setOfflineUri("");
-              setOfflineReady(true);
-              setChipHint(
-                isCompleted
-                  ? "File missing · Streaming online"
-                  : "Download in progress · Streaming online"
-              );
-            }
+            setOfflineUri("");
+            setOfflineReady(true);
+            setChipHint(
+              isCompleted
+                ? "File missing · Streaming online"
+                : "Download in progress · Streaming online"
+            );
+            if (loadRef.current) loadRef.current({ force: true });
             return;
           }
-          if (!cancelled) {
-            setError(
-              isCompleted
-                ? "Download file is missing or incomplete."
-                : `Download in progress (${Math.round(progressOf(item) * 100)}%). Please wait for download to finish or connect to internet to stream.`
-            );
-            setStatus("error");
-            setOfflineReady(true);
-          }
-          return;
-        }
-        if (!cancelled) {
-          setOfflineUri(playFileUri);
-          setSources([
-            {
-              url: playFileUri,
-              resolution: item.resolution || "Offline",
-              height: item.height || 0,
-              format: "MP4",
-              size_bytes: info.size || item.bytesWritten || null,
-            },
-          ]);
-          setQualityMode("manual");
-          setQualityIndex(0);
-          userWantsPlayRef.current = wantsAutoplay;
-          setWaitingToPlay(false);
-          setStatus("ready");
-          setOfflineReady(true);
-          showControlsRef.current?.();
-
-
-          // Automatically load offline downloaded subtitle if present
-          try {
-            const docRoot = FileSystem.documentDirectory || "";
-            const subName = subtitleFileNameFor(item);
-            const candidates = [
-              item.subtitleUri,
-              `${docRoot}flick-dl/${subName}`,
-              playFileUri ? playFileUri.replace(/\.[a-zA-Z0-9]+$/, ".vtt") : "",
-            ].filter(Boolean);
-
-            for (const cUri of candidates) {
-              const subInfo = await FileSystem.getInfoAsync(cUri);
-              if (subInfo.exists && (subInfo.size == null || subInfo.size > 50)) {
-                const vttText = await FileSystem.readAsStringAsync(cUri, {
-                  encoding: FileSystem.EncodingType.UTF8,
-                });
-                const offlineTrack = makeSubtitleTrack({
-                  vttText,
-                  label: item.subtitleLabel || "English (Offline)",
-                  srclang: "en",
-                  source: "download",
-                });
-                setSubtitles((prev) => {
-                  const filtered = prev.filter((t) => t.source !== "download");
-                  return [offlineTrack, ...filtered];
-                });
-                setActiveSubId(offlineTrack.id);
-                break;
-              }
-            }
-
-            // If no subtitle file was found locally yet, try downloading in background
-            downloadSubtitleForDownload(item)
-              .then(async (fetchedUri) => {
-                if (!fetchedUri || cancelled) return;
-                const vttText = await FileSystem.readAsStringAsync(fetchedUri, {
-                  encoding: FileSystem.EncodingType.UTF8,
-                });
-                const offlineTrack = makeSubtitleTrack({
-                  vttText,
-                  label: item.subtitleLabel || "English (Offline)",
-                  srclang: "en",
-                  source: "download",
-                });
-                setSubtitles((prev) => {
-                  const filtered = prev.filter((t) => t.source !== "download");
-                  return [offlineTrack, ...filtered];
-                });
-                setActiveSubId((prev) => (prev === "off" ? offlineTrack.id : prev));
-              })
-              .catch(() => {});
-          } catch {
-            // ignore offline subtitle error
-          }
-        }
-
-      } catch (err) {
-        if (!cancelled) {
           setError(
-            toUserMessage(err, "Couldn't open download. Try again.")
+            isCompleted
+              ? "Download file is missing or incomplete."
+              : `Download in progress (${Math.round(progressOf(item) * 100)}%). Please wait for download to finish or connect to internet to stream.`
           );
           setStatus("error");
           setOfflineReady(true);
+          return;
+        }
+
+        setOfflineUri(playFileUri);
+        setSources([
+          {
+            url: playFileUri,
+            resolution: item.resolution || "Offline",
+            height: item.height || 0,
+            format: "MP4",
+            size_bytes: info.size || item.bytesWritten || null,
+          },
+        ]);
+        setQualityMode("manual");
+        setQualityIndex(0);
+        userWantsPlayRef.current = wantsAutoplay;
+        setWaitingToPlay(false);
+        setStatus("ready");
+        setOfflineReady(true);
+        showControlsRef.current?.();
+
+        // Automatically load offline downloaded subtitle if present
+        try {
+          const docRoot = FileSystem.documentDirectory || "";
+          const subName = subtitleFileNameFor(item);
+          const candidates = [
+            item.subtitleUri,
+            `${docRoot}flick-dl/${subName}`,
+            playFileUri ? playFileUri.replace(/\.[a-zA-Z0-9]+$/, ".vtt") : "",
+          ].filter(Boolean);
+
+          for (const cUri of candidates) {
+            const subInfo = await FileSystem.getInfoAsync(cUri);
+            if (subInfo.exists && (subInfo.size == null || subInfo.size > 50)) {
+              const vttText = await FileSystem.readAsStringAsync(cUri, {
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+              const offlineTrack = makeSubtitleTrack({
+                vttText,
+                label: item.subtitleLabel || "English (Offline)",
+                srclang: "en",
+                source: "download",
+              });
+              setSubtitles((prev) => {
+                const filtered = prev.filter((t) => t.source !== "download");
+                return [offlineTrack, ...filtered];
+              });
+              setActiveSubId(offlineTrack.id);
+              break;
+            }
+          }
+
+          downloadSubtitleForDownload(item)
+            .then(async (fetchedUri) => {
+              if (!fetchedUri) return;
+              const vttText = await FileSystem.readAsStringAsync(fetchedUri, {
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+              const offlineTrack = makeSubtitleTrack({
+                vttText,
+                label: item.subtitleLabel || "English (Offline)",
+                srclang: "en",
+                source: "download",
+              });
+              setSubtitles((prev) => {
+                const filtered = prev.filter((t) => t.source !== "download");
+                return [offlineTrack, ...filtered];
+              });
+              setActiveSubId((prev) => (prev === "off" ? offlineTrack.id : prev));
+            })
+            .catch(() => {});
+        } catch {
+          // ignore offline subtitle error
+        }
+      } catch (err) {
+        setError(toUserMessage(err, "Couldn't open download. Try again."));
+        setStatus("error");
+        setOfflineReady(true);
+      }
+    },
+    [downloadId, subjectId, detailPath, se, ep, wantsAutoplay]
+  );
+
+  const load = useCallback(
+    async ({ force = false } = {}) => {
+      if (offlineUri) return; // handled by offline playback
+      if (downloadId && !offlineReady) return; // wait for offline check first
+
+      if (!subjectId || !detailPath) {
+        if (!downloadId) {
+          setError("Missing playback info.");
+          setStatus("error");
+        }
+        return;
+      }
+
+      const streamKey = `${subjectId}|${detailPath}|${se}|${ep}`;
+      const isNewEpisode = streamKeyRef.current !== streamKey;
+
+      setError("");
+      setUseWatchFallback(false);
+      fallbackTried.current = false;
+      userWantsPlayRef.current = wantsAutoplay;
+      preloadedRef.current = false;
+      setWaitingToPlay(wantsAutoplay);
+
+      const applySources = (nextSources) => {
+        setSources(nextSources);
+        if (isNewEpisode) {
+          streamKeyRef.current = streamKey;
+          setQualityMode("auto");
+          setQualityIndex(pickAutoIndex(nextSources, AUTO_MAX));
+        }
+        setStatus("ready");
+        showControlsRef.current?.();
+      };
+
+      const streamParams = { subjectId, detailPath, se, ep };
+      if (!force) {
+        const cached = getCachedStreams(streamParams);
+        if (cached?.sources?.length) {
+          applySources(cached.sources);
+          return;
         }
       }
-    })();
-    return () => {
-      cancelled = true;
-      if (vaultPlayRef.uri) {
-        releaseVaultPlayUri(vaultPlayRef.uri).catch(() => {});
-      }
-    };
-  }, [downloadId, wantsAutoplay]);
 
-  const load = useCallback(async () => {
-    if (offlineUri) return; // handled by offline effect
-    if (downloadId && !offlineReady) return; // wait for offline check first
+      setStatus("loading");
+      try {
+        const result = await prefetchStreams(streamParams, { force });
+        if (!result.sources.length) {
+          throw new Error("No streams available for this title.");
+        }
+        applySources(result.sources);
+      } catch (err) {
+        // If stream prefetch fails (e.g. offline), check if we have this title downloaded locally!
+        try {
+          await hydrateDownloads();
+          const localDl = findDownload({ subjectId, detailPath, se, ep });
+          if (localDl && (localDl.status === "completed" || canPlayPartial(localDl))) {
+            loadOffline(localDl);
+            return;
+          }
+        } catch {
+          // ignore download lookup error
+        }
 
-    if (!subjectId || !detailPath) {
-      if (!downloadId) {
-        setError("Missing playback info.");
+        setError(
+          toUserMessage(
+            err,
+            "Couldn't load streams. Check your connection and try again."
+          )
+        );
         setStatus("error");
       }
-      return;
-    }
+    },
+    [downloadId, offlineReady, offlineUri, subjectId, detailPath, se, ep, wantsAutoplay, loadOffline]
+  );
 
-    const streamKey = `${subjectId}|${detailPath}|${se}|${ep}`;
-    const isNewEpisode = streamKeyRef.current !== streamKey;
-
-    setError("");
-    setUseWatchFallback(false);
-    fallbackTried.current = false;
-    userWantsPlayRef.current = wantsAutoplay;
-    preloadedRef.current = false;
-    setWaitingToPlay(wantsAutoplay);
-
-    const applySources = (nextSources) => {
-      setSources(nextSources);
-      // Only reset quality when switching title/episode — never when UI helpers
-      // recreate and accidentally re-trigger load (e.g. closing settings).
-      if (isNewEpisode) {
-        streamKeyRef.current = streamKey;
-        setQualityMode("auto");
-        setQualityIndex(pickAutoIndex(nextSources, AUTO_MAX));
-      }
-      setStatus("ready");
-      showControlsRef.current?.();
-    };
-
-    const streamParams = { subjectId, detailPath, se, ep };
-    const cached = getCachedStreams(streamParams);
-    if (cached?.sources?.length) {
-      applySources(cached.sources);
-      return;
-    }
-
-    setStatus("loading");
-    try {
-      const result = await prefetchStreams(streamParams);
-      if (!result.sources.length) {
-        throw new Error("No streams available for this title.");
-      }
-      applySources(result.sources);
-    } catch (err) {
-      setError(
-        toUserMessage(
-          err,
-          "Couldn't load streams. Check your connection and try again."
-        )
-      );
-      setStatus("error");
-    }
-  }, [downloadId, offlineReady, offlineUri, subjectId, detailPath, se, ep, wantsAutoplay]);
+  loadRef.current = load;
 
   useEffect(() => {
-    if (downloadId && !offlineReady) return;
-    if (offlineUri) return;
-    load();
-  }, [load, downloadId, offlineReady, offlineUri]);
+    if (downloadId) {
+      loadOffline();
+    } else {
+      setOfflineUri("");
+      setOfflineReady(true);
+      load();
+    }
+  }, [downloadId, loadOffline, load]);
 
   useEffect(() => {
     setExpanded(false);
@@ -1751,7 +1811,18 @@ export default function PlayScreen() {
         ) : status === "error" ? (
           <View style={styles.centerFill}>
             <Text style={styles.error}>{error}</Text>
-            <Pressable style={styles.retryBtn} onPress={load}>
+            <Pressable
+              style={styles.retryBtn}
+              onPress={() => {
+                if (downloadId || offlineUri) {
+                  offlineRecoverAttempts.current = 0;
+                  loadOffline();
+                } else {
+                  clearStreamCooldown({ subjectId, detailPath, se, ep });
+                  load({ force: true });
+                }
+              }}
+            >
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
             <Pressable

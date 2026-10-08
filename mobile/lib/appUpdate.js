@@ -33,6 +33,32 @@ export function getGitHubReleasesUrl() {
   return String(process.env.EXPO_PUBLIC_GITHUB_RELEASES_URL || "").trim();
 }
 
+export function isPlayStoreBuild() {
+  return process.env.EXPO_PUBLIC_DISTRIBUTION === "playstore";
+}
+
+export async function openPlayStorePage() {
+  const pkg =
+    Constants.expoConfig?.android?.package || "com.moviehunter.app";
+  const marketUrl = `market://details?id=${pkg}`;
+  const webUrl = `https://play.google.com/store/apps/details?id=${pkg}`;
+  try {
+    const supported = await Linking.canOpenURL(marketUrl);
+    if (supported) {
+      await Linking.openURL(marketUrl);
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    await Linking.openURL(webUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getLocalAppVersion() {
   return String(
     Constants.expoConfig?.version ||
@@ -167,6 +193,10 @@ export async function checkForAppUpdate() {
       }
     }
 
+    const isPlayStore = isPlayStoreBuild();
+    const canInstallApk =
+      Platform.OS === "android" && !IS_EXPO_GO && !isPlayStore && Boolean(apkUrl);
+
     return {
       updateAvailable,
       force,
@@ -177,10 +207,10 @@ export async function checkForAppUpdate() {
       currentVersionCode,
       releaseNotes,
       releaseMetadata,
-      apkUrl,
+      apkUrl: isPlayStore ? "" : apkUrl,
       releasesUrl,
-      canInstallApk:
-        Platform.OS === "android" && !IS_EXPO_GO && Boolean(apkUrl),
+      isPlayStore,
+      canInstallApk,
       env: data?.env || null,
     };
   } finally {

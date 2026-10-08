@@ -55,17 +55,29 @@ async function warmMediaUrl(url) {
 const failedCooldown = new Map();
 const FAILED_COOLDOWN_MS = 15000;
 
+export function clearStreamCooldown(params) {
+  if (!params) {
+    failedCooldown.clear();
+    return;
+  }
+  failedCooldown.delete(streamKey(params));
+}
+
 // Resolve streams + fetch the first chunk of the default quality.
-export async function prefetchStreams(params, { maxHeight = 720 } = {}) {
+export async function prefetchStreams(params, { maxHeight = 720, force = false } = {}) {
   const key = streamKey(params);
+  if (force) {
+    failedCooldown.delete(key);
+  } else {
+    // Protect against rapid-fire retry storms (especially on 429s)
+    const failedAt = failedCooldown.get(key);
+    if (failedAt && Date.now() - failedAt < FAILED_COOLDOWN_MS) {
+      throw new Error("Stream lookup temporarily cooling down. Please wait a few seconds.");
+    }
+  }
+
   const cached = getCachedStreams(params);
   if (cached?.sources?.length) return cached;
-
-  // Protect against rapid-fire retry storms (especially on 429s)
-  const failedAt = failedCooldown.get(key);
-  if (failedAt && Date.now() - failedAt < FAILED_COOLDOWN_MS) {
-    throw new Error("Stream lookup temporarily cooling down. Please wait a few seconds.");
-  }
 
   if (inflight.has(key)) {
     try {

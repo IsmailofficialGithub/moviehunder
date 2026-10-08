@@ -557,7 +557,7 @@ function writeVersionFiles({
   const existing = fs.existsSync(VERSION_PATHS[0]) ? readJson(VERSION_PATHS[0]) : {};
   const payload = {
     latest_version: version,
-    min_supported_version: version,
+    min_supported_version: force ? version : (existing.min_supported_version || "0.0.1"),
     update_type: existing.update_type || (force ? "hard" : "soft"),
     env: existing.env || {
       api_base: "",

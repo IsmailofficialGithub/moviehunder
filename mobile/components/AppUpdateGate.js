@@ -16,6 +16,7 @@ import {
   checkForAppUpdate,
   checkOtaUpdate,
   downloadAndInstallApk,
+  openPlayStorePage,
   openReleasesPage,
 } from "../lib/appUpdate";
 import { colors, radii, spacing } from "../lib/theme";
@@ -79,12 +80,17 @@ export function useAppUpdateCheck({ enabled = true } = {}) {
     setError("");
     setProgress(0);
     try {
-      if (info.canInstallApk && info.apkUrl) {
+      if (info.isPlayStore) {
+        const opened = await openPlayStorePage();
+        if (!opened) {
+          setError("Could not open Google Play Store");
+        }
+      } else if (info.canInstallApk && info.apkUrl) {
         const result = await downloadAndInstallApk(info.apkUrl, setProgress);
         if (!result.ok) {
           setError(
             result.error ||
-              "Update failed. If Android says “App not installed”, uninstall the old app once, then install v0.0.2 from GitHub — after that, in-app updates work (same signing key)."
+              "Update failed. Check your network or download from GitHub."
           );
         }
       } else {
@@ -243,13 +249,23 @@ export function AppUpdateGate({
         onPress={onUpdate}
       >
         <Ionicons
-          name={otaReady ? "refresh-outline" : "download-outline"}
+          name={
+            otaReady
+              ? "refresh-outline"
+              : info?.isPlayStore
+              ? "logo-google-playstore"
+              : info?.canInstallApk
+              ? "download-outline"
+              : "arrow-up-circle-outline"
+          }
           size={18}
           color={colors.accentInk}
         />
         <Text style={styles.primaryText}>
           {otaReady
             ? "Restart to apply"
+            : info?.isPlayStore
+            ? "Update on Google Play"
             : info?.canInstallApk
             ? "Download & install"
             : "Get update"}
@@ -262,7 +278,7 @@ export function AppUpdateGate({
         </Pressable>
       ) : null}
 
-      {!info?.canInstallApk && !otaReady ? (
+      {!info?.canInstallApk && !otaReady && !info?.isPlayStore ? (
         <Text style={styles.hint}>
           Opens the GitHub releases page. Use a release APK build for in-app
           install.
