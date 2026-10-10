@@ -9,6 +9,7 @@ import GuestSyncWorker from "../components/GuestSyncWorker";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Inter } from "next/font/google";
 import NavigationProgressBar from "../components/NavigationProgressBar";
+import { HoverPreviewProvider } from "../components/HoverPreview";
 import "./globals.css";
 
 const inter = Inter({
@@ -233,12 +234,14 @@ export default function RootLayout({ children }) {
           <GlobalAds />
           <GuestSyncWorker />
           <SiteHeader />
-          <div className="appMain">
-            <div className="appScrollContent">
-              {children}
-              <SiteFooter />
+          <HoverPreviewProvider>
+            <div className="appMain">
+              <div className="appScrollContent">
+                {children}
+                <SiteFooter />
+              </div>
             </div>
-          </div>
+          </HoverPreviewProvider>
           <AppDownloadPrompt />
         </AuthProvider>
         <SpeedInsights />

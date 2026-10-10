@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import LazyPoster from "./LazyPoster";
 import styles from "./TitleCard.module.css";
 import { ADS_CONFIG } from "../lib/ads";
+import { useHoverPreview } from "./HoverPreview";
 
 function isHindiItem(item) {
   return (
@@ -16,6 +17,8 @@ function isHindiItem(item) {
 
 export default function TitleCard({ item }) {
   const [isNavigating, setIsNavigating] = useState(false);
+  const cardRef = useRef(null);
+  const { onCardPointerEnter, onCardPointerLeave } = useHoverPreview();
   const slug = item?.slug || "";
 
   useEffect(() => {
@@ -54,10 +57,13 @@ export default function TitleCard({ item }) {
 
   return (
     <Link
+      ref={cardRef}
       href={`/title/${encodeURIComponent(slug)}`}
       prefetch={true}
       className={`${styles.card} ${isNavigating ? styles.navigating : ""}`}
       onClick={handleCardClick}
+      onPointerEnter={(e) => onCardPointerEnter?.(e, item, cardRef.current)}
+      onPointerLeave={() => onCardPointerLeave?.(item)}
       aria-busy={isNavigating}
     >
       <div className={styles.posterWrap}>
@@ -70,6 +76,8 @@ export default function TitleCard({ item }) {
         ) : (
           <div className={styles.fallback}>{item.name || "No poster"}</div>
         )}
+        <div className={styles.hoverShine} aria-hidden="true" />
+        <div className={styles.dwellIndicator} aria-hidden="true" />
         {badgeLabel ? (
           <span className={hindi ? styles.hindiBadge : styles.badge}>
             {badgeLabel}

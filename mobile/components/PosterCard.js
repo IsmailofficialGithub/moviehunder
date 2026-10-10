@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { openCatalogTitle } from "../lib/catalogNav";
+import { openPreview } from "../lib/previewUi";
 import { useDownloadSummary } from "../lib/useDownloadSummary";
 import { colors, spacing } from "../lib/theme";
 
@@ -61,6 +62,10 @@ export default function PosterCard({ item, width = 118, onPress }) {
         onPress?.();
         openCatalogTitle(slug);
       }}
+      onLongPress={() => {
+        openPreview(item);
+      }}
+      delayLongPress={280}
     >
       {card}
     </Pressable>

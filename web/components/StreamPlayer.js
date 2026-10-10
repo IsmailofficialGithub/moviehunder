@@ -339,7 +339,24 @@ export default function StreamPlayer({
   const holdTimerRef = useRef(null);
   const prevRateRef = useRef(1);
   const suppressClickRef = useRef(false);
-  const pointerDownPosRef = useRef(null);
+  const lastEpKeyRef = useRef(`${subjectId}_${se}_${ep}`);
+  const activeEpKeyRef = useRef(`${subjectId}_${se}_${ep}`);
+
+  // Immediately pause and reset playback state on episode change so previous episode's timestamp doesn't bleed
+  useEffect(() => {
+    const key = `${subjectId}_${se}_${ep}`;
+    if (activeEpKeyRef.current !== key) {
+      activeEpKeyRef.current = key;
+      resumeAtRef.current = 0;
+      setVideoTime(0);
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+        } catch {}
+      }
+    }
+  }, [subjectId, se, ep]);
 
   // Double-tap / double-click 10s seek
   const [seekRipple, setSeekRipple] = useState(null);
@@ -602,13 +619,20 @@ export default function StreamPlayer({
         return;
       }
       lastPosAt = now;
+      if (activeEpKeyRef.current !== `${subjectId}_${se}_${ep}`) return;
 
       if (video.currentTime > 2 && !video.ended) {
         try {
           const nowTs = Date.now();
           const seStr = String(se || "0");
           const epStr = String(ep || "0");
-          localStorage.setItem(`history_${subjectId}_${seStr}_${epStr}`, video.currentTime.toString());
+          const dur = video.duration || 0;
+          const isFinished = dur > 60 && (video.currentTime / dur >= 0.90 || dur - video.currentTime <= 30);
+          if (isFinished) {
+            localStorage.removeItem(`history_${subjectId}_${seStr}_${epStr}`);
+          } else {
+            localStorage.setItem(`history_${subjectId}_${seStr}_${epStr}`, video.currentTime.toString());
+          }
           localStorage.setItem(`history_time_${subjectId}_${seStr}_${epStr}`, nowTs.toString());
           if (title || poster) {
             let prevMeta = {};
@@ -709,6 +733,77 @@ export default function StreamPlayer({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [subPanelOpen, settingsOpen]);
+
+  // Spacebar 2X speed: clicking Space toggles 2X speed, holding plays in 2X
+  useEffect(() => {
+    if (!mounted) return;
+    let spaceDownTime = 0;
+
+    const onKeyDown = (e) => {
+      if (e.code !== "Space" && e.key !== " ") return;
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+
+      if (!spaceDownTime) {
+        spaceDownTime = Date.now();
+      }
+
+      const video = videoRef.current;
+      if (!video) return;
+
+      if (!isHolding2xRef.current) {
+        prevRateRef.current = video.playbackRate === 2 ? 1 : (video.playbackRate || 1);
+        isHolding2xRef.current = true;
+        setHold2xActive(true);
+        video.playbackRate = 2;
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+      }
+    };
+
+    const onKeyUp = (e) => {
+      if (e.code !== "Space" && e.key !== " ") return;
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+
+      const duration = Date.now() - spaceDownTime;
+      spaceDownTime = 0;
+      isHolding2xRef.current = false;
+
+      const video = videoRef.current;
+      if (!video) return;
+
+      // If held for > 250ms, release back to normal rate
+      if (duration > 250) {
+        setHold2xActive(false);
+        video.playbackRate = prevRateRef.current || 1;
+      } else {
+        // Quick click/tap: toggle 2X speed
+        if (video.playbackRate === 2 && hold2xActive) {
+          setHold2xActive(false);
+          video.playbackRate = 1;
+        } else {
+          setHold2xActive(true);
+          video.playbackRate = 2;
+          if (video.paused) video.play().catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [mounted, hold2xActive]);
 
   const load = useCallback(async () => {
     if (!subjectId || !detailPath) {
@@ -840,7 +935,16 @@ export default function StreamPlayer({
     if (!mounted) return;
     const video = videoRef.current;
     if (!video || !src) return;
-    let resume = resumeAtRef.current > 0 ? resumeAtRef.current : Number(initialTime) || 0;
+    const currentKey = `${subjectId}_${se}_${ep}`;
+    const isNewEp = lastEpKeyRef.current !== currentKey;
+    lastEpKeyRef.current = currentKey;
+
+    let resume = 0;
+    if (!isNewEp && resumeAtRef.current > 0) {
+      resume = resumeAtRef.current;
+    } else if (!isNewEp && Number(initialTime) > 0) {
+      resume = Number(initialTime);
+    }
     resumeAtRef.current = 0;
 
     // Reset retry counter every time the src changes (new episode or quality change)
@@ -849,22 +953,29 @@ export default function StreamPlayer({
 
     if (resume === 0) {
       try {
-        const saved = localStorage.getItem(`history_${subjectId}_${se}_${ep}`);
+        const seStr = String(se || "0");
+        const epStr = String(ep || "0");
+        const saved = localStorage.getItem(`history_${subjectId}_${seStr}_${epStr}`);
         if (saved && !isNaN(Number(saved))) {
-          resume = Number(saved);
+          const savedNum = Number(saved);
+          if (savedNum > 2) {
+            resume = savedNum;
+          }
         }
       } catch {}
     }
 
+    try {
+      video.currentTime = 0;
+    } catch {}
+
     video.src = src;
     video.load();
     const onReady = () => {
-      if (resume > 0) {
-        try {
-          video.currentTime = resume;
-        } catch {
-          // ignore
-        }
+      try {
+        video.currentTime = Math.max(0, resume);
+      } catch {
+        // ignore
       }
       video.play().catch(() => {});
     };
@@ -2018,6 +2129,7 @@ export default function StreamPlayer({
         {mounted ? (
           <MediaController
             className={styles.controller}
+            hotkeys="nospace"
             autohide="5"
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}

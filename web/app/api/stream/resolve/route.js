@@ -7,17 +7,30 @@ import { createPlaybackTicket } from "../../../../lib/mediaSecurity";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// Server-side in-memory cache for ultra-fast instant stream resolution
+const serverCache = new Map();
+const CACHE_TTL_MS = 15 * 60 * 1000;
+
 export async function GET(request) {
   try {
     const url = new URL(request.url);
-    const subjectId = url.searchParams.get("subjectId");
+    let subjectId = url.searchParams.get("subjectId");
     const detailPath = url.searchParams.get("detailPath");
     const se = url.searchParams.get("se") || "0";
     const ep = url.searchParams.get("ep") || "0";
 
-    if (!subjectId || !detailPath) {
+    const cacheKey = `${subjectId || ""}_${detailPath || ""}_${se}_${ep}`;
+    const cachedHit =
+      serverCache.get(cacheKey) ||
+      (detailPath ? serverCache.get(`${detailPath}_${se}_${ep}`) : null) ||
+      (detailPath ? serverCache.get(detailPath) : null);
+    if (cachedHit && Date.now() - cachedHit.ts < CACHE_TTL_MS) {
+      return NextResponse.json(cachedHit.payload);
+    }
+
+    if (!subjectId && !detailPath) {
       return NextResponse.json(
-        { ok: false, error: "subjectId and detailPath are required" },
+        { ok: false, error: "subjectId or detailPath is required" },
         { status: 400 }
       );
     }
@@ -29,48 +42,83 @@ export async function GET(request) {
     };
     if (appKey) serverHeaders["X-App-Key"] = appKey;
 
-    const streamPath = `/api/stream/${encodeURIComponent(
-      subjectId
-    )}?detail_path=${encodeURIComponent(detailPath)}&se=${se}&ep=${ep}`;
-
-    let data = null;
-    let via = "worker";
-    let streamDomain = "";
-
-    // Prefer play relay if available
-    const relayBase = getPlayRelayBase();
-    if (relayBase) {
+    let detailMeta = null;
+    if (!subjectId && detailPath) {
       try {
-        const relayRes = await fetch(`${relayBase}${streamPath}`, {
-          headers: serverHeaders,
-        });
-        if (relayRes.ok) {
-          data = await relayRes.json();
-          via = "relay";
-          streamDomain = data.stream_domain || "relay";
+        const detailRes = await fetch(
+          `${getApiBase()}/detail/${encodeURIComponent(detailPath)}`,
+          { headers: serverHeaders }
+        );
+        if (detailRes.ok) {
+          const detailData = await detailRes.json();
+          subjectId = detailData?.metadata?.id;
+          detailMeta = detailData?.metadata || null;
         }
-      } catch {
-        // Relay failed, fall through to worker API
-      }
+      } catch {}
     }
 
-    if (!data) {
-      const apiRes = await fetch(`${getApiBase()}${streamPath}`, {
-        headers: serverHeaders,
-      });
-      if (!apiRes.ok) {
-        const errData = await apiRes.json().catch(() => ({}));
-        return NextResponse.json(
-          { ok: false, error: errData.error || `Stream resolve failed (${apiRes.status})` },
-          { status: apiRes.status }
-        );
+    if (!subjectId) subjectId = detailPath;
+
+    const fetchStreamAttempt = async (curSe, curEp) => {
+      const sp = `/api/stream/${encodeURIComponent(
+        subjectId
+      )}?detail_path=${encodeURIComponent(detailPath || subjectId)}&se=${curSe}&ep=${curEp}`;
+
+      const relayBase = getPlayRelayBase();
+      if (relayBase) {
+        try {
+          const relayRes = await fetch(`${relayBase}${sp}`, {
+            headers: serverHeaders,
+            signal: AbortSignal.timeout(2800),
+          });
+          if (relayRes.ok) {
+            const d = await relayRes.json();
+            if (Array.isArray(d.sources) && d.sources.length > 0) {
+              return { data: d, via: "relay", streamDomain: d.stream_domain || "relay" };
+            }
+          }
+        } catch {}
       }
-      data = await apiRes.json();
-      via = "worker";
-      streamDomain = data.stream_domain || "worker";
+
+      try {
+        const apiRes = await fetch(`${getApiBase()}${sp}`, {
+          headers: serverHeaders,
+          signal: AbortSignal.timeout(3200),
+        });
+        if (apiRes.ok) {
+          const d = await apiRes.json();
+          if (Array.isArray(d.sources) && d.sources.length > 0) {
+            return { data: d, via: "worker", streamDomain: d.stream_domain || "worker" };
+          }
+        }
+      } catch {}
+
+      return null;
+    };
+
+    let resolved = null;
+    if (se === "0" && ep === "0") {
+      const [res0, res1] = await Promise.all([
+        fetchStreamAttempt("0", "0"),
+        fetchStreamAttempt("1", "1"),
+      ]);
+      resolved = res0 || res1;
+    } else {
+      resolved = await fetchStreamAttempt(se, ep);
     }
+
+    if (!resolved || !resolved.data) {
+      return NextResponse.json(
+        { ok: false, error: "No playable streams found" },
+        { status: 404 }
+      );
+    }
+
+    const { data, via, streamDomain } = resolved;
 
     const rawSources = Array.isArray(data.sources) ? data.sources : [];
+
+    const relayBase = getPlayRelayBase();
 
     // Mask raw CDN URLs by converting them into secure, short-lived playback tickets
     const maskedSources = rawSources
@@ -79,8 +127,12 @@ export async function GET(request) {
         const height =
           parseInt(String(s.resolution || "").replace(/p$/i, ""), 10) || 0;
         const ticket = createPlaybackTicket(s.url);
+        const directUrl = relayBase
+          ? `${relayBase}/api/media?url=${encodeURIComponent(s.url)}`
+          : null;
         return {
           url: `/api/media?ticket=${ticket}`,
+          direct_url: directUrl,
           resolution: s.resolution || (height ? `${height}p` : "Auto"),
           height,
           format: s.format || "MP4",
@@ -90,12 +142,35 @@ export async function GET(request) {
       })
       .sort((a, b) => b.height - a.height);
 
-    return NextResponse.json({
+    const payload = {
       ok: true,
       sources: maskedSources,
       host: streamDomain,
       via,
-    });
+      meta: detailMeta
+        ? {
+            id: detailMeta.id,
+            country: detailMeta.country,
+            genre: detailMeta.genre,
+            year: detailMeta.release_date,
+            rating: detailMeta.imdb_rating,
+            title: detailMeta.title,
+            duration: detailMeta.duration,
+          }
+        : null,
+    };
+
+    if (serverCache.size > 250) {
+      const oldestKey = serverCache.keys().next().value;
+      serverCache.delete(oldestKey);
+    }
+    serverCache.set(cacheKey, { payload, ts: Date.now() });
+    if (detailPath) {
+      serverCache.set(detailPath, { payload, ts: Date.now() });
+      serverCache.set(`${detailPath}_${se}_${ep}`, { payload, ts: Date.now() });
+    }
+
+    return NextResponse.json(payload);
   } catch (err) {
     console.error("[api/stream/resolve] error:", err);
     return NextResponse.json(

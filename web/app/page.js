@@ -10,7 +10,7 @@ export const revalidate = 300;
 export const metadata = {
   title: "Watch Free Movies and TV Shows Online | Offstream",
   description:
-    "Watch free movies and TV shows online on Offstream (offstream.co). Stream thousands of free full movies in HD, Hollywood blockbusters, Bollywood releases, and trending series with zero ads.",
+    "Stream thousands of free movies and TV shows online in HD on Offstream with zero ads. Free Hollywood, Bollywood, and trending series.",
   alternates: {
     canonical: "https://offstream.co",
   },

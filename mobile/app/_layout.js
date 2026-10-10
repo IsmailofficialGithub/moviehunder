@@ -14,12 +14,14 @@ import {
 } from "../components/AppUpdateGate";
 import MusicNowPlayingBanner from "../components/MusicNowPlayingBanner";
 import MusicPlayerModal from "../components/MusicPlayerModal";
+import MobilePreviewModal from "../components/MobilePreviewModal";
 import { useAccessGate } from "../lib/useAccessGate";
 import { AuthProvider } from "../lib/AuthProvider";
 import Constants from "expo-constants";
 import { setupMusicNotifications } from "../lib/musicNotification";
 import { setupDownloadNotifications } from "../lib/downloadNotification";
 import { openMusicPlayer, registerMusicPlayerOpener } from "../lib/musicUi";
+import { registerPreviewOpener } from "../lib/previewUi";
 import { colors } from "../lib/theme";
 
 const IS_EXPO_GO =
@@ -46,6 +48,7 @@ function BootScreen({ label = "Loading…" }) {
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(splashShownThisSession);
   const [showPlayer, setShowPlayer] = useState(false);
+  const [previewItem, setPreviewItem] = useState(null);
 
   const update = useAppUpdateCheck({ enabled: splashDone });
 
@@ -60,6 +63,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     return registerMusicPlayerOpener(() => setShowPlayer(true));
+  }, []);
+
+  useEffect(() => {
+    return registerPreviewOpener((item) => setPreviewItem(item));
   }, []);
 
   useEffect(() => {
@@ -157,6 +164,11 @@ export default function RootLayout() {
             <MusicPlayerModal
               visible={showPlayer}
               onClose={() => setShowPlayer(false)}
+            />
+            <MobilePreviewModal
+              visible={Boolean(previewItem)}
+              item={previewItem}
+              onClose={() => setPreviewItem(null)}
             />
             <SoftUpdateModal
               visible={update.softVisible}

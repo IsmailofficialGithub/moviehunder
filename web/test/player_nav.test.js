@@ -162,3 +162,40 @@ test("SiteHeader uses Lucide Download icon, compact pill button, and supports Go
   );
 });
 
+test("StreamPlayer resets timestamp on episode change and implements Spacebar 2X speed", () => {
+  const playerPath = path.join(__dirname, "../components/StreamPlayer.js");
+  const playerSrc = fs.readFileSync(playerPath, "utf8");
+
+  // Spacebar 2X speed & hotkey isolation
+  assert.ok(
+    playerSrc.includes('hotkeys="nospace"'),
+    "MediaController must have hotkeys=\"nospace\" so Spacebar controls 2X speed"
+  );
+  assert.ok(
+    playerSrc.includes('e.code !== "Space" && e.key !== " "') ||
+      playerSrc.includes('e.code === "Space"') ||
+      playerSrc.includes('e.key === " "'),
+    "StreamPlayer must listen for Space key"
+  );
+  assert.ok(
+    playerSrc.includes("playbackRate = 2") && playerSrc.includes("hold2xActive"),
+    "StreamPlayer must set playbackRate to 2 on Spacebar and toggle hold2xActive"
+  );
+
+  // Episode change timestamp reset to prevent 99% bleed
+  assert.ok(
+    playerSrc.includes("activeEpKeyRef") && playerSrc.includes("lastEpKeyRef"),
+    "StreamPlayer must track activeEpKeyRef and lastEpKeyRef"
+  );
+  assert.ok(
+    playerSrc.includes("video.currentTime = Math.max(0, resume)"),
+    "StreamPlayer must explicitly reset currentTime on ready to prevent timestamp bleed"
+  );
+  assert.ok(
+    playerSrc.includes("video.currentTime / dur >= 0.90") ||
+      playerSrc.includes("isFinished"),
+    "StreamPlayer must treat nearly-completed episodes as finished instead of resuming at 99%"
+  );
+});
+
+

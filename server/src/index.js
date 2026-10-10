@@ -106,6 +106,7 @@ function mapSubject(s) {
     subject_type: s.subjectType || null,
     description: s.description || s.desc || s.introduction || s.intro || null,
     genre: s.genre || null,
+    country: s.countryName || s.country || null,
   };
   if (isBlockedCatalogItem(item)) return null;
   return item;
