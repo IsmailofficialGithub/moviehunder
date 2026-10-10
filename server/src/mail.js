@@ -23,7 +23,7 @@ function getTransporter() {
     secure,
     auth: {
       user: String(process.env.SMTP_USER || "").trim(),
-      pass: String(process.env.SMTP_PASS || ""),
+      pass: String(process.env.SMTP_PASS || "").trim().replace(/\s+/g, ""),
     },
   });
   return transporter;
