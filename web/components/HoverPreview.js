@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Play, Volume2, VolumeX, Star } from "lucide-react";
+import { Play, Volume2, VolumeX, Star, X } from "lucide-react";
 import styles from "./HoverPreview.module.css";
 
 const HoverPreviewContext = createContext({
@@ -278,7 +278,7 @@ export function HoverPreviewProvider({ children }) {
         setExtraMeta(cached.meta || null);
         if (cached.sourceUrl) {
           rawSourceUrlRef.current = cached.sourceUrl;
-          setVideoSrcA(`${cached.sourceUrl}#t=65`);
+          setVideoSrcA(cached.sourceUrl);
           setVideoSrcB("");
         }
       }
@@ -319,7 +319,7 @@ export function HoverPreviewProvider({ children }) {
         setExtraMeta(meta);
         if (sourceUrl) {
           rawSourceUrlRef.current = sourceUrl;
-          setVideoSrcA(`${sourceUrl}#t=65`);
+          setVideoSrcA(sourceUrl);
           setVideoSrcB("");
         }
       }
@@ -330,7 +330,7 @@ export function HoverPreviewProvider({ children }) {
     }
   }, []);
 
-  // Smooth 1-second exit transition when cursor leaves preview card/box
+  // Smooth exit transition when cursor leaves preview card/box
   const startClosing = useCallback(() => {
     if (!isOpen) return;
     setIsClosing(true);
@@ -383,15 +383,14 @@ export function HoverPreviewProvider({ children }) {
         prefetchTimerRef.current = null;
       }
 
-      // Early background stream pre-fetch at 200ms of stationary hover:
-      // When the 1.0s dwell ends, the stream is already resolved and video plays instantly!
+      // Instant background stream pre-fetch at 40ms of hover
       prefetchTimerRef.current = setTimeout(() => {
         if (activeSlugRef.current === slug) {
           loadStreamForPreview(item);
         }
-      }, 200);
+      }, 40);
 
-      // 1.0s dwell delay: box only appears when user intentionally stops on a card for at least 1.0s
+      // 1.0s dwell delay: box only appears after 1.0s of stationary hover
       dwellTimerRef.current = setTimeout(() => {
         if (activeSlugRef.current !== slug) return;
         cardRefMap.current = cardElement;
@@ -617,13 +616,6 @@ export function HoverPreviewProvider({ children }) {
       videoRefA.current.muted = isMuted;
       videoRefA.current.defaultMuted = true;
 
-      // Fallback seek only if browser didn't parse #t=65 media fragment
-      if (videoRefA.current.currentTime < 45 && videoRefA.current.duration > 120) {
-        try {
-          videoRefA.current.currentTime = 65;
-        } catch {}
-      }
-
       const promise = videoRefA.current.play();
       if (promise !== undefined) {
         promise
@@ -756,21 +748,33 @@ export function HoverPreviewProvider({ children }) {
         isOpen &&
         activeItem &&
         createPortal(
-          <div
-            className={`${styles.previewContainer} ${
-              isClosing ? styles.previewClosing : ""
-            }`}
-            style={{
-              top: `${pos.top}px`,
-              left: `${pos.left}px`,
-              width: `${pos.width}px`,
-            }}
-            onMouseEnter={onPreviewMouseEnter}
-            onMouseLeave={onPreviewMouseLeave}
-            onClick={handleCardClick}
-            role="dialog"
-            aria-label={activeItem.name || "Preview"}
-          >
+          <>
+            <div
+              className={`${styles.backdrop} ${
+                isClosing ? styles.backdropClosing : ""
+              }`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                closePreview();
+              }}
+              aria-hidden="true"
+            />
+            <div
+              className={`${styles.previewContainer} ${
+                isClosing ? styles.previewClosing : ""
+              }`}
+              style={{
+                top: `${pos.top}px`,
+                left: `${pos.left}px`,
+                width: `${pos.width}px`,
+              }}
+              onMouseEnter={onPreviewMouseEnter}
+              onMouseLeave={onPreviewMouseLeave}
+              onClick={handleCardClick}
+              role="dialog"
+              aria-label={activeItem.name || "Preview"}
+            >
             {/* Top Video / Poster Player */}
             <div className={styles.mediaWrap}>
               {activeItem.poster_url ? (
@@ -864,6 +868,21 @@ export function HoverPreviewProvider({ children }) {
                 }`}
               />
 
+              {/* Close Button on Mobile / Top Left */}
+              <button
+                type="button"
+                className={styles.closeBtn}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closePreview();
+                }}
+                title="Close preview"
+                aria-label="Close preview"
+              >
+                <X size={15} strokeWidth={2.4} />
+              </button>
+
               {/* Top Mute / Sound Toggle Button */}
               <button
                 type="button"
@@ -938,9 +957,10 @@ export function HoverPreviewProvider({ children }) {
                 </button>
               </div>
             </div>
-          </div>,
-          document.body
-        )}
+          </div>
+        </>,
+        document.body
+      )}
     </HoverPreviewContext.Provider>
   );
 }

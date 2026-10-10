@@ -4,8 +4,8 @@ import { SignJWT, jwtVerify } from "jose";
 import { dbConfigured, getPrisma } from "./db.js";
 import { sendVerificationEmail } from "./mail.js";
 
-const ACCESS_TTL = "15m";
-const REFRESH_DAYS = 30;
+const ACCESS_TTL = "30d";
+const REFRESH_DAYS = 60;
 const VERIFY_HOURS = 48;
 
 function jwtSecret() {

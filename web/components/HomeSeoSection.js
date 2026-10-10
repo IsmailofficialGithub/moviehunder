@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Film, Zap, Languages, MonitorSmartphone, ChevronDown } from "lucide-react";
 import styles from "./HomeSeoSection.module.css";
 
 const FAQS = [
@@ -65,7 +66,9 @@ export default function HomeSeoSection() {
 
       <div className={styles.featuresGrid}>
         <div className={styles.featureCard}>
-          <span className={styles.featureIcon} aria-hidden>🍿</span>
+          <div className={styles.featureIcon} aria-hidden>
+            <Film size={20} strokeWidth={2.2} />
+          </div>
           <h2 className={styles.featureTitle}>Free HD Streaming</h2>
           <p className={styles.featureDesc}>
             Stream complete feature films and full episodic seasons without subscription paywalls or mandatory account signups.
@@ -73,7 +76,9 @@ export default function HomeSeoSection() {
         </div>
 
         <div className={styles.featureCard}>
-          <span className={styles.featureIcon} aria-hidden>⚡</span>
+          <div className={styles.featureIcon} aria-hidden>
+            <Zap size={20} strokeWidth={2.2} />
+          </div>
           <h2 className={styles.featureTitle}>Lightning Playback</h2>
           <p className={styles.featureDesc}>
             High-speed video delivery with adaptive quality options, multi-server redundancy, and instant timestamp resume.
@@ -81,7 +86,9 @@ export default function HomeSeoSection() {
         </div>
 
         <div className={styles.featureCard}>
-          <span className={styles.featureIcon} aria-hidden>🌐</span>
+          <div className={styles.featureIcon} aria-hidden>
+            <Languages size={20} strokeWidth={2.2} />
+          </div>
           <h2 className={styles.featureTitle}>Hindi Dubbed &amp; Subtitles</h2>
           <p className={styles.featureDesc}>
             Explore thousands of Hindi dubbed movies and regional Asian cinema with multi-language subtitle tracks.
@@ -89,7 +96,9 @@ export default function HomeSeoSection() {
         </div>
 
         <div className={styles.featureCard}>
-          <span className={styles.featureIcon} aria-hidden>📱</span>
+          <div className={styles.featureIcon} aria-hidden>
+            <MonitorSmartphone size={20} strokeWidth={2.2} />
+          </div>
           <h2 className={styles.featureTitle}>Cross-Device Experience</h2>
           <p className={styles.featureDesc}>
             Enjoy responsive streaming on mobile, desktop, tablet, and the official MovieHunter Android app.
@@ -115,7 +124,7 @@ export default function HomeSeoSection() {
                     className={`${styles.faqArrow} ${isOpen ? styles.faqArrowOpen : ""}`}
                     aria-hidden
                   >
-                    ▼
+                    <ChevronDown size={18} strokeWidth={2.2} />
                   </span>
                 </button>
                 {isOpen ? (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -38,6 +38,7 @@ export default function AccountScreen() {
   const { user, loading, logout, providers, hasPassword, refresh } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const handledAuthRef = useRef("");
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -52,32 +53,46 @@ export default function AccountScreen() {
     return unsub;
   }, []);
 
+  const rawAccess = params.access_token ? String(params.access_token) : "";
+  const rawRefreshToken = params.refresh_token ? String(params.refresh_token) : "";
+  const rawVerify = params.verify ? String(params.verify) : "";
+  const authKey = `${rawAccess}:${rawRefreshToken}:${rawVerify}`;
+
   useEffect(() => {
-    const access = params.access_token;
-    const refreshToken = params.refresh_token;
-    const verify = params.verify;
-    if (!access && !refreshToken && !verify) return;
+    if (!rawAccess && !rawRefreshToken && !rawVerify) return;
+    if (handledAuthRef.current === authKey) return;
+    handledAuthRef.current = authKey;
+
     (async () => {
       try {
-        if (verify) {
-          await verifyEmail(String(verify));
+        if (rawVerify) {
+          await verifyEmail(rawVerify);
           setMsg("Email verified successfully.");
+          try {
+            router.setParams({ verify: undefined });
+          } catch {}
           return;
         }
-        if (access && refreshToken) {
+        if (rawAccess && rawRefreshToken) {
           await storeSession({
-            access_token: String(access),
-            refresh_token: String(refreshToken),
+            access_token: rawAccess,
+            refresh_token: rawRefreshToken,
           });
           await refresh();
-          runFullSync().catch(() => { });
+          runFullSync().catch(() => {});
           setMsg("Signed in successfully.");
+          try {
+            router.setParams({
+              access_token: undefined,
+              refresh_token: undefined,
+            });
+          } catch {}
         }
       } catch (e) {
         setError(e.message || "Callback failed");
       }
     })();
-  }, [params, refresh]);
+  }, [rawAccess, rawRefreshToken, rawVerify, authKey, refresh, router]);
 
   async function triggerManualSync() {
     setSyncBusy(true);

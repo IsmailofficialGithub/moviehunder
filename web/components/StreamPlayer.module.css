@@ -1356,7 +1356,9 @@
   width: 100%;
   height: 20px;
   background: transparent !important;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  position: relative;
+  z-index: 10;
   --media-control-height: 20px;
   --media-control-background: transparent;
   --media-control-hover-background: transparent;
@@ -1395,6 +1397,35 @@
   z-index: 2;
   --media-control-background: transparent;
   --media-control-hover-background: transparent;
+}
+
+.volumeGroup {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  height: 44px;
+}
+
+.volumeGroup media-volume-range,
+.volumeGroup .volumeSlider {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
+  --media-range-track-height: 4px;
+  --media-control-height: 28px;
+  height: 28px;
+  vertical-align: middle;
+}
+
+.volumeGroup:hover media-volume-range,
+.volumeGroup:hover .volumeSlider,
+.volumeGroup:focus-within media-volume-range,
+.volumeGroup:focus-within .volumeSlider {
+  width: 68px;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .bottomIconBtn {

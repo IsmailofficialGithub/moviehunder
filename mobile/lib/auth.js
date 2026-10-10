@@ -102,29 +102,39 @@ async function authFetch(path, { method = "GET", body, retry = true } = {}) {
   return data;
 }
 
+let activeMobileRefreshPromise = null;
+
 export async function refreshSession() {
   if (!memory.refresh_token) return null;
-  try {
-    const res = await fetch(`${getApiBase()}/api/auth/refresh`, {
-      method: "POST",
-      headers: {
-        ...apiClientHeaders(),
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ refresh_token: memory.refresh_token }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.access_token) {
+  if (activeMobileRefreshPromise) return activeMobileRefreshPromise;
+
+  activeMobileRefreshPromise = (async () => {
+    try {
+      const res = await fetch(`${getApiBase()}/api/auth/refresh`, {
+        method: "POST",
+        headers: {
+          ...apiClientHeaders(),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ refresh_token: memory.refresh_token }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.access_token) {
+        await clearSession();
+        return null;
+      }
+      await storeSession(data);
+      return data;
+    } catch {
       await clearSession();
       return null;
+    } finally {
+      activeMobileRefreshPromise = null;
     }
-    await storeSession(data);
-    return data;
-  } catch {
-    await clearSession();
-    return null;
-  }
+  })();
+
+  return activeMobileRefreshPromise;
 }
 
 export async function signup(creds) {

@@ -2235,8 +2235,10 @@ export default function StreamPlayer({
               </MediaControlBar>
               <MediaControlBar className={styles.bottomBar}>
                 <MediaPlayButton />
-                <MediaMuteButton />
-                <MediaVolumeRange />
+                <div className={styles.volumeGroup}>
+                  <MediaMuteButton />
+                  <MediaVolumeRange className={styles.volumeSlider} />
+                </div>
                 <MediaTimeDisplay showDuration />
                 <span className={styles.spacer} />
                 <button

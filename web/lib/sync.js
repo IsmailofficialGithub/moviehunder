@@ -139,6 +139,9 @@ export function handleLogoutCleanup(userId) {
   clearWatchCache(userId);
   clearLocalWatchHistory();
   ensureUserStorage(null);
+  try {
+    localStorage.removeItem("active_profile");
+  } catch {}
 }
 
 // ── List & Apply Watch Items ────────────────────────────────────────────────

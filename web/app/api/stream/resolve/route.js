@@ -64,45 +64,51 @@ export async function GET(request) {
         subjectId
       )}?detail_path=${encodeURIComponent(detailPath || subjectId)}&se=${curSe}&ep=${curEp}`;
 
+      const attempts = [];
       const relayBase = getPlayRelayBase();
       if (relayBase) {
-        try {
-          const relayRes = await fetch(`${relayBase}${sp}`, {
+        attempts.push(
+          fetch(`${relayBase}${sp}`, {
             headers: serverHeaders,
-            signal: AbortSignal.timeout(2800),
-          });
-          if (relayRes.ok) {
-            const d = await relayRes.json();
+            signal: AbortSignal.timeout(2400),
+          }).then(async (r) => {
+            if (!r.ok) throw new Error("relay failed");
+            const d = await r.json();
             if (Array.isArray(d.sources) && d.sources.length > 0) {
               return { data: d, via: "relay", streamDomain: d.stream_domain || "relay" };
             }
-          }
-        } catch {}
+            throw new Error("relay no sources");
+          })
+        );
       }
 
-      try {
-        const apiRes = await fetch(`${getApiBase()}${sp}`, {
+      attempts.push(
+        fetch(`${getApiBase()}${sp}`, {
           headers: serverHeaders,
-          signal: AbortSignal.timeout(3200),
-        });
-        if (apiRes.ok) {
-          const d = await apiRes.json();
+          signal: AbortSignal.timeout(2800),
+        }).then(async (r) => {
+          if (!r.ok) throw new Error("api failed");
+          const d = await r.json();
           if (Array.isArray(d.sources) && d.sources.length > 0) {
             return { data: d, via: "worker", streamDomain: d.stream_domain || "worker" };
           }
-        }
-      } catch {}
+          throw new Error("api no sources");
+        })
+      );
 
-      return null;
+      try {
+        return await Promise.any(attempts);
+      } catch {
+        return null;
+      }
     };
 
     let resolved = null;
     if (se === "0" && ep === "0") {
-      const [res0, res1] = await Promise.all([
-        fetchStreamAttempt("0", "0"),
-        fetchStreamAttempt("1", "1"),
-      ]);
-      resolved = res0 || res1;
+      resolved = await fetchStreamAttempt("0", "0");
+      if (!resolved) {
+        resolved = await fetchStreamAttempt("1", "1");
+      }
     } else {
       resolved = await fetchStreamAttempt(se, ep);
     }

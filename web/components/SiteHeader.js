@@ -92,31 +92,43 @@ export default function SiteHeader() {
 
   useEffect(() => {
     try {
+      if (!isSignedIn) {
+        setActiveProfile(null);
+        return;
+      }
       const stored = localStorage.getItem("active_profile");
       if (stored) setActiveProfile(JSON.parse(stored));
-    } catch {}
-  }, [user]);
+      else setActiveProfile(null);
+    } catch {
+      setActiveProfile(null);
+    }
+  }, [user, isSignedIn]);
 
-  const userAvatar =
-    user?.avatar_url ||
-    user?.avatarUrl ||
-    user?.picture ||
-    user?.user_metadata?.avatar_url ||
-    user?.image ||
-    user?.avatar ||
-    null;
+  const userAvatar = isSignedIn
+    ? (user?.avatar_url ||
+       user?.avatarUrl ||
+       user?.picture ||
+       user?.user_metadata?.avatar_url ||
+       user?.image ||
+       user?.avatar ||
+       null)
+    : null;
 
-  const profileAvatar = activeProfile?.avatar;
+  const profileAvatar = isSignedIn ? activeProfile?.avatar : null;
   const isDicebear = typeof profileAvatar === "string" && profileAvatar.includes("dicebear");
   const effectiveAvatar =
-    (!avatarImgError && ((isDicebear && userAvatar) ? userAvatar : (profileAvatar || userAvatar))) ||
+    (isSignedIn &&
+      !avatarImgError &&
+      ((isDicebear && userAvatar) ? userAvatar : (profileAvatar || userAvatar))) ||
     null;
 
   useEffect(() => {
     setAvatarImgError(false);
   }, [userAvatar, profileAvatar]);
 
-  const displayName = activeProfile?.name || user?.display_name || user?.name || "";
+  const displayName = isSignedIn
+    ? (activeProfile?.name || user?.display_name || user?.name || "")
+    : "";
   const initialLetter = displayName ? displayName.charAt(0).toUpperCase() : "";
 
   useEffect(() => {

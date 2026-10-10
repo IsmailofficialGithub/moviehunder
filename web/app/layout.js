@@ -3,6 +3,7 @@ import Script from "next/script";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import AppDownloadPrompt from "../components/AppDownloadPrompt";
+import GuestSignInPrompt from "../components/GuestSignInPrompt";
 import GlobalAds from "../components/ads/GlobalAds";
 import { AuthProvider } from "../components/AuthProvider";
 import GuestSyncWorker from "../components/GuestSyncWorker";
@@ -243,6 +244,7 @@ export default function RootLayout({ children }) {
             </div>
           </HoverPreviewProvider>
           <AppDownloadPrompt />
+          <GuestSignInPrompt />
         </AuthProvider>
         <SpeedInsights />
       </body>

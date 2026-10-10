@@ -40,6 +40,9 @@ export function clearSession() {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
+  try {
+    localStorage.removeItem("active_profile");
+  } catch {}
 }
 
 export async function authFetch(path, { method = "GET", body, token, retry = true } = {}) {
@@ -72,25 +75,35 @@ export async function authFetch(path, { method = "GET", body, token, retry = tru
   return data;
 }
 
+let activeRefreshPromise = null;
+
 export async function refreshSession() {
   const session = getStoredSession();
   if (!session?.refresh_token) return null;
-  try {
-    const data = await fetch(`${apiBase()}/api/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ refresh_token: session.refresh_token }),
-    }).then((r) => r.json());
-    if (!data.access_token) {
+  if (activeRefreshPromise) return activeRefreshPromise;
+
+  activeRefreshPromise = (async () => {
+    try {
+      const data = await fetch(`${apiBase()}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ refresh_token: session.refresh_token }),
+      }).then((r) => r.json());
+      if (!data.access_token) {
+        clearSession();
+        return null;
+      }
+      storeSession(data);
+      return data;
+    } catch {
       clearSession();
       return null;
+    } finally {
+      activeRefreshPromise = null;
     }
-    storeSession(data);
-    return data;
-  } catch {
-    clearSession();
-    return null;
-  }
+  })();
+
+  return activeRefreshPromise;
 }
 
 export async function signup({ email, password, display_name }) {

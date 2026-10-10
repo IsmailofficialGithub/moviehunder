@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -25,6 +25,7 @@ export default function AuthScreen() {
   const { user, loading, login, signup, refresh } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const handledAuthRef = useRef("");
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPasswordField] = useState("");
@@ -40,22 +41,27 @@ export default function AuthScreen() {
     }
   }, [user, router]);
 
+  const rawAccess = params.access_token ? String(params.access_token) : "";
+  const rawRefreshToken = params.refresh_token ? String(params.refresh_token) : "";
+  const rawVerify = params.verify ? String(params.verify) : "";
+  const authKey = `${rawAccess}:${rawRefreshToken}:${rawVerify}`;
+
   useEffect(() => {
-    const access = params.access_token;
-    const refreshToken = params.refresh_token;
-    const verify = params.verify;
-    if (!access && !refreshToken && !verify) return;
+    if (!rawAccess && !rawRefreshToken && !rawVerify) return;
+    if (handledAuthRef.current === authKey) return;
+    handledAuthRef.current = authKey;
+
     (async () => {
       try {
-        if (verify) {
-          await verifyEmail(String(verify));
+        if (rawVerify) {
+          await verifyEmail(rawVerify);
           setMsg("Email verified successfully — you can sign in.");
           return;
         }
-        if (access && refreshToken) {
+        if (rawAccess && rawRefreshToken) {
           await storeSession({
-            access_token: String(access),
-            refresh_token: String(refreshToken),
+            access_token: rawAccess,
+            refresh_token: rawRefreshToken,
           });
           await refresh();
           runFullSync().catch(() => {});
@@ -65,7 +71,7 @@ export default function AuthScreen() {
         setError(e.message || "Authentication callback failed");
       }
     })();
-  }, [params, refresh, router]);
+  }, [rawAccess, rawRefreshToken, rawVerify, authKey, refresh, router]);
 
   async function onSubmit() {
     setError("");
