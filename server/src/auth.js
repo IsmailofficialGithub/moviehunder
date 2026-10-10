@@ -129,7 +129,10 @@ async function createAndSendVerifyToken(user) {
     },
   });
   const verifyUrl = `${appPublicUrl()}/auth/callback?verify=${encodeURIComponent(raw)}&email=${encodeURIComponent(user.email)}`;
-  await sendVerificationEmail({ to: user.email, verifyUrl });
+  const mailResult = await sendVerificationEmail({ to: user.email, verifyUrl });
+  if (mailResult?.skipped) {
+    throw new Error("SMTP is not configured on the server. Check SMTP_HOST & SMTP_USER in .env / .dev.vars");
+  }
   return raw;
 }
 
@@ -322,14 +325,11 @@ export async function handleResendVerification(request) {
   }
   const auth = await requireUser(request);
   if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
-  if (auth.user.emailVerifiedAt) {
-    return { status: 200, body: { ok: true, message: "Already verified" } };
-  }
   try {
     await createAndSendVerifyToken(auth.user);
   } catch (err) {
     console.error("[auth/resend]", err);
-    return { status: 502, body: { error: "Failed to send email" } };
+    return { status: 502, body: { error: err.message || "Failed to send email" } };
   }
   return { status: 200, body: { ok: true, message: "Verification email sent" } };
 }
