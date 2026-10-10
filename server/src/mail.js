@@ -39,7 +39,7 @@ function fromAddress() {
 
 export async function sendMail({ to, subject, text, html }) {
   if (!smtpConfigured()) {
-    console.warn("[mail] SMTP not configured — skipping send to", to);
+    console.warn("[mail] SMTP not configured (check SMTP_HOST & SMTP_USER in .env / .dev.vars) — skipping send to", to);
     return { skipped: true };
   }
   const info = await getTransporter().sendMail({
@@ -49,6 +49,7 @@ export async function sendMail({ to, subject, text, html }) {
     text,
     html,
   });
+  console.log("[mail] Email sent successfully to", to, "messageId:", info.messageId);
   return { messageId: info.messageId };
 }
 

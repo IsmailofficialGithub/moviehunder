@@ -30,7 +30,9 @@ function loadDotEnv(filePath) {
     ) {
       val = val.slice(1, -1);
     }
-    out[key] = val;
+    if (val) {
+      out[key] = val;
+    }
   }
   return out;
 }
