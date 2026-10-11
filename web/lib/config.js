@@ -12,7 +12,13 @@ export function getSiteUrl() {
 }
 
 export function getApiBase() {
-  const envBase = process.env.NEXT_PUBLIC_API_BASE?.replace(/\/+$/, "");
+  if (typeof window !== "undefined") {
+    // In browser: always use relative path so frontend never reveals backend host/port
+    return "";
+  }
+  const envBase = (
+    process.env.INTERNAL_API_BASE || process.env.NEXT_PUBLIC_API_BASE
+  )?.replace(/\/+$/, "");
   if (envBase) {
     if (process.env.NODE_ENV === "production" && (envBase.includes("127.0.0.1") || envBase.includes("localhost"))) {
       return "https://api-moviehunder.ismailabbasi.qzz.io";
@@ -26,7 +32,12 @@ export function getApiBase() {
 }
 
 export function getPlayRelayBase() {
-  const envBase = process.env.NEXT_PUBLIC_PLAY_RELAY?.replace(/\/+$/, "");
+  if (typeof window !== "undefined") {
+    return "";
+  }
+  const envBase = (
+    process.env.INTERNAL_PLAY_RELAY || process.env.NEXT_PUBLIC_PLAY_RELAY
+  )?.replace(/\/+$/, "");
   if (envBase) {
     if (process.env.NODE_ENV === "production" && (envBase.includes("127.0.0.1") || envBase.includes("localhost"))) {
       return "https://trackese.api";

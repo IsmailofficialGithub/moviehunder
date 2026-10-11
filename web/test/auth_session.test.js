@@ -67,3 +67,33 @@ test("Mobile account screen deduplicates auth params and prevents loop", () => {
   assert.match(content, /handledAuthRef/);
   assert.match(content, /router\.setParams/);
 });
+
+test("Frontend shields backend origin and proxies auth/sync endpoints same-origin", () => {
+  const nextConfigPath = path.resolve("next.config.mjs");
+  const nextConfig = fs.readFileSync(nextConfigPath, "utf8");
+  assert.match(nextConfig, /async\s+rewrites\(\)/, "next.config.mjs must declare rewrites");
+  assert.match(nextConfig, /\/api\/auth\/:path\*/, "next.config.mjs must rewrite /api/auth/:path*");
+  assert.match(nextConfig, /\/api\/sync\/:path\*/, "next.config.mjs must rewrite /api/sync/:path*");
+
+  const webAuthPath = path.resolve("lib/auth.js");
+  const webAuth = fs.readFileSync(webAuthPath, "utf8");
+  assert.match(
+    webAuth,
+    /typeof\s+window\s*!==\s*["']undefined["'][\s\S]*?return\s*["']["']/,
+    "web auth must return empty string in browser context to enforce same-origin requests"
+  );
+  assert.match(
+    webAuth,
+    /Service temporarily unavailable/,
+    "web auth must sanitize internal/infrastructure errors"
+  );
+
+  const webConfigPath = path.resolve("lib/config.js");
+  const webConfig = fs.readFileSync(webConfigPath, "utf8");
+  assert.match(
+    webConfig,
+    /typeof\s+window\s*!==\s*["']undefined["'][\s\S]*?return\s*["']["']/,
+    "web config getApiBase must shield backend base from browser"
+  );
+});
+

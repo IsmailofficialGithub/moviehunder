@@ -5,7 +5,12 @@ const REFRESH_KEY = "mh.auth.refresh";
 const USER_KEY = "mh.auth.user";
 
 function apiBase() {
+  if (typeof window !== "undefined") {
+    // In browser: always use same-origin relative path so frontend never reveals backend host/port
+    return "";
+  }
   return (
+    process.env.INTERNAL_API_BASE?.replace(/\/+$/, "") ||
     process.env.NEXT_PUBLIC_API_BASE?.replace(/\/+$/, "") ||
     "http://127.0.0.1:8787"
   );
@@ -67,7 +72,18 @@ export async function authFetch(path, { method = "GET", body, token, retry = tru
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.error || `Request failed (${res.status})`);
+    let message = data.error;
+    if (
+      !message ||
+      /smtp|prisma|database|sql|worker|relay|upstream|connect|econnrefused/i.test(message)
+    ) {
+      if (res.status >= 500) {
+        message = "Service temporarily unavailable. Please try again later.";
+      } else if (!message) {
+        message = `Request failed (${res.status})`;
+      }
+    }
+    const err = new Error(message);
     err.status = res.status;
     err.data = data;
     throw err;

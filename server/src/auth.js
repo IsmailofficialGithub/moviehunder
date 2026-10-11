@@ -129,10 +129,12 @@ async function createAndSendVerifyToken(user) {
     },
   });
   const verifyUrl = `${appPublicUrl()}/auth/callback?verify=${encodeURIComponent(raw)}&email=${encodeURIComponent(user.email)}`;
+  console.log(`[auth/verify] Dispatching verification email to: ${user.email}`);
   const mailResult = await sendVerificationEmail({ to: user.email, verifyUrl });
   if (mailResult?.skipped) {
     throw new Error("SMTP is not configured on the server. Check SMTP_HOST & SMTP_USER in .env / .dev.vars");
   }
+  console.log(`[auth/verify] Verification email sent to: ${user.email} (messageId: ${mailResult?.messageId})`);
   return raw;
 }
 
