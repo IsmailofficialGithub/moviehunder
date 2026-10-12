@@ -568,3 +568,36 @@
   25% { transform: translateX(-6px); }
   75% { transform: translateX(6px); }
 }
+
+.forgotPinBtn {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-top: 10px;
+  display: inline-block;
+  transition: color 0.15s;
+}
+
+.forgotPinBtn:hover {
+  color: #fff;
+}
+
+.pinLabel {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-bottom: 6px;
+  display: block;
+  text-align: left;
+}
+
+.resetSuccess {
+  color: #10b981;
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-top: 10px;
+}
+

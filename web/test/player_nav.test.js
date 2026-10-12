@@ -198,4 +198,37 @@ test("StreamPlayer resets timestamp on episode change and implements Spacebar 2X
   );
 });
 
+test("DetailClient handles multi-season series selection and season-specific episode labelling", () => {
+  const detailPath = path.join(__dirname, "../components/DetailClient.js");
+  const detailSrc = fs.readFileSync(detailPath, "utf8");
+
+  // Season normalization and fallback to detail metadata
+  assert.ok(
+    detailSrc.includes("detail?.metadata?.seasons"),
+    "DetailClient must fall back to detail.metadata.seasons when episodes API is pending or empty"
+  );
+  assert.ok(
+    detailSrc.includes("s.season ?? s.se"),
+    "DetailClient must normalize seasons supporting both s.season and s.se"
+  );
+
+  // Active season matching and select value binding
+  assert.ok(
+    detailSrc.includes("String(s.season) === String(selectedSe) ||") &&
+      detailSrc.includes("String(s.se) === String(selectedSe)"),
+    "DetailClient must match active season by both s.season and s.se"
+  );
+  assert.ok(
+    detailSrc.includes("value={String(activeSeason?.season ?? selectedSe)}"),
+    "Season dropdown value must stay bound to activeSeason.season"
+  );
+
+  // Episode title includes season number
+  assert.ok(
+    detailSrc.includes("curSeasonNum") && detailSrc.includes("`S${curSeasonNum}"),
+    "Episode cards must explicitly prefix season number in the title (e.g. S3 E1)"
+  );
+});
+
+
 

@@ -14,7 +14,7 @@ import {
   saveWatchCache,
   runFullSync,
 } from "../../lib/sync";
-import { getActiveProfileId } from "../../lib/profiles";
+import { getActiveProfile, getActiveProfileId } from "../../lib/profiles";
 import { syncGuestHistoryToServer } from "../../lib/guestHistory";
 import styles from "./history.module.css";
 
@@ -186,12 +186,19 @@ export default function HistoryPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [viewMode, setViewMode] = useState("grid");
   const [currentPage, setCurrentPage] = useState(1);
+  const [profileName, setProfileName] = useState("");
   const ITEMS_PER_PAGE = 24;
   const isClearingRef = useRef(false);
 
   useEffect(() => {
     async function load() {
       if (isClearingRef.current) return;
+      const active = getActiveProfile(user);
+      if (active?.name) {
+        setProfileName(active.name);
+      } else {
+        setProfileName("");
+      }
       const activePid = String(getActiveProfileId() || "1");
 
       // 1. Instant Cache Hit for active profile
@@ -213,9 +220,11 @@ export default function HistoryPage() {
           applyRemoteWatch(allRemote, activePid);
 
           const remoteItems = allRemote.filter((item) => {
-            if (item.profileId) return String(item.profileId) === activePid;
+            if (item.profileId) {
+              return String(item.profileId) === activePid || activePid === "1";
+            }
             const itemPid = item.key?.startsWith("p:") ? item.key.split(":")[1] : "1";
-            return String(itemPid) === activePid;
+            return String(itemPid) === activePid || activePid === "1";
           });
 
           const localItems = listLocalWatch(activePid);
@@ -284,10 +293,12 @@ export default function HistoryPage() {
       window.addEventListener("focus", onFocus);
       window.addEventListener("storage", onFocus);
       window.addEventListener("mh:profile:change", onFocus);
+      window.addEventListener("mh:watch_progress:change", onFocus);
       return () => {
         window.removeEventListener("focus", onFocus);
         window.removeEventListener("storage", onFocus);
         window.removeEventListener("mh:profile:change", onFocus);
+        window.removeEventListener("mh:watch_progress:change", onFocus);
       };
     }
   }, [isSignedIn, authLoading, user?.id]);
@@ -416,7 +427,7 @@ export default function HistoryPage() {
       <header className={styles.head}>
         <div className={styles.headLeft}>
           <div className={styles.titleRow}>
-            <h1>Watch History</h1>
+            <h1>Watch History{profileName ? ` — ${profileName}` : ""}</h1>
             {items && items.length > 0 && (
               <span className={styles.totalBadge}>
                 {items.length} {items.length === 1 ? "title" : "titles"}
@@ -429,6 +440,7 @@ export default function HistoryPage() {
                 <span className={styles.syncOnline}>
                   <span className={styles.syncDotOnline} />
                   Synced with <strong>{user?.email || "Account"}</strong>
+                  {profileName && <> • Profile: <strong>{profileName}</strong></>}
                 </span>
                 {lastSynced && (
                   <span className={styles.lastSynced}>

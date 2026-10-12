@@ -20,9 +20,12 @@ import LazyPoster from "./LazyPoster";
 import styles from "./DetailClient.module.css";
 
 function defaultEpisode(seasons) {
-  const first = seasons?.[0]?.episodes?.[0];
-  if (first) return { se: String(first.se ?? 1), ep: String(first.ep ?? 1) };
-  return { se: "0", ep: "0" };
+  if (!seasons || !seasons.length) return { se: "0", ep: "0" };
+  const firstSeason = seasons[0];
+  const first = firstSeason?.episodes?.[0];
+  const se = first?.se ?? firstSeason?.season ?? firstSeason?.se ?? 1;
+  const ep = first?.ep ?? 1;
+  return { se: String(se), ep: String(ep) };
 }
 
 function formatDuration(sec) {
@@ -61,13 +64,34 @@ export default function DetailClient({ slug, detail, episodes }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const meta = detail?.metadata || {};
-  const seasons = useMemo(
-    () =>
-      (episodes?.seasons || []).filter(
-        (s) => (s.episodes || []).length > 0 || Number(s.episode_count) > 0
-      ),
-    [episodes?.seasons]
-  );
+  const seasons = useMemo(() => {
+    const raw = (episodes?.seasons?.length ? episodes.seasons : null) || detail?.metadata?.seasons || [];
+    return raw
+      .map((s, idx) => {
+        const seasonNum = s.season ?? s.se ?? s.season_number ?? idx + 1;
+        const epCount = Number(s.episode_count ?? s.maxEp ?? (s.episodes || []).length ?? 0);
+        let epList = s.episodes || [];
+        if (!epList.length && epCount > 0) {
+          epList = Array.from({ length: epCount }, (_, i) => ({
+            name: `Episode ${i + 1}`,
+            ep: i + 1,
+            se: seasonNum,
+          }));
+        }
+        return {
+          ...s,
+          season: seasonNum,
+          se: seasonNum,
+          episode_count: epCount,
+          episodes: epList.map((ep, i) => ({
+            ...ep,
+            se: ep.se ?? seasonNum,
+            ep: ep.ep ?? i + 1,
+          })),
+        };
+      })
+      .filter((s) => (s.episodes || []).length > 0 || Number(s.episode_count) > 0);
+  }, [episodes?.seasons, detail?.metadata?.seasons]);
   const subjectId = meta.id || episodes?.subject_id;
   const isSeries = seasons.length > 0;
   const defaults = defaultEpisode(seasons);
@@ -87,7 +111,11 @@ export default function DetailClient({ slug, detail, episodes }) {
 
   const activeSeason = useMemo(
     () =>
-      seasons.find((s) => String(s.season) === String(selectedSe)) || seasons[0],
+      seasons.find(
+        (s) =>
+          String(s.season) === String(selectedSe) ||
+          String(s.se) === String(selectedSe)
+      ) || seasons[0],
     [seasons, selectedSe]
   );
   const episodeList = activeSeason?.episodes || [];
@@ -329,7 +357,7 @@ export default function DetailClient({ slug, detail, episodes }) {
                   <Play size={16} fill="currentColor" color="currentColor" />
                   <span>
                     {isSeries
-                      ? `Play S${selectedSe}E${selectedEp}`
+                      ? `Play S${activeSeason?.season ?? selectedSe}E${selectedEp}`
                       : "Play Now"}
                   </span>
                 </>
@@ -424,21 +452,30 @@ export default function DetailClient({ slug, detail, episodes }) {
                 <select
                   id="season-select"
                   className={styles.seasonSelect}
-                  value={selectedSe}
+                  value={String(activeSeason?.season ?? selectedSe)}
                   onChange={(e) => {
                     const se = e.target.value;
                     setSelectedSe(se);
                     const season =
-                      seasons.find((s) => String(s.season) === se) || seasons[0];
-                    setSelectedEp(String(season?.episodes?.[0]?.ep || 1));
+                      seasons.find(
+                        (s) =>
+                          String(s.season) === String(se) ||
+                          String(s.se) === String(se)
+                      ) || seasons[0];
+                    const firstEp = season?.episodes?.[0]?.ep ?? 1;
+                    setSelectedEp(String(firstEp));
                     setEpisodesExpanded(false);
                   }}
                 >
-                  {seasons.map((s) => (
-                    <option key={s.season} value={s.season}>
-                      Season {s.season} ({s.episode_count || s.episodes?.length || 0} Episodes)
-                    </option>
-                  ))}
+                  {seasons.map((s, idx) => {
+                    const sNum = s.season ?? s.se ?? idx + 1;
+                    const count = s.episode_count || s.episodes?.length || 0;
+                    return (
+                      <option key={`se-${sNum}-${idx}`} value={String(sNum)}>
+                        Season {sNum} ({count} Episodes)
+                      </option>
+                    );
+                  })}
                 </select>
                 <ChevronDown size={14} className={styles.seasonChevron} />
               </div>
@@ -450,13 +487,16 @@ export default function DetailClient({ slug, detail, episodes }) {
 
           <div className={styles.episodeList}>
             {visibleEpisodes.map((ep, idx) => {
+              const curSeasonNum = activeSeason?.season ?? ep.se ?? selectedSe;
               const active =
-                String(ep.se) === String(selectedSe) &&
+                (String(ep.se) === String(selectedSe) || String(curSeasonNum) === String(selectedSe)) &&
                 String(ep.ep) === String(selectedEp);
               const epNum = ep.ep || idx + 1;
               const rawName = String(ep.name || "").trim();
               const cleanName = rawName.replace(/^episode\s*\d+\s*[-:]*\s*/i, "").trim();
-              const epTitle = cleanName ? `${epNum}. ${cleanName}` : `${epNum}. Episode ${epNum}`;
+              const epTitle = cleanName
+                ? `S${curSeasonNum} E${epNum} · ${cleanName}`
+                : `S${curSeasonNum} · Episode ${epNum}`;
               const epDuration =
                 formatDuration(ep.duration) ||
                 formatDuration(meta.duration) ||
@@ -464,27 +504,26 @@ export default function DetailClient({ slug, detail, episodes }) {
               const epSynopsis =
                 ep.description ||
                 ep.overview ||
-                meta.description ||
-                `Episode ${epNum} of ${meta.title || "this series"}.`;
+                `Season ${curSeasonNum}, Episode ${epNum} of ${meta.title || "this series"}.`;
               const thumbUri = ep.thumbnail || ep.image || meta.poster;
-              const watchPct = watchProgress[`${ep.se}_${ep.ep}`] || 0;
+              const watchPct = watchProgress[`${curSeasonNum}_${ep.ep}`] || watchProgress[`${ep.se}_${ep.ep}`] || 0;
 
               return (
                 <div
-                  key={`${ep.se}-${ep.ep}-${idx}`}
+                  key={`${curSeasonNum}-${ep.ep}-${idx}`}
                   className={`${styles.episodeCard} ${active ? styles.episodeCardActive : ""}`}
                   onClick={() => {
-                    setSelectedSe(String(ep.se));
+                    setSelectedSe(String(curSeasonNum));
                     setSelectedEp(String(ep.ep));
-                    goPlay(ep.se, ep.ep);
+                    goPlay(curSeasonNum, ep.ep);
                   }}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
-                      setSelectedSe(String(ep.se));
+                      setSelectedSe(String(curSeasonNum));
                       setSelectedEp(String(ep.ep));
-                      goPlay(ep.se, ep.ep);
+                      goPlay(curSeasonNum, ep.ep);
                     }
                   }}
                 >
@@ -551,24 +590,25 @@ export default function DetailClient({ slug, detail, episodes }) {
       {isSeries && activeTab === "collection" ? (
         <section className={styles.contentSection}>
           <div className={styles.collectionGrid}>
-            {seasons.map((s) => {
+            {seasons.map((s, idx) => {
+              const sNum = s.season ?? s.se ?? idx + 1;
               const epCount = (s.episodes || []).length || s.episode_count || 0;
-              const isCur = String(s.season) === String(selectedSe);
+              const isCur = String(sNum) === String(activeSeason?.season ?? selectedSe);
               return (
-                <div key={`coll-${s.season}`} className={styles.collectionCard}>
+                <div key={`coll-${sNum}-${idx}`} className={styles.collectionCard}>
                   <div className={styles.collectionHead}>
                     <div>
-                      <h3 className={styles.collectionSeasonTitle}>Season {s.season}</h3>
+                      <h3 className={styles.collectionSeasonTitle}>Season {sNum}</h3>
                       <span className={styles.collectionSeasonSub}>{epCount} Episodes</span>
                     </div>
                     <button
                       type="button"
                       className={styles.collectionPlayBtn}
                       onClick={() => {
-                        setSelectedSe(String(s.season));
+                        setSelectedSe(String(sNum));
                         const firstEp = s.episodes?.[0]?.ep || 1;
                         setSelectedEp(String(firstEp));
-                        goPlay(s.season, firstEp);
+                        goPlay(sNum, firstEp);
                       }}
                     >
                       <Play size={12} fill="currentColor" color="currentColor" />

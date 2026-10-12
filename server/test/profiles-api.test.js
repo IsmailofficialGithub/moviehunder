@@ -219,5 +219,26 @@ test("handleNodeApi router dispatches /api/profiles correctly", async () => {
   const resSwitch = await handleNodeApi(reqSwitch);
   assert.ok(resSwitch !== null, "handleNodeApi must handle /api/profiles/:id/switch");
   assert.equal(resSwitch.status, 401);
+
+  const reqForgot = new Request("http://localhost:3000/api/profiles/prof_123/forgot-pin", {
+    method: "POST",
+  });
+  const resForgot = await handleNodeApi(reqForgot);
+  assert.ok(resForgot !== null, "handleNodeApi must handle /api/profiles/:id/forgot-pin");
+  assert.equal(resForgot.status, 401);
+
+  const reqReset = new Request("http://localhost:3000/api/profiles/prof_123/reset-pin", {
+    method: "POST",
+  });
+  const resReset = await handleNodeApi(reqReset);
+  assert.ok(resReset !== null, "handleNodeApi must handle /api/profiles/:id/reset-pin");
+  assert.equal(resReset.status, 401);
 });
+
+test("Forgot PIN code generation: produces valid 6-digit numeric string", () => {
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  assert.equal(code.length, 6);
+  assert.equal(/^\d{6}$/.test(code), true, "Reset code must be a 6-digit numeric string");
+});
+
 

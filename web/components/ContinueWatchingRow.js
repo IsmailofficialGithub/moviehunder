@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { getWatchCache, listLocalWatch, parseTimestamp, pullWatchProgress } from "../lib/sync";
-import { getActiveProfileId } from "../lib/profiles";
+import { getActiveProfile, getActiveProfileId } from "../lib/profiles";
 import RowScroller from "./RowScroller";
 import LazyPoster from "./LazyPoster";
 import styles from "./ContinueWatchingRow.module.css";
@@ -139,19 +139,28 @@ function buildPlayUrl(item) {
 export default function ContinueWatchingRow() {
   const { user, isSignedIn } = useAuth();
   const [items, setItems] = useState([]);
+  const [profileName, setProfileName] = useState("");
 
   useEffect(() => {
     function load() {
+      const active = getActiveProfile(user);
+      if (active?.name) {
+        setProfileName(active.name);
+      } else {
+        setProfileName("");
+      }
+
       const activePid = String(getActiveProfileId() || "1");
 
-      // 1. Instant Cache Hit for active profile
-      const cached = getWatchCache(user?.id, activePid);
-      if (cached && cached.length > 0) {
-        const filtered = cached.filter((i) => (Number(i.position) || 0) > 2);
+      // 1. Instant Cache Hit + Local items for active profile
+      const cached = getWatchCache(user?.id, activePid) || [];
+      const local = listLocalWatch(activePid) || [];
+      const merged = [...cached, ...local];
+      if (merged.length > 0) {
+        const filtered = merged.filter((i) => (Number(i.position) || 0) > 2);
         setItems(deduplicateShows(filtered));
       } else {
-        const local = listLocalWatch(activePid).filter((i) => (Number(i.position) || 0) > 2);
-        setItems(deduplicateShows(local));
+        setItems([]);
       }
 
       // 2. Background refresh if signed in
@@ -160,6 +169,7 @@ export default function ContinueWatchingRow() {
           .then((remote) => {
             const filtered = (remote || []).filter((i) => {
               if ((Number(i.position) || 0) <= 2) return false;
+              if (activePid === "1") return true;
               const itemPid = i.profileId || (i.key?.startsWith("p:") ? i.key.split(":")[1] : "1");
               return String(itemPid) === activePid;
             });
@@ -174,10 +184,12 @@ export default function ContinueWatchingRow() {
     window.addEventListener("focus", onFocus);
     window.addEventListener("storage", onFocus);
     window.addEventListener("mh:profile:change", onFocus);
+    window.addEventListener("mh:watch_progress:change", onFocus);
     return () => {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("storage", onFocus);
       window.removeEventListener("mh:profile:change", onFocus);
+      window.removeEventListener("mh:watch_progress:change", onFocus);
     };
   }, [user?.id, isSignedIn]);
 
@@ -188,7 +200,7 @@ export default function ContinueWatchingRow() {
   return (
     <section className={styles.row}>
       <div className="row-head">
-        <h2>⚡ Continue Watching</h2>
+        <h2>⚡ Continue Watching{profileName ? ` for ${profileName}` : ""}</h2>
         <Link href="/history" className={styles.seeAllLink}>
           View All ({items.length}) →
         </Link>

@@ -80,4 +80,21 @@ export async function sendPasswordResetEmail({ to, resetUrl }) {
   return sendMail({ to, subject, text, html });
 }
 
+export async function sendPinResetEmail({ to, profileName, code }) {
+  const subject = `MovieHunter — PIN Reset Code for profile "${profileName}"`;
+  const text = `You requested a PIN reset for profile "${profileName}".\n\nYour 6-digit reset code is: ${code}\n\nThis code expires in 15 minutes. If you did not request this reset, you can safely ignore this email.`;
+  const html = `
+    <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#111">
+      <h2>Profile PIN Reset</h2>
+      <p>You requested a PIN reset for profile <strong>${profileName}</strong>.</p>
+      <div style="background:#f4f4f5;padding:16px;text-align:center;border-radius:6px;margin:16px 0;">
+        <span style="font-size:28px;font-weight:700;letter-spacing:4px;color:#111;">${code}</span>
+      </div>
+      <p style="color:#666;font-size:13px">This code expires in 15 minutes. If you did not request this, you can safely ignore this email.</p>
+    </div>
+  `;
+  return sendMail({ to, subject, text, html });
+}
+
 export { smtpConfigured };
+

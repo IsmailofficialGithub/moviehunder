@@ -1387,24 +1387,26 @@ async function handleEpisodes(slug) {
     });
   }
 
-  const seasons = usable.map((s) => {
+  const seasons = usable.map((s, idx) => {
     const epCount = Number(s.maxEp) || 0;
+    const seasonNum = s.se ?? s.season ?? s.season_number ?? (idx + 1);
     const episodes = [];
     for (let i = 1; i <= epCount; i++) {
       episodes.push({
         name: `Episode ${i}`,
         ep: i,
-        se: s.se,
+        se: seasonNum,
         watch_url: subjectId
-          ? `/watch/${subjectId}?detail_path=${encodeURIComponent(slug)}&se=${s.se}&ep=${i}`
+          ? `/watch/${subjectId}?detail_path=${encodeURIComponent(slug)}&se=${seasonNum}&ep=${i}`
           : null,
         stream_api_url: subjectId
-          ? `/api/stream/${subjectId}?detail_path=${encodeURIComponent(slug)}&se=${s.se}&ep=${i}`
+          ? `/api/stream/${subjectId}?detail_path=${encodeURIComponent(slug)}&se=${seasonNum}&ep=${i}`
           : null,
       });
     }
     return {
-      season: s.se,
+      season: seasonNum,
+      se: seasonNum,
       episode_count: epCount,
       episodes,
     };

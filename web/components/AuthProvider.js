@@ -48,6 +48,31 @@ export function AuthProvider({ children }) {
         storeSession({ user: me.user });
         ensureUserStorage(me.user.id);
         syncGuestHistoryToServer().then(() => runFullSync()).catch(() => {});
+        // Auto-hydrate real active profile from server if unset or dummy 1
+        import("../lib/profiles.js")
+          .then(async ({ fetchRemoteProfiles, switchActiveProfile }) => {
+            try {
+              const raw = localStorage.getItem("active_profile");
+              const parsed = raw ? JSON.parse(raw) : null;
+              if (!parsed || parsed.id === "1") {
+                const res = await fetchRemoteProfiles();
+                if (res?.profiles?.length) {
+                  const primary = res.profiles.find((p) => p.isPrimary) || res.profiles[0];
+                  if (primary) {
+                    switchActiveProfile({
+                      id: primary.id,
+                      name: primary.name,
+                      avatar: primary.avatarUrl,
+                      isKids: Boolean(primary.isKids),
+                      isPrimary: Boolean(primary.isPrimary),
+                      hasPin: Boolean(primary.hasPin),
+                    });
+                  }
+                }
+              }
+            } catch {}
+          })
+          .catch(() => {});
       }
     } catch {
       clearSession();

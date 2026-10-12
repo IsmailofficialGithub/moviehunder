@@ -91,3 +91,58 @@ export function switchActiveProfile(profile) {
     window.dispatchEvent(new Event("storage"));
   } catch {}
 }
+
+import { authFetch } from "./auth.js";
+
+// API endpoints for backend integration
+export async function fetchRemoteProfiles() {
+  return authFetch("/api/profiles");
+}
+
+export async function createRemoteProfile(payload) {
+  return authFetch("/api/profiles", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updateRemoteProfile(id, payload) {
+  return authFetch(`/api/profiles/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export async function deleteRemoteProfile(id) {
+  return authFetch(`/api/profiles/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function verifyRemoteProfilePin(id, pin) {
+  return authFetch(`/api/profiles/${encodeURIComponent(id)}/verify-pin`, {
+    method: "POST",
+    body: { pin },
+  });
+}
+
+export async function switchRemoteProfile(id, body = {}) {
+  return authFetch(`/api/profiles/${encodeURIComponent(id)}/switch`, {
+    method: "POST",
+    body,
+  });
+}
+
+export async function forgotRemoteProfilePin(id) {
+  return authFetch(`/api/profiles/${encodeURIComponent(id)}/forgot-pin`, {
+    method: "POST",
+  });
+}
+
+export async function resetRemoteProfilePin(id, payload) {
+  return authFetch(`/api/profiles/${encodeURIComponent(id)}/reset-pin`, {
+    method: "POST",
+    body: payload,
+  });
+}
+

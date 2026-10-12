@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useCallback } from "react";
-import { Plus, Check, Pencil, Lock, Trash2, X } from "lucide-react";
+import { Plus, Check, Pencil, Lock, Trash2, X, KeyRound, Mail, ArrowRight } from "lucide-react";
 import { useAuth } from "../../components/AuthProvider";
 import {
   PRESET_AVATARS,
@@ -11,6 +11,13 @@ import {
   saveUserProfiles,
   getActiveProfileId,
   switchActiveProfile,
+  fetchRemoteProfiles,
+  createRemoteProfile,
+  updateRemoteProfile,
+  deleteRemoteProfile,
+  switchRemoteProfile,
+  forgotRemoteProfilePin,
+  resetRemoteProfilePin,
 } from "../../lib/profiles";
 import styles from "./profiles.module.css";
 
@@ -22,6 +29,7 @@ function ProfilesContent() {
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState("1");
   const [isManaging, setIsManaging] = useState(false);
+  const [planQuota, setPlanQuota] = useState(null);
 
   // Add / Edit Modal state
   const [modalMode, setModalMode] = useState(null); // null | "add" | "edit"
@@ -32,38 +40,82 @@ function ProfilesContent() {
     isKids: false,
     pin: "",
     pinEnabled: false,
+    hadExistingPin: false,
+    oldPin: "",
   });
+  const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // PIN Unlock Modal state
   const [unlockTarget, setUnlockTarget] = useState(null); // profile object or null
   const [unlockPin, setUnlockPin] = useState("");
   const [unlockError, setUnlockError] = useState("");
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
-  const refreshProfiles = useCallback(() => {
+  // Forgot PIN Modal state
+  const [forgotModal, setForgotModal] = useState({
+    isOpen: false,
+    profile: null,
+    email: "",
+    resetCode: "",
+    newPin: "",
+    error: "",
+    success: "",
+    loading: false,
+    step: "request", // "request" | "reset"
+  });
+
+  const refreshProfiles = useCallback(async () => {
+    if (isSignedIn) {
+      try {
+        const data = await fetchRemoteProfiles();
+        if (data && Array.isArray(data.profiles)) {
+          const mapped = data.profiles.map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatarUrl || PRESET_AVATARS[0].url,
+            isKids: Boolean(p.isKids),
+            isPrimary: Boolean(p.isPrimary),
+            hasPin: Boolean(p.hasPin),
+            pin: p.hasPin ? "••••" : "",
+          }));
+          setProfiles(mapped);
+          if (data.plan) setPlanQuota(data.plan);
+          saveUserProfiles(user, mapped);
+
+          const activeId = getActiveProfileId();
+          setActiveProfileId(activeId);
+          return { list: mapped, activeId };
+        }
+      } catch (err) {
+        console.warn("[profiles] remote load fallback:", err);
+      }
+    }
+
     const list = loadUserProfiles(user);
     setProfiles(list);
     const activeId = getActiveProfileId();
     setActiveProfileId(activeId);
     return { list, activeId };
-  }, [user]);
+  }, [user, isSignedIn]);
 
   useEffect(() => {
-    const { list } = refreshProfiles();
-
-    // Check if redirected with ?unlock=<id>
-    const unlockId = searchParams?.get("unlock");
-    if (unlockId) {
-      const target = list.find((p) => String(p.id) === String(unlockId));
-      if (target) {
-        if (target.pin) {
-          setUnlockTarget(target);
-          setUnlockPin("");
-          setUnlockError("");
-        } else {
-          selectProfile(target);
+    refreshProfiles().then(({ list }) => {
+      // Check if redirected with ?unlock=<id>
+      const unlockId = searchParams?.get("unlock");
+      if (unlockId) {
+        const target = list.find((p) => String(p.id) === String(unlockId));
+        if (target) {
+          if (target.hasPin || (target.pin && target.pin.trim().length > 0)) {
+            setUnlockTarget(target);
+            setUnlockPin("");
+            setUnlockError("");
+          } else {
+            selectProfile(target);
+          }
         }
       }
-    }
+    });
 
     const onProfileChange = (e) => {
       if (e?.detail?.id) {
@@ -84,7 +136,7 @@ function ProfilesContent() {
     router.push("/");
   };
 
-  const handleProfileClick = (profile) => {
+  const handleProfileClick = async (profile) => {
     if (isManaging) {
       // Open edit modal
       setFormProfile({
@@ -92,42 +144,83 @@ function ProfilesContent() {
         name: profile.name || "",
         avatar: profile.avatar || PRESET_AVATARS[0].url,
         isKids: !!profile.isKids,
-        pin: profile.pin || "",
-        pinEnabled: !!(profile.pin && profile.pin.trim().length > 0),
+        pin: "",
+        pinEnabled: !!(profile.hasPin || profile.pin),
+        hadExistingPin: !!(profile.hasPin || profile.pin),
+        oldPin: "",
       });
+      setFormError("");
       setModalMode("edit");
       return;
     }
 
     // Normal watch selection: check for PIN protection
-    if (profile.pin && profile.pin.trim().length > 0) {
+    if (profile.hasPin || (profile.pin && profile.pin.trim().length > 0)) {
       setUnlockTarget(profile);
       setUnlockPin("");
       setUnlockError("");
       return;
     }
 
+    if (isSignedIn) {
+      try {
+        await switchRemoteProfile(profile.id);
+      } catch (err) {
+        console.warn("[switch] remote switch error:", err);
+      }
+    }
+
     selectProfile(profile);
   };
 
-  const handleUnlockSubmit = (e) => {
+  const handleUnlockSubmit = async (e) => {
     e.preventDefault();
-    if (!unlockTarget) return;
+    if (!unlockTarget || isUnlocking) return;
 
+    setIsUnlocking(true);
+    setUnlockError("");
+
+    if (isSignedIn) {
+      try {
+        const res = await switchRemoteProfile(unlockTarget.id, { pin: unlockPin.trim() });
+        setIsUnlocking(false);
+        const target = unlockTarget;
+        setUnlockTarget(null);
+        setUnlockPin("");
+        setUnlockError("");
+        selectProfile(res.activeProfile || target);
+        return;
+      } catch (err) {
+        setIsUnlocking(false);
+        const remaining = err.data?.attemptsRemaining;
+        const msg = err.data?.error || err.message;
+        setUnlockError(
+          remaining !== undefined
+            ? `Incorrect PIN (${remaining} attempts remaining)`
+            : msg || "Incorrect PIN. Please try again."
+        );
+        return;
+      }
+    }
+
+    // Local fallback check
     if (unlockPin.trim() === unlockTarget.pin.trim()) {
+      setIsUnlocking(false);
       const target = unlockTarget;
       setUnlockTarget(null);
       setUnlockPin("");
       setUnlockError("");
       selectProfile(target);
     } else {
+      setIsUnlocking(false);
       setUnlockError("Incorrect PIN. Please try again.");
     }
   };
 
   const openAddProfileModal = () => {
-    if (profiles.length >= MAX_PROFILES) {
-      alert(`Standard Plan limit reached (maximum ${MAX_PROFILES} profiles).`);
+    const limit = planQuota?.maxProfiles || MAX_PROFILES;
+    if (profiles.length >= limit) {
+      alert(`Plan limit reached (maximum ${limit} profiles).`);
       return;
     }
     const defaultAvatar = PRESET_AVATARS[profiles.length % PRESET_AVATARS.length].url;
@@ -138,15 +231,72 @@ function ProfilesContent() {
       isKids: false,
       pin: "",
       pinEnabled: false,
+      hadExistingPin: false,
+      oldPin: "",
     });
+    setFormError("");
     setModalMode("add");
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setFormError("");
     const cleanName = formProfile.name.trim() || `Profile ${profiles.length + 1}`;
     const cleanPin = formProfile.pinEnabled ? formProfile.pin.trim().slice(0, 4) : "";
 
+    if (formProfile.pinEnabled && cleanPin.length > 0 && cleanPin.length !== 4) {
+      setFormError("PIN must be exactly 4 digits.");
+      return;
+    }
+
+    if (formProfile.hadExistingPin && formProfile.pinEnabled && !formProfile.oldPin.trim() && cleanPin.length > 0) {
+      setFormError("Please enter your current PIN to change it.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    if (isSignedIn) {
+      try {
+        if (modalMode === "add") {
+          await createRemoteProfile({
+            name: cleanName,
+            avatarUrl: formProfile.avatar,
+            isKids: formProfile.isKids,
+            pin: cleanPin || null,
+          });
+        } else if (modalMode === "edit" && formProfile.id) {
+          const payload = {
+            name: cleanName,
+            avatarUrl: formProfile.avatar,
+            isKids: formProfile.isKids,
+          };
+          if (formProfile.pinEnabled) {
+            if (cleanPin.length === 4) {
+              payload.pin = cleanPin;
+              if (formProfile.hadExistingPin) payload.oldPin = formProfile.oldPin.trim();
+            }
+          } else if (formProfile.hadExistingPin) {
+            payload.pin = null; // Clear PIN
+            payload.oldPin = formProfile.oldPin.trim();
+          }
+          await updateRemoteProfile(formProfile.id, payload);
+        }
+
+        setIsSubmitting(false);
+        setModalMode(null);
+        await refreshProfiles();
+        return;
+      } catch (err) {
+        setIsSubmitting(false);
+        setFormError(err.data?.error || err.message || "Failed to save profile.");
+        return;
+      }
+    }
+
+    // Local / Guest Fallback
     if (modalMode === "add") {
       const newId = String(Date.now());
       const newProfile = {
@@ -155,6 +305,7 @@ function ProfilesContent() {
         avatar: formProfile.avatar,
         isKids: formProfile.isKids,
         pin: cleanPin,
+        hasPin: Boolean(cleanPin),
       };
       const nextList = [...profiles, newProfile];
       saveUserProfiles(user, nextList);
@@ -168,6 +319,7 @@ function ProfilesContent() {
             avatar: formProfile.avatar,
             isKids: formProfile.isKids,
             pin: cleanPin,
+            hasPin: Boolean(cleanPin),
           };
         }
         return p;
@@ -175,7 +327,6 @@ function ProfilesContent() {
       saveUserProfiles(user, nextList);
       setProfiles(nextList);
 
-      // If editing current active profile, update active profile cache
       if (String(formProfile.id) === String(activeProfileId)) {
         const updatedSelf = nextList.find((p) => p.id === formProfile.id);
         if (updatedSelf) {
@@ -184,10 +335,11 @@ function ProfilesContent() {
       }
     }
 
+    setIsSubmitting(false);
     setModalMode(null);
   };
 
-  const handleDeleteProfile = () => {
+  const handleDeleteProfile = async () => {
     if (!formProfile.id || profiles.length <= 1) return;
     if (formProfile.id === "1") {
       alert("Primary profile cannot be removed.");
@@ -195,120 +347,207 @@ function ProfilesContent() {
     }
     if (!confirm(`Are you sure you want to delete profile "${formProfile.name}"?`)) return;
 
-    const nextList = profiles.filter((p) => p.id !== formProfile.id);
-    saveUserProfiles(user, nextList);
-    setProfiles(nextList);
-
-    if (String(formProfile.id) === String(activeProfileId)) {
-      const fallback = nextList[0];
-      if (fallback) {
-        selectProfile(fallback);
+    if (isSignedIn) {
+      try {
+        await deleteRemoteProfile(formProfile.id);
+        setModalMode(null);
+        await refreshProfiles();
+        return;
+      } catch (err) {
+        alert(err.data?.error || err.message || "Failed to delete profile");
+        return;
       }
     }
 
+    const nextList = profiles.filter((p) => p.id !== formProfile.id);
+    saveUserProfiles(user, nextList);
+    setProfiles(nextList);
     setModalMode(null);
+  };
+
+  // ── Forgot PIN Handlers ─────────────────────────────────────
+  const handleStartForgotPin = async (profile) => {
+    if (!profile) return;
+    setUnlockTarget(null); // Close unlock modal if open
+    setModalMode(null); // Close edit modal if open
+
+    setForgotModal({
+      isOpen: true,
+      profile,
+      email: user?.email || "",
+      resetCode: "",
+      newPin: "",
+      error: "",
+      success: "",
+      loading: true,
+      step: "request",
+    });
+
+    if (isSignedIn) {
+      try {
+        const res = await forgotRemoteProfilePin(profile.id);
+        setForgotModal((prev) => ({
+          ...prev,
+          loading: false,
+          email: res.email || user?.email || "",
+          success: `Reset code dispatched to ${res.email || user?.email}.`,
+          step: "reset",
+        }));
+      } catch (err) {
+        setForgotModal((prev) => ({
+          ...prev,
+          loading: false,
+          error: err.data?.error || err.message || "Failed to send reset code.",
+        }));
+      }
+    } else {
+      setForgotModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: "PIN email reset requires signing in to your account.",
+      }));
+    }
+  };
+
+  const handleResetPinSubmit = async (e) => {
+    e.preventDefault();
+    if (forgotModal.loading || !forgotModal.profile) return;
+
+    setForgotModal((prev) => ({ ...prev, loading: true, error: "" }));
+
+    try {
+      await resetRemoteProfilePin(forgotModal.profile.id, {
+        resetCode: forgotModal.resetCode.trim(),
+        newPin: forgotModal.newPin.trim() || null,
+      });
+
+      setForgotModal((prev) => ({
+        ...prev,
+        loading: false,
+        success: "PIN successfully updated!",
+      }));
+
+      setTimeout(async () => {
+        setForgotModal({
+          isOpen: false,
+          profile: null,
+          email: "",
+          resetCode: "",
+          newPin: "",
+          error: "",
+          success: "",
+          loading: false,
+          step: "request",
+        });
+        await refreshProfiles();
+      }, 1000);
+    } catch (err) {
+      setForgotModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.data?.error || err.message || "Failed to reset PIN.",
+      }));
+    }
   };
 
   return (
     <div className={styles.container}>
       <div className={styles.headerSection}>
-        <div className={styles.planBadge}>
-          Standard Plan • {profiles.length}/{MAX_PROFILES} Profiles
-        </div>
+        {planQuota && (
+          <div className={styles.planBadge}>
+            {planQuota.label} Plan • {profiles.length} of {planQuota.maxProfiles} Profiles
+          </div>
+        )}
         <h1 className={styles.title}>
           {isManaging ? "Manage Profiles" : "Who\u2019s watching?"}
         </h1>
         <p className={styles.subtitle}>
           {isManaging
-            ? "Select a profile to customize its name, avatar, kids filter, or 4-digit PIN lock."
-            : "Each profile keeps its own personalized watch history, bookmarks, and playback timestamps."}
+            ? "Select a profile to customize name, avatar, or 4-digit PIN lock."
+            : "Select a profile to continue watching your customized recommendations."}
         </p>
       </div>
 
       <div className={styles.profilesList}>
-        {profiles.map((p) => {
-          const isActive = String(p.id) === String(activeProfileId);
+        {profiles.map((profile) => {
+          const isActive = String(profile.id) === String(activeProfileId);
+          const isKids = Boolean(profile.isKids);
+          const hasPin = Boolean(profile.hasPin || profile.pin);
+
           return (
             <button
-              key={p.id}
+              key={profile.id}
               type="button"
-              className={`${styles.profileItem} ${isActive ? styles.profileItemActive : ""}`}
-              onClick={() => handleProfileClick(p)}
-              aria-current={isActive ? "true" : undefined}
+              className={styles.profileItem}
+              onClick={() => handleProfileClick(profile)}
+              title={isManaging ? `Edit ${profile.name}` : `Switch to ${profile.name}`}
             >
-              <div className={`${styles.avatarBox} ${isActive ? styles.avatarBoxActive : ""}`}>
-                {p.avatar ? (
-                  <img
-                    src={p.avatar}
-                    alt={p.name}
-                    className={styles.avatarImg}
-                    referrerPolicy="no-referrer"
-                  />
-                ) : null}
+              <div
+                className={`${styles.avatarWrap} ${
+                  isActive && !isManaging ? styles.avatarWrapActive : ""
+                }`}
+              >
+                <img
+                  src={profile.avatar || PRESET_AVATARS[0].url}
+                  alt={profile.name}
+                  className={styles.avatarImg}
+                  referrerPolicy="no-referrer"
+                />
 
-                {/* Edit Pencil Overlay during Manage Mode */}
-                {isManaging && (
-                  <div className={styles.editOverlay} title="Edit profile">
-                    <Pencil size={24} strokeWidth={2.5} />
-                    <span>Edit</span>
-                  </div>
-                )}
+                {isKids && <span className={styles.kidsBadge}>Kids</span>}
 
-                {/* Lock Badge if profile has PIN */}
-                {p.pin && !isManaging && (
-                  <div className={styles.lockBadge} title="Profile is locked with a PIN">
+                {hasPin && !isManaging && (
+                  <span className={styles.lockBadge} title="PIN Protected">
                     <Lock size={12} strokeWidth={2.5} />
+                  </span>
+                )}
+
+                {isManaging && (
+                  <div className={styles.manageOverlay}>
+                    <Pencil size={24} className={styles.managePencil} />
                   </div>
                 )}
 
-                {/* Active Indicator Badge */}
                 {isActive && !isManaging && (
-                  <div className={styles.activeBadge} title="Currently active profile">
+                  <div className={`${styles.activeBadge} ${styles.activeCheck}`}>
                     <Check size={14} strokeWidth={3} />
                   </div>
                 )}
               </div>
 
-              <div className={styles.nameWrap}>
-                <span className={styles.name}>{p.name}</span>
-                {p.isKids && <span className={styles.kidsBadge}>KIDS</span>}
-                {isActive && !p.isKids && <span className={styles.activeLabel}>Active</span>}
-              </div>
+              <span className={styles.profileName}>{profile.name}</span>
             </button>
           );
         })}
-
-        {/* Add Profile Card */}
-        {profiles.length < MAX_PROFILES && (
+        {profiles.length < (planQuota?.maxProfiles || MAX_PROFILES) && (
           <button
             type="button"
-            className={styles.profileItem}
+            className={`${styles.profileItem} ${styles.addProfileItem}`}
             onClick={openAddProfileModal}
-            title="Create a new profile"
+            title="Add a new profile"
           >
-            <div className={styles.avatarBox}>
-              <Plus className={styles.avatarIcon} />
+            <div className={styles.addAvatarWrap}>
+              <Plus size={36} strokeWidth={1.75} className={styles.addIcon} />
             </div>
-            <span className={styles.name}>Add Profile</span>
+            <span className={styles.profileName}>Add Profile</span>
           </button>
         )}
       </div>
 
-      <div className={styles.actionsBar}>
+      <div className={styles.manageActions}>
         <button
           type="button"
           className={`${styles.manageBtn} ${isManaging ? styles.manageBtnActive : ""}`}
-          onClick={() => setIsManaging((prev) => !prev)}
+          onClick={() => setIsManaging(!isManaging)}
         >
           {isManaging ? "Done" : "Manage Profiles"}
         </button>
       </div>
 
-      {/* ── Add / Edit Profile Modal ── */}
       {modalMode && (
         <div className={styles.modalOverlay} onClick={() => setModalMode(null)}>
           <div
-            className={styles.modalCard}
+            className={styles.modalContent}
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -329,7 +568,8 @@ function ProfilesContent() {
 
             <form onSubmit={handleSaveProfile}>
               <div className={styles.modalBody}>
-                {/* Profile Name */}
+                {formError && <div className={styles.pinError} style={{ marginBottom: 12 }}>{formError}</div>}
+
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel} htmlFor="profileNameInput">
                     Profile Name
@@ -349,7 +589,6 @@ function ProfilesContent() {
                   />
                 </div>
 
-                {/* Avatar Picker */}
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>Choose Avatar</label>
                   <div className={styles.avatarGrid}>
@@ -379,7 +618,6 @@ function ProfilesContent() {
                   </div>
                 </div>
 
-                {/* Kids Mode Toggle */}
                 <div className={styles.toggleRow}>
                   <div className={styles.toggleText}>
                     <span className={styles.toggleTitle}>Kids Profile</span>
@@ -397,7 +635,6 @@ function ProfilesContent() {
                   />
                 </div>
 
-                {/* Profile PIN Lock Toggle */}
                 <div className={styles.fieldGroup}>
                   <div className={styles.toggleRow}>
                     <div className={styles.toggleText}>
@@ -420,8 +657,42 @@ function ProfilesContent() {
                     />
                   </div>
 
+                  {formProfile.hadExistingPin && (
+                    <div className={styles.pinInputsWrap} style={{ marginTop: 12 }}>
+                      <label className={styles.pinLabel}>
+                        Current PIN {formProfile.pinEnabled ? "to change PIN" : "to remove PIN"}
+                      </label>
+                      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={4}
+                          placeholder="Current PIN"
+                          className={styles.pinInput}
+                          value={formProfile.oldPin}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                            setFormProfile((prev) => ({ ...prev, oldPin: val }));
+                          }}
+                          required
+                        />
+                        <button
+                          type="button"
+                          className={styles.forgotPinBtn}
+                          onClick={() => handleStartForgotPin(formProfile)}
+                        >
+                          Forgot PIN?
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {formProfile.pinEnabled && (
-                    <div className={styles.pinInputsWrap}>
+                    <div className={styles.pinInputsWrap} style={{ marginTop: 12 }}>
+                      <label className={styles.pinLabel}>
+                        {formProfile.hadExistingPin ? "New 4-digit PIN" : "Set 4-digit PIN"}
+                      </label>
                       <input
                         type="password"
                         inputMode="numeric"
@@ -434,7 +705,7 @@ function ProfilesContent() {
                           const val = e.target.value.replace(/\D/g, "").slice(0, 4);
                           setFormProfile((prev) => ({ ...prev, pin: val }));
                         }}
-                        required={formProfile.pinEnabled}
+                        required={!formProfile.hadExistingPin}
                       />
                     </div>
                   )}
@@ -462,8 +733,8 @@ function ProfilesContent() {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className={styles.btnPrimary}>
-                    Save
+                  <button type="submit" className={styles.btnPrimary} disabled={isSubmitting}>
+                    {isSubmitting ? "Saving..." : "Save"}
                   </button>
                 </div>
               </div>
@@ -472,7 +743,6 @@ function ProfilesContent() {
         </div>
       )}
 
-      {/* ── PIN Unlock Modal ── */}
       {unlockTarget && (
         <div className={styles.modalOverlay} onClick={() => setUnlockTarget(null)}>
           <div
@@ -515,6 +785,16 @@ function ProfilesContent() {
 
               {unlockError && <div className={styles.pinError}>{unlockError}</div>}
 
+              <div>
+                <button
+                  type="button"
+                  className={styles.forgotPinBtn}
+                  onClick={() => handleStartForgotPin(unlockTarget)}
+                >
+                  Forgot PIN?
+                </button>
+              </div>
+
               <div className={styles.btnGroup} style={{ marginTop: "24px", justifyContent: "center" }}>
                 <button
                   type="button"
@@ -523,8 +803,107 @@ function ProfilesContent() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className={styles.btnPrimary}>
-                  Unlock
+                <button type="submit" className={styles.btnPrimary} disabled={isUnlocking}>
+                  {isUnlocking ? "Unlocking..." : "Unlock"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {forgotModal.isOpen && (
+        <div className={styles.modalOverlay} onClick={() => setForgotModal((p) => ({ ...p, isOpen: false }))}>
+          <div
+            className={styles.unlockCard}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className={styles.unlockAvatarBox}>
+              <img
+                src={forgotModal.profile?.avatar || PRESET_AVATARS[0].url}
+                alt={forgotModal.profile?.name}
+                className={styles.avatarImg}
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <h2 className={styles.unlockTitle}>Reset Profile PIN</h2>
+            <p className={styles.unlockDesc}>
+              {forgotModal.email ? (
+                <>We dispatched a 6-digit verification code to <strong>{forgotModal.email}</strong>.</>
+              ) : (
+                <>Sending reset verification email...</>
+              )}
+            </p>
+
+            {forgotModal.error && <div className={styles.pinError}>{forgotModal.error}</div>}
+            {forgotModal.success && <div className={styles.resetSuccess}>{forgotModal.success}</div>}
+
+            <form onSubmit={handleResetPinSubmit} style={{ width: "100%", marginTop: "16px" }}>
+              <div style={{ marginBottom: "16px", textAlign: "left" }}>
+                <label className={styles.pinLabel}>6-Digit Email Code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  placeholder="123456"
+                  className={styles.textInput}
+                  style={{ textAlign: "center", fontSize: "1.2rem", letterSpacing: "4px" }}
+                  value={forgotModal.resetCode}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                    setForgotModal((p) => ({ ...p, resetCode: val, error: "" }));
+                  }}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: "20px", textAlign: "left" }}>
+                <label className={styles.pinLabel}>New 4-Digit PIN (or leave blank to remove lock)</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  placeholder="••••"
+                  className={styles.textInput}
+                  style={{ textAlign: "center", fontSize: "1.2rem", letterSpacing: "4px" }}
+                  value={forgotModal.newPin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    setForgotModal((p) => ({ ...p, newPin: val, error: "" }));
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <button
+                  type="button"
+                  className={styles.forgotPinBtn}
+                  onClick={() => handleStartForgotPin(forgotModal.profile)}
+                  disabled={forgotModal.loading}
+                >
+                  Resend Code
+                </button>
+              </div>
+
+              <div className={styles.btnGroup} style={{ marginTop: "24px", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={() => setForgotModal((p) => ({ ...p, isOpen: false }))}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={styles.btnPrimary}
+                  disabled={forgotModal.loading || forgotModal.resetCode.length !== 6}
+                >
+                  {forgotModal.loading ? "Updating..." : "Update PIN"}
                 </button>
               </div>
             </form>

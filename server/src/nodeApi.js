@@ -46,6 +46,8 @@ import {
   handleDeleteProfile,
   handleVerifyPin,
   handleSwitchProfile,
+  handleForgotPin,
+  handleResetPin,
 } from "./profiles.js";
 
 async function readJson(request) {
@@ -215,6 +217,12 @@ export async function handleNodeApi(request, opts = {}) {
       }
       if (action === "switch" && method === "POST") {
         return fromHandler(await handleSwitchProfile(request, profileId));
+      }
+      if (action === "forgot-pin" && method === "POST") {
+        return fromHandler(await handleForgotPin(request, profileId));
+      }
+      if (action === "reset-pin" && method === "POST") {
+        return fromHandler(await handleResetPin(request, profileId));
       }
     }
   }

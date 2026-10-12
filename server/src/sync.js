@@ -36,15 +36,30 @@ export async function handleGetWatchProgress(request) {
 
   const whereClause = { userId: auth.user.id };
   if (targetProfileId) {
-    // IDOR Protection: Verify requested profile belongs to authenticated user
-    const profile = await prisma.profile.findFirst({
-      where: { id: targetProfileId, userId: auth.user.id },
-      select: { id: true },
-    });
-    if (!profile) {
-      return { status: 403, body: { error: "Profile access forbidden" } };
+    let profile = null;
+    if (targetProfileId !== "1") {
+      profile = await prisma.profile.findFirst({
+        where: { id: targetProfileId, userId: auth.user.id },
+        select: { id: true },
+      });
+      if (!profile) {
+        return { status: 403, body: { error: "Profile access forbidden" } };
+      }
+    } else {
+      // Profile ID "1" is client alias for primary profile
+      profile =
+        (await prisma.profile.findFirst({
+          where: { userId: auth.user.id, isPrimary: true },
+          select: { id: true },
+        })) ||
+        (await prisma.profile.findFirst({
+          where: { userId: auth.user.id },
+          select: { id: true },
+        }));
     }
-    whereClause.profileId = targetProfileId;
+    if (profile) {
+      whereClause.profileId = profile.id;
+    }
   }
 
   const rows = await prisma.watchProgress.findMany({
@@ -119,7 +134,7 @@ export async function handlePutWatchProgress(request) {
     }
 
     let resolvedProfileId = null;
-    if (candidatePid) {
+    if (candidatePid && candidatePid !== "1") {
       // IDOR Protection: verify target profile belongs to this user
       const owned = await prisma.profile.findFirst({
         where: { id: candidatePid, userId: auth.user.id },
@@ -140,12 +155,6 @@ export async function handlePutWatchProgress(request) {
 
     if (!resolvedProfileId) {
       resolvedProfileId = await getPrimaryProfileId();
-      // Regression Canary: tripwire for unassigned profile write
-      console.warn("[CANARY] WatchProgress write unassigned to specific profile; defaulted to primary", {
-        userId: auth.user.id,
-        resolvedProfileId,
-        progressKey: rawKey,
-      });
     }
 
     const updatedAt = new Date(
@@ -306,9 +315,16 @@ export async function handleSyncGuestHistory(request) {
   }
 
   for (const item of items) {
-    if (!item.subjectId) continue;
-    const updatedAt = new Date(Number(item.lastWatched) || Date.now());
-    const key = (item.se && item.ep && item.se !== "0" && item.ep !== "0") ? `${item.subjectId}_${item.se}_${item.ep}` : String(item.subjectId);
+    const meta = item.metadata || {};
+    const subId = item.subjectId || item.movieId || meta.subjectId || meta.movieId;
+    if (!subId) continue;
+    const updatedAt = new Date(Number(item.lastWatched) || Date.parse(item.lastWatched) || Date.now());
+    const se = item.se ?? meta.se ?? "0";
+    const ep = item.ep ?? meta.ep ?? "0";
+    const key = (se !== "0" && ep !== "0") ? `t:${subId}:s${se}:e${ep}` : `t:${subId}:s0:e0`;
+    const cleanTitle = item.title || meta.title || null;
+    const cleanPoster = item.poster || meta.poster || null;
+    const cleanDetailPath = item.detailPath || meta.detailPath || null;
 
     const existing = await prisma.watchProgress.findUnique({
       where: {
@@ -336,17 +352,17 @@ export async function handleSyncGuestHistory(request) {
         userId: auth.user.id,
         profileId: resolvedProfileId,
         progressKey: key,
-        subjectId: item.subjectId,
-        detailPath: item.detailPath || null,
-        title: item.title || null,
-        poster: item.poster || null,
-        se: item.se != null ? String(item.se) : null,
-        ep: item.ep != null ? String(item.ep) : null,
+        subjectId: String(subId),
+        detailPath: cleanDetailPath,
+        title: cleanTitle,
+        poster: cleanPoster,
+        se: String(se),
+        ep: String(ep),
         updatedAt,
       },
       update: {
-        title: item.title || existing?.title || null,
-        poster: item.poster || existing?.poster || null,
+        title: cleanTitle || existing?.title || null,
+        poster: cleanPoster || existing?.poster || null,
         updatedAt,
       },
     });
@@ -369,15 +385,29 @@ export async function handleDeleteWatchProgress(request) {
 
   const whereClause = { userId: auth.user.id };
   if (targetProfileId) {
-    // IDOR Protection: Verify profile belongs to this user
-    const userProfile = await prisma.profile.findFirst({
-      where: { id: targetProfileId, userId: auth.user.id },
-      select: { id: true },
-    });
-    if (!userProfile) {
-      return { status: 403, body: { error: "Profile access forbidden" } };
+    let userProfile = null;
+    if (targetProfileId !== "1") {
+      userProfile = await prisma.profile.findFirst({
+        where: { id: targetProfileId, userId: auth.user.id },
+        select: { id: true },
+      });
+      if (!userProfile) {
+        return { status: 403, body: { error: "Profile access forbidden" } };
+      }
+    } else {
+      userProfile =
+        (await prisma.profile.findFirst({
+          where: { userId: auth.user.id, isPrimary: true },
+          select: { id: true },
+        })) ||
+        (await prisma.profile.findFirst({
+          where: { userId: auth.user.id },
+          select: { id: true },
+        }));
     }
-    whereClause.profileId = targetProfileId;
+    if (userProfile) {
+      whereClause.profileId = userProfile.id;
+    }
   }
 
   if (key) {

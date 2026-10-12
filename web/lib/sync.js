@@ -213,7 +213,7 @@ export function listLocalWatch(profileId) {
       if (rest.startsWith("p") && rest.includes("_")) {
         const firstUnderscore = rest.indexOf("_");
         const prefixCandidate = rest.slice(0, firstUnderscore);
-        if (/^p\w+$/.test(prefixCandidate)) {
+        if (/^p[\w-]+$/.test(prefixCandidate)) {
           itemPid = prefixCandidate.slice(1);
           actualRest = rest.slice(firstUnderscore + 1);
         }
@@ -293,12 +293,12 @@ export function applyRemoteWatch(items, targetProfileId) {
     profileMap.get(pId).push(item);
 
     // Only write browser local storage keys for the active profile
-    if (String(pId) === currentProfileId) {
+    if (String(pId) === currentProfileId || currentProfileId === "1") {
       const subjectId = item.subjectId;
       if (!subjectId) continue;
       const se = item.se ?? "0";
       const ep = item.ep ?? "0";
-      const keys = getHistoryStorageKeys(subjectId, se, ep, pId);
+      const keys = getHistoryStorageKeys(subjectId, se, ep, currentProfileId);
       const lsKey = keys.key;
       const timeKey = keys.timeKey;
       const remotePos = Number(item.position) || 0;
@@ -339,6 +339,9 @@ export function applyRemoteWatch(items, targetProfileId) {
 
   for (const [pId, pItems] of profileMap.entries()) {
     saveWatchCache(userId, pItems, pId);
+    if (currentProfileId === "1") {
+      saveWatchCache(userId, pItems, "1");
+    }
   }
 }
 
@@ -365,6 +368,14 @@ export function syncPlaybackProgress(item, { immediate = false, profileId } = {}
 
   // 1. Immediately update browser cache for active profile
   updateWatchCacheSingle(userId, scopedItem, activePid);
+
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("mh:watch_progress:change", { detail: scopedItem })
+      );
+    } catch {}
+  }
 
   // 2. If not signed in, nothing to push to server
   if (!session?.access_token) return;
@@ -419,7 +430,9 @@ export async function pullWatchProgress(targetProfileId) {
 
   // Filter strictly to the active profile to eliminate cross-profile bleed
   return remoteItems.filter((item) => {
-    if (item.profileId) return String(item.profileId) === activePid;
+    if (item.profileId) {
+      return String(item.profileId) === activePid || activePid === "1";
+    }
     const itemPid = item.key?.startsWith("p:") ? item.key.split(":")[1] : "1";
     return String(itemPid) === activePid;
   });
