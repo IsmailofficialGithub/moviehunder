@@ -12,8 +12,16 @@ import styles from "./play.module.css";
 function flattenEpisodes(seasons = []) {
   const flat = [];
   for (const s of seasons) {
-    const seasonNum = s.season ?? s.se;
-    for (const e of s.episodes || []) {
+    const seasonNum = s.season ?? s.se ?? 1;
+    const count = Number(s.episode_count ?? s.maxEp ?? (s.episodes || []).length ?? 0);
+    let epList = s.episodes || [];
+    if (!epList.length && count > 0) {
+      epList = Array.from({ length: count }, (_, i) => ({
+        ep: i + 1,
+        se: seasonNum,
+      }));
+    }
+    for (const e of epList) {
       flat.push({
         se: String(e.se ?? seasonNum ?? 1),
         ep: String(e.ep),
@@ -82,7 +90,12 @@ export default function PlayClient() {
       if (title && !/^\d+$/.test(String(title).trim())) meta.title = title;
       if (poster) meta.poster = poster;
       if (detailPath) meta.detailPath = detailPath;
+      meta.lastSe = String(se);
+      meta.lastEp = String(ep);
       localStorage.setItem(`history_meta_${subjectId}`, JSON.stringify(meta));
+      if (String(se) !== "0" || String(ep) !== "0") {
+        localStorage.setItem(`history_last_${subjectId}`, JSON.stringify({ se: String(se), ep: String(ep) }));
+      }
     } catch {}
   }
 
@@ -125,17 +138,25 @@ export default function PlayClient() {
   }, [detailPath, isSeries]);
 
   const { prevEpisode, nextEpisode } = useMemo(() => {
-    if (!isSeries || !episodeList?.length) {
+    if (!isSeries) {
       return { prevEpisode: null, nextEpisode: null };
     }
-    const idx = episodeList.findIndex(
-      (item) => item.se === String(se) && item.ep === String(ep)
-    );
-    if (idx < 0) return { prevEpisode: null, nextEpisode: null };
+    if (episodeList?.length) {
+      const idx = episodeList.findIndex(
+        (item) => String(item.se) === String(se) && String(item.ep) === String(ep)
+      );
+      if (idx >= 0) {
+        return {
+          prevEpisode: idx > 0 ? episodeList[idx - 1] : null,
+          nextEpisode: idx < episodeList.length - 1 ? episodeList[idx + 1] : null,
+        };
+      }
+    }
+    const curEp = Number(ep) || 1;
+    const curSe = Number(se) || 1;
     return {
-      prevEpisode: idx > 0 ? episodeList[idx - 1] : null,
-      nextEpisode:
-        idx < episodeList.length - 1 ? episodeList[idx + 1] : null,
+      prevEpisode: curEp > 1 ? { se: String(curSe), ep: String(curEp - 1) } : null,
+      nextEpisode: { se: String(curSe), ep: String(curEp + 1) },
     };
   }, [episodeList, se, ep, isSeries]);
 
@@ -154,7 +175,7 @@ export default function PlayClient() {
   };
 
   const backHref = detailPath
-    ? `/title/${encodeURIComponent(detailPath)}`
+    ? `/title/${encodeURIComponent(detailPath)}${isSeries ? `?se=${encodeURIComponent(se)}&ep=${encodeURIComponent(ep)}` : ""}`
     : "/";
 
   return (

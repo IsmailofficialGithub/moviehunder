@@ -664,9 +664,14 @@ export default function StreamPlayer({
                 poster: poster || prevMeta.poster || null,
                 detailPath: detailPath || prevMeta.detailPath || null,
                 duration: video.duration || prevMeta.duration || 0,
+                lastSe: seStr,
+                lastEp: epStr,
                 updatedAt: nowTs,
               })
             );
+            if (seStr !== "0" || epStr !== "0") {
+              localStorage.setItem(`history_last_${subjectId}`, JSON.stringify({ se: seStr, ep: epStr }));
+            }
           }
 
           const watchItem = {
@@ -2265,7 +2270,31 @@ export default function StreamPlayer({
                 <MediaTimeRange />
               </MediaControlBar>
               <MediaControlBar className={styles.bottomBar}>
+                {prevEpisode && onPrevEpisode ? (
+                  <button
+                    type="button"
+                    className={styles.bottomIconBtn}
+                    onClick={goPrev}
+                    disabled={busy}
+                    title="Previous Episode"
+                    aria-label="Previous episode"
+                  >
+                    <SkipBack size={20} fill="currentColor" strokeWidth={2} />
+                  </button>
+                ) : null}
                 <MediaPlayButton />
+                {nextEpisode && onNextEpisode ? (
+                  <button
+                    type="button"
+                    className={styles.bottomIconBtn}
+                    onClick={goNext}
+                    disabled={busy}
+                    title="Next Episode"
+                    aria-label="Next episode"
+                  >
+                    <SkipForward size={20} fill="currentColor" strokeWidth={2} />
+                  </button>
+                ) : null}
                 <div className={styles.volumeGroup}>
                   <MediaMuteButton />
                   <MediaVolumeRange className={styles.volumeSlider} />

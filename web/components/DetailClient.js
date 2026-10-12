@@ -104,6 +104,30 @@ export default function DetailClient({ slug, detail, episodes }) {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [watchProgress, setWatchProgress] = useState({});
 
+  // Restore season and episode from URL query or last watched history
+  useEffect(() => {
+    if (typeof window === "undefined" || !isSeries) return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlSe = urlParams.get("se");
+      const urlEp = urlParams.get("ep");
+      if (urlSe) {
+        setSelectedSe(String(urlSe));
+        if (urlEp) setSelectedEp(String(urlEp));
+        return;
+      }
+      const savedLast = localStorage.getItem(`history_last_${subjectId}`);
+      if (savedLast) {
+        const parsed = JSON.parse(savedLast);
+        if (parsed?.se) {
+          setSelectedSe(String(parsed.se));
+          if (parsed?.ep) setSelectedEp(String(parsed.ep));
+          return;
+        }
+      }
+    } catch {}
+  }, [subjectId, isSeries]);
+
   // Synchronize active tab if series status updates
   useEffect(() => {
     setActiveTab(isSeries ? "episodes" : "overview");

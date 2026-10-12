@@ -38,6 +38,35 @@ function sanitizeProfile(p) {
   };
 }
 
+// Resolve profile by direct ID or alias (1 for primary, 2 for kids/second profile)
+export async function resolveUserProfile(prisma, userId, profileId) {
+  if (!profileId) return null;
+  let profile = await prisma.profile.findFirst({ where: { id: profileId, userId } });
+  if (profile) return profile;
+  if (profileId === "1") {
+    return (await prisma.profile.findFirst({ where: { userId, isPrimary: true } })) ||
+           (await prisma.profile.findFirst({ where: { userId }, orderBy: { createdAt: "asc" } }));
+  }
+  if (profileId === "2") {
+    profile = await prisma.profile.findFirst({ where: { userId, isKids: true } });
+    if (!profile) {
+      const all = await prisma.profile.findMany({ where: { userId }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] });
+      if (all.length >= 2) return all[1];
+      return await prisma.profile.create({
+        data: {
+          userId,
+          name: "Kids",
+          avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Kids&backgroundColor=38bdf8",
+          isKids: true,
+          isPrimary: false,
+        },
+      });
+    }
+    return profile;
+  }
+  return null;
+}
+
 // Fetch user plan limits from Account or fallback to STANDARD
 async function getUserPlanLimits(prisma, userId) {
   try {
@@ -234,11 +263,9 @@ export async function handleUpdateProfile(request, profileId) {
   }
 
   const prisma = getPrisma();
-  const profile = await prisma.profile.findUnique({
-    where: { id: profileId },
-  });
+  const profile = await resolveUserProfile(prisma, auth.user.id, profileId);
 
-  if (!profile || profile.userId !== auth.user.id) {
+  if (!profile) {
     return { status: 404, body: { error: "Profile not found" } };
   }
 
@@ -301,7 +328,7 @@ export async function handleUpdateProfile(request, profileId) {
   }
 
   const updated = await prisma.profile.update({
-    where: { id: profileId },
+    where: { id: profile.id },
     data,
   });
 
@@ -329,11 +356,9 @@ export async function handleDeleteProfile(request, profileId) {
   }
 
   const prisma = getPrisma();
-  const profile = await prisma.profile.findUnique({
-    where: { id: profileId },
-  });
+  const profile = await resolveUserProfile(prisma, auth.user.id, profileId);
 
-  if (!profile || profile.userId !== auth.user.id) {
+  if (!profile) {
     return { status: 404, body: { error: "Profile not found" } };
   }
 
@@ -349,12 +374,12 @@ export async function handleDeleteProfile(request, profileId) {
   }
 
   await prisma.profile.delete({
-    where: { id: profileId },
+    where: { id: profile.id },
   });
 
   return {
     status: 200,
-    body: { ok: true, deletedId: profileId },
+    body: { ok: true, deletedId: profile.id },
   };
 }
 
@@ -373,11 +398,9 @@ export async function handleVerifyPin(request, profileId) {
   }
 
   const prisma = getPrisma();
-  const profile = await prisma.profile.findUnique({
-    where: { id: profileId },
-  });
+  const profile = await resolveUserProfile(prisma, auth.user.id, profileId);
 
-  if (!profile || profile.userId !== auth.user.id) {
+  if (!profile) {
     return { status: 404, body: { error: "Profile not found" } };
   }
 
@@ -470,11 +493,9 @@ export async function handleSwitchProfile(request, profileId) {
   }
 
   const prisma = getPrisma();
-  const profile = await prisma.profile.findUnique({
-    where: { id: profileId },
-  });
+  const profile = await resolveUserProfile(prisma, auth.user.id, profileId);
 
-  if (!profile || profile.userId !== auth.user.id) {
+  if (!profile) {
     return { status: 404, body: { error: "Profile not found" } };
   }
 
@@ -571,11 +592,9 @@ export async function handleForgotPin(request, profileId) {
   }
 
   const prisma = getPrisma();
-  const profile = await prisma.profile.findUnique({
-    where: { id: profileId },
-  });
+  const profile = await resolveUserProfile(prisma, auth.user.id, profileId);
 
-  if (!profile || profile.userId !== auth.user.id) {
+  if (!profile) {
     return { status: 404, body: { error: "Profile not found" } };
   }
 
@@ -624,11 +643,9 @@ export async function handleResetPin(request, profileId) {
   }
 
   const prisma = getPrisma();
-  const profile = await prisma.profile.findUnique({
-    where: { id: profileId },
-  });
+  const profile = await resolveUserProfile(prisma, auth.user.id, profileId);
 
-  if (!profile || profile.userId !== auth.user.id) {
+  if (!profile) {
     return { status: 404, body: { error: "Profile not found" } };
   }
 
@@ -654,7 +671,7 @@ export async function handleResetPin(request, profileId) {
   }
 
   const updated = await prisma.profile.update({
-    where: { id: profileId },
+    where: { id: profile.id },
     data: { pin: newPinHash },
   });
 
