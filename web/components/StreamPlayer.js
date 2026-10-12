@@ -627,20 +627,38 @@ export default function StreamPlayer({
           const seStr = String(se || "0");
           const epStr = String(ep || "0");
           const dur = video.duration || 0;
+          let pId = "1";
+          try {
+            const stored = localStorage.getItem("active_profile");
+            if (stored) {
+              const p = JSON.parse(stored);
+              if (p?.id) pId = String(p.id);
+            }
+          } catch {}
+          const pPrefix = pId === "1" ? "" : `p${pId}_`;
+          const mainKey = `history_${pPrefix}${subjectId}_${seStr}_${epStr}`;
+          const timeKey = `history_time_${pPrefix}${subjectId}_${seStr}_${epStr}`;
+          const metaKey = `history_meta_${pPrefix}${subjectId}`;
+
           const isFinished = dur > 60 && (video.currentTime / dur >= 0.90 || dur - video.currentTime <= 30);
           if (isFinished) {
-            localStorage.removeItem(`history_${subjectId}_${seStr}_${epStr}`);
+            localStorage.removeItem(mainKey);
+            if (pId === "1") localStorage.removeItem(`history_${subjectId}_${seStr}_${epStr}`);
           } else {
-            localStorage.setItem(`history_${subjectId}_${seStr}_${epStr}`, video.currentTime.toString());
+            localStorage.setItem(mainKey, video.currentTime.toString());
           }
-          localStorage.setItem(`history_time_${subjectId}_${seStr}_${epStr}`, nowTs.toString());
+          localStorage.setItem(timeKey, nowTs.toString());
           if (title || poster) {
             let prevMeta = {};
             try {
-              prevMeta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
+              prevMeta = JSON.parse(
+                localStorage.getItem(metaKey) ||
+                (pId === "1" ? localStorage.getItem(`history_meta_${subjectId}`) : "{}") ||
+                "{}"
+              );
             } catch {}
             localStorage.setItem(
-              `history_meta_${subjectId}`,
+              metaKey,
               JSON.stringify({
                 title: title || prevMeta.title || null,
                 poster: poster || prevMeta.poster || null,
@@ -653,6 +671,7 @@ export default function StreamPlayer({
 
           const watchItem = {
             key: `t:${subjectId}:s${seStr}:e${epStr}`,
+            profileId: pId,
             subjectId,
             se: seStr,
             ep: epStr,
@@ -666,7 +685,7 @@ export default function StreamPlayer({
           };
 
           import("../lib/sync")
-            .then((m) => m.syncPlaybackProgress?.(watchItem, { immediate: forcePos }))
+            .then((m) => m.syncPlaybackProgress?.(watchItem, { immediate: forcePos, profileId: pId }))
             .catch(() => {});
         } catch {}
       }
@@ -955,7 +974,19 @@ export default function StreamPlayer({
       try {
         const seStr = String(se || "0");
         const epStr = String(ep || "0");
-        const saved = localStorage.getItem(`history_${subjectId}_${seStr}_${epStr}`);
+        let pId = "1";
+        try {
+          const stored = localStorage.getItem("active_profile");
+          if (stored) {
+            const p = JSON.parse(stored);
+            if (p?.id) pId = String(p.id);
+          }
+        } catch {}
+        const pPrefix = pId === "1" ? "" : `p${pId}_`;
+        let saved = localStorage.getItem(`history_${pPrefix}${subjectId}_${seStr}_${epStr}`);
+        if (!saved && pId === "1") {
+          saved = localStorage.getItem(`history_${subjectId}_${seStr}_${epStr}`);
+        }
         if (saved && !isNaN(Number(saved))) {
           const savedNum = Number(saved);
           if (savedNum > 2) {

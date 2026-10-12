@@ -97,3 +97,44 @@ test("Frontend shields backend origin and proxies auth/sync endpoints same-origi
   );
 });
 
+test("Profile switching updates active logo and indicates current profile in UI", () => {
+  const headerPath = path.resolve("components/SiteHeader.js");
+  const headerContent = fs.readFileSync(headerPath, "utf8");
+
+  assert.match(
+    headerContent,
+    /const\s+effectiveAvatar\s*=\s*\([^)]*\(profileAvatar\s*\|\|\s*userAvatar\)/,
+    "effectiveAvatar must prioritize profileAvatar over userAvatar when profile is active"
+  );
+  assert.match(
+    headerContent,
+    /window\.addEventListener\(["']mh:profile:change["']/,
+    "SiteHeader must listen to mh:profile:change event for cross-component sync"
+  );
+  assert.match(
+    headerContent,
+    /switchProfile/,
+    "SiteHeader must allow quick profile switching in menu"
+  );
+
+  const profilesPath = path.resolve("app/profiles/page.js");
+  const profilesContent = fs.readFileSync(profilesPath, "utf8");
+
+  assert.match(
+    profilesContent,
+    /activeProfileId/,
+    "Profiles page must track activeProfileId state"
+  );
+  assert.match(
+    profilesContent,
+    /activeBadge/,
+    "Profiles page must display active indicator badge"
+  );
+  assert.match(
+    profilesContent,
+    /mh:profile:change/,
+    "Profiles page must dispatch mh:profile:change event on selection"
+  );
+});
+
+

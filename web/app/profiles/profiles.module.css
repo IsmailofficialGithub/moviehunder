@@ -4,10 +4,11 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background-color: var(--background, #000);
+  background-color: var(--background, #0b0c0f);
   color: var(--text, #fff);
-  padding: 20px;
-  animation: fadeIn 0.4s ease-out;
+  padding: 40px 20px;
+  animation: fadeIn 0.35s ease-out;
+  position: relative;
 }
 
 @keyframes fadeIn {
@@ -15,19 +16,53 @@
   to { opacity: 1; transform: scale(1); }
 }
 
+.headerSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 2.5rem;
+  max-width: 620px;
+}
+
+.planBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: rgba(229, 9, 20, 0.15);
+  border: 1px solid rgba(229, 9, 20, 0.35);
+  color: #ff4d58;
+  margin-bottom: 0.9rem;
+}
+
 .title {
-  font-size: 2.5rem;
-  font-weight: 500;
-  margin-bottom: 2rem;
-  letter-spacing: 0.5px;
+  font-size: 2.8rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: #9ca3af;
+  margin: 0;
+  line-height: 1.45;
 }
 
 .profilesList {
   display: flex;
   gap: 2rem;
   justify-content: center;
+  align-items: flex-start;
   flex-wrap: wrap;
-  max-width: 800px;
+  max-width: 900px;
+  width: 100%;
 }
 
 .profileItem {
@@ -39,73 +74,497 @@
   background: transparent;
   border: none;
   padding: 0;
-  transition: transform 0.2s;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  text-decoration: none;
 }
 
 .profileItem:hover {
-  transform: scale(1.05);
+  transform: translateY(-4px) scale(1.03);
 }
 
 .avatarBox {
   width: 140px;
   height: 140px;
-  border-radius: 8px;
-  background-color: #333;
+  border-radius: 12px;
+  background-color: #1f222a;
   overflow: hidden;
   border: 3px solid transparent;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-size: cover;
-  background-position: center;
+  position: relative;
 }
 
 .avatarImg {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .profileItem:hover .avatarBox {
-  border-color: var(--accent, #e50914);
+  border-color: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.avatarBoxActive {
+  border-color: var(--accent, #e50914) !important;
+  box-shadow: 0 0 20px rgba(229, 9, 20, 0.6);
+}
+
+.activeBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent, #e50914);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  z-index: 3;
+}
+
+.lockBadge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(15, 17, 23, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.editOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  z-index: 4;
+  backdrop-filter: blur(2px);
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: background 0.2s;
+}
+
+.profileItem:hover .editOverlay {
+  background: rgba(229, 9, 20, 0.75);
 }
 
 .avatarIcon {
-  width: 60px;
-  height: 60px;
-  color: #a3a3a3;
+  width: 50px;
+  height: 50px;
+  color: #6b7280;
+  transition: color 0.2s;
 }
 
 .profileItem:hover .avatarIcon {
   color: #fff;
 }
 
+.nameWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
 .name {
-  font-size: 1.1rem;
-  color: #a3a3a3;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #9ca3af;
   transition: color 0.2s;
 }
 
-.profileItem:hover .name {
-  color: #fff;
-  font-weight: 500;
+.profileItem:hover .name,
+.profileItemActive .name {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.activeLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(229, 9, 20, 0.2);
+  border: 1px solid rgba(229, 9, 20, 0.45);
+  color: #ff4d58;
+}
+
+.kidsBadge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+}
+
+.actionsBar {
+  margin-top: 3.5rem;
+  display: flex;
+  gap: 16px;
+  align-items: center;
 }
 
 .manageBtn {
-  margin-top: 4rem;
-  padding: 10px 30px;
+  padding: 10px 28px;
   background: transparent;
-  color: #a3a3a3;
-  border: 1px solid #a3a3a3;
-  font-size: 1.1rem;
+  color: #9ca3af;
+  border: 1px solid #4b5563;
+  font-size: 0.95rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   cursor: pointer;
+  border-radius: 4px;
   transition: all 0.2s;
 }
 
 .manageBtn:hover {
   color: #fff;
   border-color: #fff;
+}
+
+.manageBtnActive {
+  background: #ffffff;
+  color: #0b0c0f !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.25);
+}
+
+/* ── Modal Overlay & Card ─────────────────────────────────────────────────── */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modalCard {
+  background: #16181f;
+  border: 1px solid #2a2e39;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #242833;
+}
+
+.modalTitle {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0;
+  color: #fff;
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.closeBtn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.modalBody {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fieldLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #d1d5db;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.textInput {
+  background: #0f1117;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #fff;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.textInput:focus {
+  border-color: var(--accent, #e50914);
+  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.2);
+}
+
+.avatarGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.avatarOption {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: #1f222a;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.avatarOption:hover {
+  transform: scale(1.08);
+}
+
+.avatarOptionSelected {
+  border-color: var(--accent, #e50914);
+  box-shadow: 0 0 12px rgba(229, 9, 20, 0.55);
+}
+
+.avatarOptionImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: #0f1117;
+  border: 1px solid #242833;
+  border-radius: 8px;
+}
+
+.toggleText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggleTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.toggleDesc {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent, #e50914);
+  cursor: pointer;
+}
+
+.pinInputsWrap {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pinInput {
+  background: #0f1117;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #fff;
+  font-size: 1.2rem;
+  letter-spacing: 8px;
+  text-align: center;
+  outline: none;
+  font-weight: 700;
+}
+
+.pinInput:focus {
+  border-color: var(--accent, #e50914);
+  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.2);
+}
+
+.modalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-top: 1px solid #242833;
+  background: #111319;
+}
+
+.btnGroup {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.btnPrimary {
+  background: var(--accent, #e50914);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.btnPrimary:hover {
+  background: #f40612;
+  transform: translateY(-1px);
+}
+
+.btnSecondary {
+  background: transparent;
+  color: #d1d5db;
+  border: 1px solid #374151;
+  padding: 10px 18px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btnSecondary:hover {
+  color: #fff;
+  border-color: #9ca3af;
+}
+
+.btnDanger {
+  background: transparent;
+  color: #ef4444;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.btnDanger:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* ── PIN Unlock Modal ─────────────────────────────────────────────────────── */
+
+.unlockCard {
+  background: #16181f;
+  border: 1px solid #2a2e39;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 100%;
+  padding: 32px 28px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.unlockAvatarBox {
+  width: 90px;
+  height: 90px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 2px solid #2d3340;
+}
+
+.unlockTitle {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  color: #fff;
+}
+
+.unlockDesc {
+  font-size: 0.9rem;
+  color: #9ca3af;
+  margin: 0 0 24px 0;
+}
+
+.pinError {
+  color: #ef4444;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 10px;
+  animation: shake 0.3s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
 }

@@ -1,7 +1,5 @@
-/**
- * Cloudflare Worker-safe proxy to the Node API (play-relay).
- * Do not import Prisma / nodemailer / argon2 here.
- */
+// Cloudflare Worker-safe proxy to the Node API (play-relay).
+// Do not import Prisma / nodemailer / argon2 here.
 
 export function isProxiedApiPath(pathname) {
   const p = String(pathname || "").replace(/\/+$/, "") || "/";
@@ -9,7 +7,10 @@ export function isProxiedApiPath(pathname) {
     p.startsWith("/api/access") ||
     p.startsWith("/api/auth") ||
     p.startsWith("/api/sync") ||
-    p.startsWith("/api/history/sync")
+    p.startsWith("/api/history/sync") ||
+    p.startsWith("/api/playback") ||
+    p.startsWith("/api/household") ||
+    p.startsWith("/api/profiles")
   );
 }
 
@@ -30,9 +31,7 @@ const HOP_BY_HOP = new Set([
   "content-length",
 ]);
 
-/**
- * Forward request to Node play-relay.
- */
+// Forward request to Node play-relay.
 export async function proxyToNodeApi(request, env) {
   const base = nodeApiBase(env);
   if (!base) {

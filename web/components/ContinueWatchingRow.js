@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { getWatchCache, listLocalWatch, parseTimestamp, pullWatchProgress } from "../lib/sync";
+import { getActiveProfileId } from "../lib/profiles";
 import RowScroller from "./RowScroller";
 import LazyPoster from "./LazyPoster";
 import styles from "./ContinueWatchingRow.module.css";
@@ -141,26 +142,28 @@ export default function ContinueWatchingRow() {
 
   useEffect(() => {
     function load() {
-      // 1. Instant Cache Hit
-      const cached = getWatchCache(user?.id);
+      const activePid = String(getActiveProfileId() || "1");
+
+      // 1. Instant Cache Hit for active profile
+      const cached = getWatchCache(user?.id, activePid);
       if (cached && cached.length > 0) {
         const filtered = cached.filter((i) => (Number(i.position) || 0) > 2);
         setItems(deduplicateShows(filtered));
       } else {
-        const local = listLocalWatch().filter((i) => (Number(i.position) || 0) > 2);
+        const local = listLocalWatch(activePid).filter((i) => (Number(i.position) || 0) > 2);
         setItems(deduplicateShows(local));
       }
 
       // 2. Background refresh if signed in
       if (isSignedIn) {
-        pullWatchProgress()
+        pullWatchProgress(activePid)
           .then((remote) => {
-            const filtered = (remote || []).filter(
-              (i) => (Number(i.position) || 0) > 2
-            );
-            if (filtered.length > 0) {
-              setItems(deduplicateShows(filtered));
-            }
+            const filtered = (remote || []).filter((i) => {
+              if ((Number(i.position) || 0) <= 2) return false;
+              const itemPid = i.profileId || (i.key?.startsWith("p:") ? i.key.split(":")[1] : "1");
+              return String(itemPid) === activePid;
+            });
+            setItems(deduplicateShows(filtered));
           })
           .catch(() => {});
       }
@@ -170,9 +173,11 @@ export default function ContinueWatchingRow() {
     const onFocus = () => load();
     window.addEventListener("focus", onFocus);
     window.addEventListener("storage", onFocus);
+    window.addEventListener("mh:profile:change", onFocus);
     return () => {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("storage", onFocus);
+      window.removeEventListener("mh:profile:change", onFocus);
     };
   }, [user?.id, isSignedIn]);
 

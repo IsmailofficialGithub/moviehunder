@@ -674,29 +674,27 @@ export default function PlayScreen() {
 
   useEffect(() => {
     const sub = player.addListener("statusChange", (payload) => {
-      if (payload?.status === "error" || payload?.error) {
-        // If an offline file had a transient decoder or buffer error, recover offline playback!
-        // Never wipe offlineUri or attempt online stream lookup when watching offline!
+      if (payload?.status === "error") {
         if (offlineUri) {
-          if (offlineRecoverAttempts.current < 2) {
+          const cur = player.currentTime || 0;
+          // Only attempt recovery if actively playing mid-video (> 2s) and not during initial startup
+          if (cur > 2 && offlineRecoverAttempts.current < 1) {
             offlineRecoverAttempts.current += 1;
-            try {
-              const cur = player.currentTime || 0;
-              loadedUriRef.current = "";
-              if (typeof player.replaceAsync === "function") {
-                player.replaceAsync(offlineUri).then(() => {
+            setTimeout(() => {
+              try {
+                if (typeof player.replaceAsync === "function") {
+                  player.replaceAsync(offlineUri).then(() => {
+                    if (cur > 0) player.currentTime = cur;
+                    player.play();
+                  }).catch(() => {});
+                } else {
+                  player.replace(offlineUri, true);
                   if (cur > 0) player.currentTime = cur;
                   player.play();
-                }).catch(() => {});
-              } else {
-                player.replace(offlineUri, true);
-                if (cur > 0) player.currentTime = cur;
-                player.play();
-              }
-              return;
-            } catch {
-              // fall through to offline error state
-            }
+                }
+              } catch {}
+            }, 300);
+            return;
           }
           setError("Offline playback interrupted. Tap Retry to reload the video.");
           setStatus("error");
@@ -716,7 +714,7 @@ export default function PlayScreen() {
       }
     });
     return () => sub.remove();
-  }, [player, offlineUri, load]);
+  }, [player, offlineUri]);
 
   useEffect(() => {
     const sub = player.addListener("timeUpdate", () => {
@@ -900,12 +898,15 @@ export default function PlayScreen() {
   }, []);
 
   const loadRef = useRef(null);
+  const loadOfflineRef = useRef(null);
 
   const loadOffline = useCallback(
     async (targetItem) => {
-      setOfflineReady(false);
-      setError("");
-      setStatus("loading");
+      if (statusRef.current !== "ready") {
+        setOfflineReady(false);
+        setError("");
+        setStatus("loading");
+      }
       try {
         await hydrateDownloads();
         const item =
@@ -989,16 +990,25 @@ export default function PlayScreen() {
           return;
         }
 
-        setOfflineUri(playFileUri);
-        setSources([
-          {
-            url: playFileUri,
-            resolution: item.resolution || "Offline",
-            height: item.height || 0,
-            format: "MP4",
-            size_bytes: info.size || item.bytesWritten || null,
-          },
-        ]);
+        setOfflineUri((prev) => (prev === playFileUri ? prev : playFileUri));
+        setSources((prev) => {
+          if (
+            prev.length === 1 &&
+            prev[0].url === playFileUri &&
+            prev[0].size_bytes === (info.size || item.bytesWritten || null)
+          ) {
+            return prev;
+          }
+          return [
+            {
+              url: playFileUri,
+              resolution: item.resolution || "Offline",
+              height: item.height || 0,
+              format: "MP4",
+              size_bytes: info.size || item.bytesWritten || null,
+            },
+          ];
+        });
         setQualityMode("manual");
         setQualityIndex(0);
         userWantsPlayRef.current = wantsAutoplay;
@@ -1069,6 +1079,8 @@ export default function PlayScreen() {
     [downloadId, subjectId, detailPath, se, ep, wantsAutoplay]
   );
 
+  loadOfflineRef.current = loadOffline;
+
   const load = useCallback(
     async ({ force = false } = {}) => {
       if (offlineUri) return; // handled by offline playback
@@ -1125,7 +1137,7 @@ export default function PlayScreen() {
           await hydrateDownloads();
           const localDl = findDownload({ subjectId, detailPath, se, ep });
           if (localDl && (localDl.status === "completed" || canPlayPartial(localDl))) {
-            loadOffline(localDl);
+            loadOfflineRef.current?.(localDl);
             return;
           }
         } catch {
@@ -1141,20 +1153,21 @@ export default function PlayScreen() {
         setStatus("error");
       }
     },
-    [downloadId, offlineReady, offlineUri, subjectId, detailPath, se, ep, wantsAutoplay, loadOffline]
+    [downloadId, subjectId, detailPath, se, ep, wantsAutoplay]
   );
 
   loadRef.current = load;
 
   useEffect(() => {
+    offlineRecoverAttempts.current = 0;
     if (downloadId) {
-      loadOffline();
+      loadOfflineRef.current?.();
     } else {
       setOfflineUri("");
       setOfflineReady(true);
-      load();
+      loadRef.current?.();
     }
-  }, [downloadId, loadOffline, load]);
+  }, [downloadId, subjectId, detailPath, se, ep]);
 
   useEffect(() => {
     setExpanded(false);

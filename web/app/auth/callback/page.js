@@ -38,7 +38,7 @@ function CallbackInner() {
           await refresh();
           runFullSync().catch(() => {});
           if (!cancelled) setMessage("Signed in. Redirecting…");
-          setTimeout(() => router.replace("/settings"), 600);
+          setTimeout(() => router.replace("/profiles"), 600);
           return;
         }
 

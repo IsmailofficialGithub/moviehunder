@@ -1,7 +1,5 @@
-/**
- * Node API router for auth, sync, and device access (Prisma + nodemailer).
- * Used by play-relay; Worker proxies these paths here.
- */
+// Node API router for auth, sync, profiles, and device access (Prisma + nodemailer).
+// Used by play-relay; Worker proxies these paths here.
 
 import {
   verifyDeviceAccess,
@@ -41,6 +39,14 @@ import {
   handleRequestCode,
   handleVerifyCode,
 } from "./antisharing.js";
+import {
+  handleGetProfiles,
+  handleCreateProfile,
+  handleUpdateProfile,
+  handleDeleteProfile,
+  handleVerifyPin,
+  handleSwitchProfile,
+} from "./profiles.js";
 
 async function readJson(request) {
   try {
@@ -50,11 +56,8 @@ async function readJson(request) {
   }
 }
 
-/**
- * @param {Request} request
- * @param {{ env?: Record<string, string> }} [opts]
- * @returns {Promise<Response|null>} null if path not handled
- */
+// Handles Node API requests
+// Returns Response or null if path not handled
 export async function handleNodeApi(request, opts = {}) {
   const env = opts.env || process.env;
   const url = new URL(request.url);
@@ -191,6 +194,31 @@ export async function handleNodeApi(request, opts = {}) {
     return fromHandler(await handleVerifyCode(request));
   }
 
+  // ── Profiles ───────────────────────────────────────────
+  if (p === "/api/profiles") {
+    if (method === "GET") return fromHandler(await handleGetProfiles(request));
+    if (method === "POST") return fromHandler(await handleCreateProfile(request));
+  }
+  if (p.startsWith("/api/profiles/")) {
+    const parts = p.slice("/api/profiles/".length).split("/");
+    const profileId = decodeURIComponent(parts[0] || "");
+    const action = parts[1] || "";
+    if (profileId) {
+      if (action === "" && method === "PUT") {
+        return fromHandler(await handleUpdateProfile(request, profileId));
+      }
+      if (action === "" && method === "DELETE") {
+        return fromHandler(await handleDeleteProfile(request, profileId));
+      }
+      if (action === "verify-pin" && method === "POST") {
+        return fromHandler(await handleVerifyPin(request, profileId));
+      }
+      if (action === "switch" && method === "POST") {
+        return fromHandler(await handleSwitchProfile(request, profileId));
+      }
+    }
+  }
+
   return null;
 }
 
@@ -217,6 +245,7 @@ export function isNodeApiPath(pathname) {
     p.startsWith("/api/sync") ||
     p.startsWith("/api/history/sync") ||
     p.startsWith("/api/playback") ||
-    p.startsWith("/api/household")
+    p.startsWith("/api/household") ||
+    p.startsWith("/api/profiles")
   );
 }

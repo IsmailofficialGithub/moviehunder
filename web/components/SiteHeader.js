@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { Download } from "lucide-react";
 import { searchSuggest } from "../lib/api";
@@ -19,6 +19,7 @@ import { openAppDownloadModal } from "./AppDownloadPrompt";
 import ActiveUsers from "./ActiveUsers";
 import BtnSpinner from "./BtnSpinner";
 import { useAuth } from "./AuthProvider";
+import { loadUserProfiles } from "../lib/profiles";
 import styles from "./SiteHeader.module.css";
 
 const NAV = [
@@ -90,20 +91,6 @@ export default function SiteHeader() {
   const [activeProfile, setActiveProfile] = useState(null);
   const [avatarImgError, setAvatarImgError] = useState(false);
 
-  useEffect(() => {
-    try {
-      if (!isSignedIn) {
-        setActiveProfile(null);
-        return;
-      }
-      const stored = localStorage.getItem("active_profile");
-      if (stored) setActiveProfile(JSON.parse(stored));
-      else setActiveProfile(null);
-    } catch {
-      setActiveProfile(null);
-    }
-  }, [user, isSignedIn]);
-
   const userAvatar = isSignedIn
     ? (user?.avatar_url ||
        user?.avatarUrl ||
@@ -115,21 +102,103 @@ export default function SiteHeader() {
     : null;
 
   const profileAvatar = isSignedIn ? activeProfile?.avatar : null;
-  const isDicebear = typeof profileAvatar === "string" && profileAvatar.includes("dicebear");
   const effectiveAvatar =
-    (isSignedIn &&
-      !avatarImgError &&
-      ((isDicebear && userAvatar) ? userAvatar : (profileAvatar || userAvatar))) ||
-    null;
-
-  useEffect(() => {
-    setAvatarImgError(false);
-  }, [userAvatar, profileAvatar]);
+    (isSignedIn && !avatarImgError && (profileAvatar || userAvatar)) || null;
 
   const displayName = isSignedIn
     ? (activeProfile?.name || user?.display_name || user?.name || "")
     : "";
   const initialLetter = displayName ? displayName.charAt(0).toUpperCase() : "";
+
+  const syncProfile = useCallback(() => {
+    try {
+      if (!isSignedIn) {
+        setActiveProfile(null);
+        return;
+      }
+      const stored = localStorage.getItem("active_profile");
+      if (stored) {
+        setActiveProfile(JSON.parse(stored));
+      } else {
+        const defaultProf = {
+          id: "1",
+          name: user?.display_name || user?.name || "Justin",
+          avatar:
+            userAvatar ||
+            "https://api.dicebear.com/7.x/avataaars/svg?seed=Justin&backgroundColor=e50914",
+        };
+        setActiveProfile(defaultProf);
+      }
+    } catch {
+      setActiveProfile(null);
+    }
+  }, [isSignedIn, user, userAvatar]);
+
+  useEffect(() => {
+    syncProfile();
+  }, [syncProfile, pathname]);
+
+  useEffect(() => {
+    const onProfileChange = (e) => {
+      if (e?.detail) {
+        setActiveProfile(e.detail);
+        setAvatarImgError(false);
+      } else {
+        syncProfile();
+      }
+    };
+    window.addEventListener("mh:profile:change", onProfileChange);
+    window.addEventListener("storage", syncProfile);
+    return () => {
+      window.removeEventListener("mh:profile:change", onProfileChange);
+      window.removeEventListener("storage", syncProfile);
+    };
+  }, [syncProfile]);
+
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [userAvatar, profileAvatar]);
+
+  const [profilesList, setProfilesList] = useState([]);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setProfilesList([]);
+      return;
+    }
+    const update = () => {
+      setProfilesList(loadUserProfiles(user));
+    };
+    update();
+    window.addEventListener("mh:profiles_list:change", update);
+    window.addEventListener("storage", update);
+    return () => {
+      window.removeEventListener("mh:profiles_list:change", update);
+      window.removeEventListener("storage", update);
+    };
+  }, [isSignedIn, user]);
+
+  const availableProfiles = useMemo(() => {
+    if (!isSignedIn) return [];
+    if (profilesList && profilesList.length > 0) return profilesList;
+    return loadUserProfiles(user);
+  }, [isSignedIn, profilesList, user]);
+
+  const switchProfile = (prof) => {
+    if (prof?.pin) {
+      router.push(`/profiles?unlock=${encodeURIComponent(prof.id)}`);
+      setProfileMenuOpen(false);
+      return;
+    }
+    setActiveProfile(prof);
+    setAvatarImgError(false);
+    try {
+      localStorage.setItem("active_profile", JSON.stringify(prof));
+      window.dispatchEvent(new CustomEvent("mh:profile:change", { detail: prof }));
+      window.dispatchEvent(new Event("storage"));
+    } catch {}
+    setProfileMenuOpen(false);
+  };
 
   useEffect(() => {
     setProfileMenuOpen(false);
@@ -626,6 +695,45 @@ export default function SiteHeader() {
 
                     <div className={styles.dropdownDivider} />
 
+                    {isSignedIn && availableProfiles.length > 0 && (
+                      <>
+                        <div className={styles.dropdownProfilesList}>
+                          <span className={styles.dropdownSectionLabel}>Switch Profile</span>
+                          {availableProfiles.map((p) => {
+                            const isActive = activeProfile?.id
+                              ? String(activeProfile.id) === String(p.id)
+                              : p.id === "1";
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                className={`${styles.dropdownProfileRow} ${isActive ? styles.dropdownProfileRowActive : ""}`}
+                                onClick={() => switchProfile(p)}
+                              >
+                                <div className={styles.dropdownMiniAvatar}>
+                                  {p.avatar ? (
+                                    <img
+                                      src={p.avatar}
+                                      alt={p.name}
+                                      className={styles.avatarImg}
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <span>{p.name.charAt(0)}</span>
+                                  )}
+                                </div>
+                                <span className={styles.dropdownProfileName}>{p.name}</span>
+                                {isActive && (
+                                  <span className={styles.dropdownActiveTag}>Active</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className={styles.dropdownDivider} />
+                      </>
+                    )}
+
                     <Link
                       href="/profiles"
                       className={`${styles.dropdownItem} ${pathname.startsWith("/profiles") ? styles.dropdownItemActive : ""}`}
@@ -637,7 +745,7 @@ export default function SiteHeader() {
                         <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.8" />
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                      <span>Profiles</span>
+                      <span>Manage Profiles</span>
                     </Link>
 
                     <Link

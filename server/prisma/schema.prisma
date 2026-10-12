@@ -97,6 +97,7 @@ model AppDevice {
 model WatchProgress {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
+  profileId   String?  @map("profile_id")
   progressKey String   @map("progress_key")
   position    Float    @default(0)
   duration    Float    @default(0)
@@ -111,10 +112,11 @@ model WatchProgress {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, progressKey])
-  @@index([userId, updatedAt(sort: Desc)])
+  @@unique([userId, profileId, progressKey])
+  @@index([userId, profileId, updatedAt(sort: Desc)])
   @@map("watch_progress")
 }
 
@@ -220,9 +222,15 @@ model Profile {
   name      String
   avatarUrl String?  @map("avatar_url")
   isKids    Boolean  @default(false)
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  pin       String?
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  watchProgress WatchProgress[]
+
+  @@index([userId])
   @@map("profiles")
 }
 

@@ -14,6 +14,7 @@ import {
   saveWatchCache,
   runFullSync,
 } from "../../lib/sync";
+import { getActiveProfileId } from "../../lib/profiles";
 import { syncGuestHistoryToServer } from "../../lib/guestHistory";
 import styles from "./history.module.css";
 
@@ -191,24 +192,33 @@ export default function HistoryPage() {
   useEffect(() => {
     async function load() {
       if (isClearingRef.current) return;
+      const activePid = String(getActiveProfileId() || "1");
 
-      // 1. Instant Cache Hit (0ms delay)
-      const cached = getWatchCache(user?.id);
+      // 1. Instant Cache Hit for active profile
+      const cached = getWatchCache(user?.id, activePid);
       if (cached && cached.length > 0) {
         setItems(cached);
         setLoading(false);
+      } else {
+        setItems([]);
       }
 
       // 2. Background Revalidation (SWR)
       try {
         if (isSignedIn) {
-          const data = await syncGet("/api/sync/watch-progress");
+          const data = await syncGet(`/api/sync/watch-progress?profileId=${encodeURIComponent(activePid)}`);
           if (isClearingRef.current) return;
           setLastSynced(new Date());
-          const remoteItems = data.items || [];
-          applyRemoteWatch(remoteItems);
+          const allRemote = data.items || [];
+          applyRemoteWatch(allRemote, activePid);
 
-          const localItems = listLocalWatch();
+          const remoteItems = allRemote.filter((item) => {
+            if (item.profileId) return String(item.profileId) === activePid;
+            const itemPid = item.key?.startsWith("p:") ? item.key.split(":")[1] : "1";
+            return String(itemPid) === activePid;
+          });
+
+          const localItems = listLocalWatch(activePid);
           const remoteMap = new Map();
 
           for (const item of remoteItems) {
@@ -250,17 +260,17 @@ export default function HistoryPage() {
           );
 
           if (!isClearingRef.current) {
-            saveWatchCache(user?.id, sorted);
+            saveWatchCache(user?.id, sorted, activePid);
             setItems(sorted);
           }
         } else {
-          const loc = listLocalWatch();
-          saveWatchCache(null, loc);
+          const loc = listLocalWatch(activePid);
+          saveWatchCache(null, loc, activePid);
           setItems(loc);
         }
       } catch (err) {
         if (!cached || cached.length === 0) {
-          const loc = listLocalWatch();
+          const loc = listLocalWatch(activePid);
           setItems(loc);
         }
       } finally {
@@ -272,46 +282,56 @@ export default function HistoryPage() {
       load();
       const onFocus = () => load();
       window.addEventListener("focus", onFocus);
+      window.addEventListener("storage", onFocus);
+      window.addEventListener("mh:profile:change", onFocus);
       return () => {
         window.removeEventListener("focus", onFocus);
+        window.removeEventListener("storage", onFocus);
+        window.removeEventListener("mh:profile:change", onFocus);
       };
     }
   }, [isSignedIn, authLoading, user?.id]);
 
   async function handleDeleteItem(itemToDelete) {
     if (!itemToDelete) return;
+    const activePid = String(getActiveProfileId() || "1");
     const itemKey =
       itemToDelete.key ||
       `t:${itemToDelete.subjectId}:s${itemToDelete.se || "0"}:e${itemToDelete.ep || "0"}`;
 
-    // 1. Optimistic UI and Cache removal
+    // 1. Optimistic UI and Cache removal for active profile
     const nextItems = (items || []).filter((i) => {
       const k = i.key || `t:${i.subjectId}:s${i.se || "0"}:e${i.ep || "0"}`;
       return k !== itemKey;
     });
     setItems(nextItems);
-    saveWatchCache(user?.id, nextItems);
+    saveWatchCache(user?.id, nextItems, activePid);
 
     // 2. Remove from localStorage
     const rawSe = itemToDelete.se;
     const rawEp = itemToDelete.ep;
     const se = (!rawSe || rawSe === "undefined" || rawSe === "null") ? "0" : rawSe;
     const ep = (!rawEp || rawEp === "undefined" || rawEp === "null") ? "0" : rawEp;
-    
-    localStorage.removeItem(`history_${itemToDelete.subjectId}_${se}_${ep}`);
-    localStorage.removeItem(`history_time_${itemToDelete.subjectId}_${se}_${ep}`);
-    
+    const pPrefix = activePid === "1" ? "" : `p${activePid}_`;
+
+    localStorage.removeItem(`history_${pPrefix}${itemToDelete.subjectId}_${se}_${ep}`);
+    localStorage.removeItem(`history_time_${pPrefix}${itemToDelete.subjectId}_${se}_${ep}`);
+    if (activePid === "1") {
+      localStorage.removeItem(`history_${itemToDelete.subjectId}_${se}_${ep}`);
+      localStorage.removeItem(`history_time_${itemToDelete.subjectId}_${se}_${ep}`);
+    }
+
     // Also remove bad data keys to clean them up
     if (rawSe !== se || rawEp !== ep) {
-      localStorage.removeItem(`history_${itemToDelete.subjectId}_${rawSe}_${rawEp}`);
-      localStorage.removeItem(`history_time_${itemToDelete.subjectId}_${rawSe}_${rawEp}`);
+      localStorage.removeItem(`history_${pPrefix}${itemToDelete.subjectId}_${rawSe}_${rawEp}`);
+      localStorage.removeItem(`history_time_${pPrefix}${itemToDelete.subjectId}_${rawSe}_${rawEp}`);
     }
 
     let hasOtherEpisodes = false;
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (
-        k?.startsWith(`history_${itemToDelete.subjectId}_`) &&
+        k?.startsWith(`history_${pPrefix}${itemToDelete.subjectId}_`) &&
         !k.startsWith("history_meta_") &&
         !k.startsWith("history_time_")
       ) {
@@ -320,38 +340,32 @@ export default function HistoryPage() {
       }
     }
     if (!hasOtherEpisodes) {
-      localStorage.removeItem(`history_meta_${itemToDelete.subjectId}`);
+      localStorage.removeItem(`history_meta_${pPrefix}${itemToDelete.subjectId}`);
+      if (activePid === "1") {
+        localStorage.removeItem(`history_meta_${itemToDelete.subjectId}`);
+      }
     }
 
-    // 3. Remove from server if signed in
+    // 3. Remove from server if signed in, scoping to active profile
     if (isSignedIn) {
-      await syncPut("/api/sync/watch-progress", [
-        {
-          key: itemKey,
-          subjectId: itemToDelete.subjectId,
-          se,
-          ep,
-          position: -1,
-          duration: -1,
-          updatedAt: Date.now(),
-        },
-      ]).catch(() => {});
+      await syncDelete(`/api/sync/watch-progress?key=${encodeURIComponent(itemKey)}&profileId=${encodeURIComponent(activePid)}`).catch(() => {});
     }
   }
 
   async function executeClearAll() {
     setIsDeleting(true);
     isClearingRef.current = true;
+    const activePid = String(getActiveProfileId() || "1");
     try {
-      // 1. Clear user cache and local storage immediately
-      clearWatchCache(user?.id);
-      clearLocalWatchHistory();
+      // 1. Clear user cache and local storage immediately for active profile
+      clearWatchCache(user?.id, activePid);
+      clearLocalWatchHistory(activePid);
       setItems([]);
       setShowClearConfirm(false);
 
-      // 2. Delete all records from server
+      // 2. Delete records from server only for this profile
       if (isSignedIn) {
-        await syncDelete("/api/sync/watch-progress");
+        await syncDelete(`/api/sync/watch-progress?profileId=${encodeURIComponent(activePid)}`);
       }
     } catch (err) {
       console.error("[clearHistory error]", err);

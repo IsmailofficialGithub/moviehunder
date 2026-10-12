@@ -8,7 +8,7 @@ const ACCESS_TTL = "30d";
 const REFRESH_DAYS = 60;
 const VERIFY_HOURS = 48;
 
-function jwtSecret() {
+export function jwtSecret() {
   const s = String(process.env.AUTH_JWT_SECRET || "").trim();
   if (!s || s.length < 16) {
     throw new Error("AUTH_JWT_SECRET must be set (min 16 chars)");
@@ -196,6 +196,28 @@ export async function handleSignup(request) {
       displayName,
     },
   });
+
+  // Auto-provision default Account and Primary Profile for new signup
+  try {
+    await prisma.account.create({
+      data: {
+        ownerUserId: user.id,
+        tier: "STANDARD",
+      },
+    });
+  } catch {}
+
+  try {
+    await prisma.profile.create({
+      data: {
+        userId: user.id,
+        name: displayName || email.split("@")[0] || "Profile 1",
+        avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Justin&backgroundColor=e50914",
+        isKids: false,
+        isPrimary: true,
+      },
+    });
+  } catch {}
 
   try {
     await createAndSendVerifyToken(user);
@@ -492,6 +514,29 @@ async function upsertGoogleUser(profile, { linkUserId = null } = {}) {
       },
     },
   });
+
+  // Auto-provision default Account and Primary Profile for new Google user
+  try {
+    await prisma.account.create({
+      data: {
+        ownerUserId: user.id,
+        tier: "STANDARD",
+      },
+    });
+  } catch {}
+
+  try {
+    await prisma.profile.create({
+      data: {
+        userId: user.id,
+        name: profile.name || email.split("@")[0] || "Profile 1",
+        avatarUrl: profile.picture || "https://api.dicebear.com/7.x/avataaars/svg?seed=Justin&backgroundColor=e50914",
+        isKids: false,
+        isPrimary: true,
+      },
+    });
+  } catch {}
+
   return user;
 }
 
@@ -506,7 +551,7 @@ export async function handleGoogleCallback(request) {
   try {
     state = JSON.parse(Buffer.from(stateRaw, "base64url").toString("utf8"));
   } catch {
-    /* ignore */
+    // ignore
   }
 
   if (!code) {
@@ -624,7 +669,7 @@ export async function handleGoogleCallbackWithLink(request) {
       }
     }
   } catch {
-    /* fall through */
+    // fall through
   }
 
   if (!linkUserId) {
@@ -642,7 +687,7 @@ export async function handleGoogleCallbackWithLink(request) {
   try {
     state = JSON.parse(Buffer.from(stateRaw, "base64url").toString("utf8"));
   } catch {
-    /* ignore */
+    // ignore
   }
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {

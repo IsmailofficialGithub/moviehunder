@@ -1,11 +1,10 @@
 "use client";
 
-/**
- * Web watch progress sync & browser cache management.
- * Provides user-isolated caching, SWR instant-loading, and multi-device playback synchronization.
- */
+// Web watch progress sync & browser cache management.
+// Provides user-isolated caching, SWR instant-loading, and multi-device playback synchronization.
 
-import { getStoredSession, syncGet, syncPut } from "./auth";
+import { getStoredSession, syncGet, syncPut } from "./auth.js";
+import { getActiveProfileId } from "./profiles.js";
 
 const WATCH_PREFIX = "history_";
 const CURRENT_USER_KEY = "mh.current_user_id";
@@ -18,14 +17,28 @@ export function parseTimestamp(val) {
   return isNaN(p) ? 0 : p;
 }
 
-// ── User-Isolated Browser Cache ──────────────────────────────────────────────
+// ── Profile-Isolated Browser Cache ──────────────────────────────────────────
 
-export function getWatchCache(userId) {
+function resolveScopeKey(userId, profileId) {
+  const pId = profileId || getActiveProfileId();
+  return userId ? `${userId}_p${pId}` : "guest";
+}
+
+export function getWatchCache(userId, profileId) {
   if (typeof window === "undefined") return [];
   try {
-    const key = `${CACHE_PREFIX}${userId || "guest"}`;
+    const scope = resolveScopeKey(userId, profileId);
+    const key = `${CACHE_PREFIX}${scope}`;
     const raw = localStorage.getItem(key);
-    if (!raw) return [];
+    if (!raw) {
+      // Legacy fallback: if migrating from un-scoped user cache to profile 1
+      const pId = profileId || getActiveProfileId();
+      if (userId && pId === "1") {
+        const legacy = localStorage.getItem(`${CACHE_PREFIX}${userId}`);
+        if (legacy) return JSON.parse(legacy);
+      }
+      return [];
+    }
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
       ? parsed.sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt))
@@ -35,10 +48,11 @@ export function getWatchCache(userId) {
   }
 }
 
-export function saveWatchCache(userId, items) {
+export function saveWatchCache(userId, items, profileId) {
   if (typeof window === "undefined" || !Array.isArray(items)) return;
   try {
-    const key = `${CACHE_PREFIX}${userId || "guest"}`;
+    const scope = resolveScopeKey(userId, profileId);
+    const key = `${CACHE_PREFIX}${scope}`;
     const sorted = [...items].sort(
       (a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt)
     );
@@ -46,10 +60,10 @@ export function saveWatchCache(userId, items) {
   } catch {}
 }
 
-export function updateWatchCacheSingle(userId, item) {
+export function updateWatchCacheSingle(userId, item, profileId) {
   if (typeof window === "undefined" || !item) return;
   try {
-    const list = getWatchCache(userId);
+    const list = getWatchCache(userId, profileId);
     const itemKey =
       item.key || `t:${item.subjectId}:s${item.se || "0"}:e${item.ep || "0"}`;
 
@@ -90,13 +104,18 @@ export function updateWatchCacheSingle(userId, item) {
       list.unshift(updated);
     }
 
-    saveWatchCache(userId, list);
+    saveWatchCache(userId, list, profileId);
   } catch {}
 }
 
-export function clearWatchCache(userId) {
+export function clearWatchCache(userId, profileId) {
   if (typeof window === "undefined") return;
   try {
+    if (profileId) {
+      const scope = resolveScopeKey(userId, profileId);
+      localStorage.removeItem(`${CACHE_PREFIX}${scope}`);
+      return;
+    }
     if (userId) {
       localStorage.removeItem(`${CACHE_PREFIX}${userId}`);
     }
@@ -110,15 +129,27 @@ export function clearWatchCache(userId) {
   } catch {}
 }
 
-// ── Legacy Storage & Session Isolation ───────────────────────────────────────
+// ── Storage & Profile-Isolated History ──────────────────────────────────────
 
-export function clearLocalWatchHistory() {
+export function clearLocalWatchHistory(profileId) {
   if (typeof window === "undefined") return;
+  const pId = profileId ? String(profileId) : null;
   const toRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key?.startsWith(WATCH_PREFIX) || key?.startsWith(CACHE_PREFIX)) {
-      toRemove.push(key);
+    if (!key) continue;
+    if (pId) {
+      const pPrefix = pId === "1" ? "" : `p${pId}_`;
+      if (
+        (pId === "1" && (key.startsWith("history_") && !key.startsWith("history_p"))) ||
+        (pId !== "1" && (key.startsWith(`history_${pPrefix}`) || key.startsWith(`history_time_${pPrefix}`) || key.startsWith(`history_meta_${pPrefix}`)))
+      ) {
+        toRemove.push(key);
+      }
+    } else {
+      if (key.startsWith(WATCH_PREFIX) || key.startsWith(CACHE_PREFIX)) {
+        toRemove.push(key);
+      }
     }
   }
   toRemove.forEach((k) => localStorage.removeItem(k));
@@ -146,112 +177,168 @@ export function handleLogoutCleanup(userId) {
 
 // ── List & Apply Watch Items ────────────────────────────────────────────────
 
-export function listLocalWatch() {
+export function getHistoryStorageKeys(subjectId, se, ep, profileId) {
+  const pId = String(profileId || getActiveProfileId() || "1");
+  const seStr = String(se || "0");
+  const epStr = String(ep || "0");
+  const pPrefix = pId === "1" ? "" : `p${pId}_`;
+  return {
+    key: `${WATCH_PREFIX}${pPrefix}${subjectId}_${seStr}_${epStr}`,
+    legacyKey: `${WATCH_PREFIX}${subjectId}_${seStr}_${epStr}`,
+    timeKey: `history_time_${pPrefix}${subjectId}_${seStr}_${epStr}`,
+    legacyTimeKey: `history_time_${subjectId}_${seStr}_${epStr}`,
+    metaKey: `history_meta_${pPrefix}${subjectId}`,
+    legacyMetaKey: `history_meta_${subjectId}`,
+    profileId: pId,
+  };
+}
+
+export function listLocalWatch(profileId) {
   if (typeof window === "undefined") return [];
-
-  // Fallback to reading raw localStorage keys
+  const targetPid = String(profileId || getActiveProfileId() || "1");
   const items = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (
-      !key?.startsWith(WATCH_PREFIX) ||
-      key.startsWith("history_meta_") ||
-      key.startsWith("history_time_")
-    ) {
-      continue;
-    }
-    const rest = key.slice(WATCH_PREFIX.length);
-    const parts = rest.split("_");
-    if (parts.length < 3) continue;
-    const rawEp = parts.pop();
-    const rawSe = parts.pop();
-    const ep = (!rawEp || rawEp === "undefined" || rawEp === "null") ? "0" : rawEp;
-    const se = (!rawSe || rawSe === "undefined" || rawSe === "null") ? "0" : rawSe;
-    const subjectId = parts.join("_");
-    const position = Number(localStorage.getItem(key)) || 0;
-    if (position < 2) continue;
-    const progressKey = `t:${subjectId}:s${se}:e${ep}`;
-
-    let title = null;
-    let poster = null;
-    let detailPath = null;
-    let duration = 0;
-    let metaTime = 0;
-
-    const timeKey = `history_time_${subjectId}_${se}_${ep}`;
-    const specificTime = Number(localStorage.getItem(timeKey)) || 0;
-
-    try {
-      const metaRaw = localStorage.getItem(`history_meta_${subjectId}`);
-      if (metaRaw) {
-        const meta = JSON.parse(metaRaw);
-        title = meta.title || null;
-        poster = meta.poster || null;
-        detailPath = meta.detailPath || null;
-        duration = Number(meta.duration) || 0;
-        metaTime = Number(meta.updatedAt) || 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        !key?.startsWith(WATCH_PREFIX) ||
+        key.startsWith("history_meta_") ||
+        key.startsWith("history_time_")
+      ) {
+        continue;
       }
-    } catch {}
+      const rest = key.slice(WATCH_PREFIX.length);
+      let itemPid = "1";
+      let actualRest = rest;
+      if (rest.startsWith("p") && rest.includes("_")) {
+        const firstUnderscore = rest.indexOf("_");
+        const prefixCandidate = rest.slice(0, firstUnderscore);
+        if (/^p\w+$/.test(prefixCandidate)) {
+          itemPid = prefixCandidate.slice(1);
+          actualRest = rest.slice(firstUnderscore + 1);
+        }
+      }
+      if (String(itemPid) !== targetPid) {
+        continue;
+      }
+      const parts = actualRest.split("_");
+      if (parts.length < 3) continue;
+      const rawEp = parts.pop();
+      const rawSe = parts.pop();
+      const ep = (!rawEp || rawEp === "undefined" || rawEp === "null") ? "0" : rawEp;
+      const se = (!rawSe || rawSe === "undefined" || rawSe === "null") ? "0" : rawSe;
+      const subjectId = parts.join("_");
+      const position = Number(localStorage.getItem(key)) || 0;
+      if (position < 2) continue;
+      const progressKey = targetPid === "1" ? `t:${subjectId}:s${se}:e${ep}` : `p:${targetPid}:t:${subjectId}:s${se}:e${ep}`;
 
-    const updatedAt = specificTime || metaTime || 0;
+      let title = null;
+      let poster = null;
+      let detailPath = null;
+      let duration = 0;
+      let metaTime = 0;
 
-    items.push({
-      key: progressKey,
-      position,
-      duration,
-      subjectId,
-      se,
-      ep,
-      title,
-      poster,
-      detailPath,
-      updatedAt,
-    });
-  }
+      const pPrefix = targetPid === "1" ? "" : `p${targetPid}_`;
+      const timeKey = `history_time_${pPrefix}${subjectId}_${se}_${ep}`;
+      const specificTime = Number(localStorage.getItem(timeKey)) || 0;
+
+      try {
+        const metaRaw =
+          localStorage.getItem(`history_meta_${pPrefix}${subjectId}`) ||
+          (targetPid === "1" ? localStorage.getItem(`history_meta_${subjectId}`) : null);
+        if (metaRaw) {
+          const meta = JSON.parse(metaRaw);
+          title = meta.title || null;
+          poster = meta.poster || null;
+          detailPath = meta.detailPath || null;
+          duration = Number(meta.duration) || 0;
+          metaTime = Number(meta.updatedAt) || 0;
+        }
+      } catch {}
+
+      const updatedAt = specificTime || metaTime || 0;
+
+      items.push({
+        key: progressKey,
+        position,
+        duration,
+        subjectId,
+        se,
+        ep,
+        title,
+        poster,
+        detailPath,
+        updatedAt: updatedAt ? new Date(updatedAt).toISOString() : new Date().toISOString(),
+      });
+    }
+  } catch {}
   return items.sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt));
 }
 
-export function applyRemoteWatch(items) {
+export function applyRemoteWatch(items, targetProfileId) {
   if (!Array.isArray(items)) return;
   const session = getStoredSession();
   const userId = session?.user?.id;
+  const currentProfileId = String(targetProfileId || getActiveProfileId() || "1");
+
+  const profileMap = new Map();
 
   for (const item of items) {
-    const subjectId = item.subjectId;
-    if (!subjectId) continue;
-    const se = item.se ?? "0";
-    const ep = item.ep ?? "0";
-    const lsKey = `${WATCH_PREFIX}${subjectId}_${se}_${ep}`;
-    const timeKey = `history_time_${subjectId}_${se}_${ep}`;
-    const remotePos = Number(item.position) || 0;
-    const localPos = Number(localStorage.getItem(lsKey) || 0);
-    const remoteTs = parseTimestamp(item.updatedAt) || Date.now();
-    const localTs = Number(localStorage.getItem(timeKey)) || 0;
-
-    if (remotePos > localPos || remoteTs > localTs) {
-      localStorage.setItem(lsKey, String(remotePos));
-      localStorage.setItem(timeKey, String(remoteTs));
+    let pId = item.profileId ? String(item.profileId) : "1";
+    if (!item.profileId && item.key?.startsWith("p:")) {
+      const parts = item.key.split(":");
+      pId = parts[1] || "1";
     }
+    if (!profileMap.has(pId)) profileMap.set(pId, []);
+    profileMap.get(pId).push(item);
 
-    if (item.title || item.poster || item.detailPath || item.duration) {
-      const metaKey = `history_meta_${subjectId}`;
-      let meta = {};
-      try {
-        meta = JSON.parse(localStorage.getItem(metaKey) || "{}");
-      } catch {}
-      const isDigits = item.title && /^\d+$/.test(String(item.title).trim());
-      const cleanTitle = (!isDigits && item.title) ? item.title : (meta.title || item.title || null);
-      localStorage.setItem(
-        metaKey,
-        JSON.stringify({
-          title: cleanTitle,
-          poster: item.poster || meta.poster || null,
-          detailPath: item.detailPath || meta.detailPath || null,
-          duration: Number(item.duration) || Number(meta.duration) || 0,
-          updatedAt: remoteTs,
-        })
-      );
+    // Only write browser local storage keys for the active profile
+    if (String(pId) === currentProfileId) {
+      const subjectId = item.subjectId;
+      if (!subjectId) continue;
+      const se = item.se ?? "0";
+      const ep = item.ep ?? "0";
+      const keys = getHistoryStorageKeys(subjectId, se, ep, pId);
+      const lsKey = keys.key;
+      const timeKey = keys.timeKey;
+      const remotePos = Number(item.position) || 0;
+      const localPos = Number(localStorage.getItem(lsKey) || (pId === "1" ? localStorage.getItem(keys.legacyKey) : 0) || 0);
+      const remoteTs = parseTimestamp(item.updatedAt) || Date.now();
+      const localTs = Number(localStorage.getItem(timeKey) || (pId === "1" ? localStorage.getItem(keys.legacyTimeKey) : 0) || 0);
+
+      if (remotePos > localPos || remoteTs > localTs) {
+        localStorage.setItem(lsKey, String(remotePos));
+        localStorage.setItem(timeKey, String(remoteTs));
+      }
+
+      if (item.title || item.poster || item.detailPath || item.duration) {
+        const metaKey = keys.metaKey;
+        let meta = {};
+        try {
+          meta = JSON.parse(
+            localStorage.getItem(metaKey) ||
+            (pId === "1" ? localStorage.getItem(keys.legacyMetaKey) : "{}") ||
+            "{}"
+          );
+        } catch {}
+        const isDigits = item.title && /^\d+$/.test(String(item.title).trim());
+        const cleanTitle = (!isDigits && item.title) ? item.title : (meta.title || item.title || null);
+        localStorage.setItem(
+          metaKey,
+          JSON.stringify({
+            title: cleanTitle,
+            poster: item.poster || meta.poster || null,
+            detailPath: item.detailPath || meta.detailPath || null,
+            duration: Number(item.duration) || Number(meta.duration) || 0,
+            updatedAt: remoteTs,
+          })
+        );
+      }
     }
+  }
+
+  for (const [pId, pItems] of profileMap.entries()) {
+    saveWatchCache(userId, pItems, pId);
   }
 }
 
@@ -260,28 +347,35 @@ export function applyRemoteWatch(items) {
 let lastSyncedAt = 0;
 let syncTimeout = null;
 
-/**
- * Sync active playing item to cache and server.
- * - Updates browser cache immediately.
- * - Throttles network sync to once every 15s during playback.
- * - Syncs immediately on pause / seek / leave (immediate = true).
- */
-export function syncPlaybackProgress(item, { immediate = false } = {}) {
+// Sync active playing item to cache and server.
+// - Updates browser cache immediately.
+// - Throttles network sync to once every 15s during playback.
+// - Syncs immediately on pause / seek / leave (immediate = true).
+export function syncPlaybackProgress(item, { immediate = false, profileId } = {}) {
   if (!item || !item.subjectId) return;
   const session = getStoredSession();
   const userId = session?.user?.id;
+  const activePid = String(profileId || getActiveProfileId() || "1");
 
-  // 1. Immediately update browser cache
-  updateWatchCacheSingle(userId, item);
+  // Prefix key with profile tag for server partition
+  const scopedKey = item.key?.startsWith("p:")
+    ? item.key
+    : (activePid === "1" ? item.key : `p:${activePid}:${item.key}`);
+  const scopedItem = { ...item, profileId: activePid, key: scopedKey };
+
+  // 1. Immediately update browser cache for active profile
+  updateWatchCacheSingle(userId, scopedItem, activePid);
 
   // 2. If not signed in, nothing to push to server
   if (!session?.access_token) return;
 
   const now = Date.now();
+  const endpoint = `/api/sync/watch-progress?profileId=${encodeURIComponent(activePid)}`;
+
   if (immediate) {
     clearTimeout(syncTimeout);
     lastSyncedAt = now;
-    syncPut("/api/sync/watch-progress", { item }).catch(() => {});
+    syncPut(endpoint, { item: scopedItem }).catch(() => {});
     return;
   }
 
@@ -289,12 +383,12 @@ export function syncPlaybackProgress(item, { immediate = false } = {}) {
   if (now - lastSyncedAt >= 15000) {
     clearTimeout(syncTimeout);
     lastSyncedAt = now;
-    syncPut("/api/sync/watch-progress", { item }).catch(() => {});
+    syncPut(endpoint, { item: scopedItem }).catch(() => {});
   } else if (!syncTimeout) {
     syncTimeout = setTimeout(() => {
       syncTimeout = null;
       lastSyncedAt = Date.now();
-      syncPut("/api/sync/watch-progress", { item }).catch(() => {});
+      syncPut(endpoint, { item: scopedItem }).catch(() => {});
     }, 15000 - (now - lastSyncedAt));
   }
 }
@@ -307,24 +401,33 @@ export function scheduleWatchSync() {
   }, 3000);
 }
 
-export async function pushWatchProgress() {
+export async function pushWatchProgress(profileId) {
   if (!getStoredSession()?.access_token) return;
-  const items = listLocalWatch();
+  const activePid = String(profileId || getActiveProfileId() || "1");
+  const items = listLocalWatch(activePid);
   if (!items.length) return;
-  await syncPut("/api/sync/watch-progress", items).catch(() => {});
+  await syncPut(`/api/sync/watch-progress?profileId=${encodeURIComponent(activePid)}`, items).catch(() => {});
 }
 
-export async function pullWatchProgress() {
+export async function pullWatchProgress(targetProfileId) {
   const session = getStoredSession();
   if (!session?.access_token) return [];
-  const data = await syncGet("/api/sync/watch-progress");
+  const activePid = String(targetProfileId || getActiveProfileId() || "1");
+  const data = await syncGet(`/api/sync/watch-progress?profileId=${encodeURIComponent(activePid)}`);
   const remoteItems = data.items || [];
-  applyRemoteWatch(remoteItems);
-  return remoteItems;
+  applyRemoteWatch(remoteItems, activePid);
+
+  // Filter strictly to the active profile to eliminate cross-profile bleed
+  return remoteItems.filter((item) => {
+    if (item.profileId) return String(item.profileId) === activePid;
+    const itemPid = item.key?.startsWith("p:") ? item.key.split(":")[1] : "1";
+    return String(itemPid) === activePid;
+  });
 }
 
 export async function runFullSync() {
   if (!getStoredSession()?.access_token) return;
-  await pushWatchProgress().catch(() => {});
-  await pullWatchProgress().catch(() => {});
+  const activePid = getActiveProfileId();
+  await pushWatchProgress(activePid).catch(() => {});
+  await pullWatchProgress(activePid).catch(() => {});
 }

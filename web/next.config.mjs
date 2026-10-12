@@ -70,6 +70,10 @@ const nextConfig = {
         destination: `${backend}/api/music/:path*`,
       },
       {
+        source: "/api/profiles/:path*",
+        destination: `${backend}/api/profiles/:path*`,
+      },
+      {
         source: "/search/suggest",
         destination: `${backend}/search/suggest`,
       },

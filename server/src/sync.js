@@ -9,6 +9,7 @@ function asIso(d) {
 function progressToPublic(row) {
   return {
     key: row.progressKey,
+    profileId: row.profileId || null,
     position: row.position,
     duration: row.duration,
     title: row.title,
@@ -29,8 +30,25 @@ export async function handleGetWatchProgress(request) {
   if (!dbConfigured()) {
     return { status: 503, body: { error: "Database not configured" } };
   }
-  const rows = await getPrisma().watchProgress.findMany({
-    where: { userId: auth.user.id },
+  const url = new URL(request.url);
+  const targetProfileId = url.searchParams.get("profileId") || url.searchParams.get("profile_id");
+  const prisma = getPrisma();
+
+  const whereClause = { userId: auth.user.id };
+  if (targetProfileId) {
+    // IDOR Protection: Verify requested profile belongs to authenticated user
+    const profile = await prisma.profile.findFirst({
+      where: { id: targetProfileId, userId: auth.user.id },
+      select: { id: true },
+    });
+    if (!profile) {
+      return { status: 403, body: { error: "Profile access forbidden" } };
+    }
+    whereClause.profileId = targetProfileId;
+  }
+
+  const rows = await prisma.watchProgress.findMany({
+    where: whereClause,
     orderBy: { updatedAt: "desc" },
   });
   return {
@@ -53,18 +71,93 @@ export async function handlePutWatchProgress(request) {
     : (body.key || body.progressKey)
     ? [body]
     : [];
+  const url = new URL(request.url);
+  const queryProfileId = url.searchParams.get("profileId") || url.searchParams.get("profile_id");
   const prisma = getPrisma();
   let upserted = 0;
 
+  // Lazily resolve or create the user's primary profile for unassigned writes
+  let cachedPrimaryProfileId = null;
+  const getPrimaryProfileId = async () => {
+    if (cachedPrimaryProfileId) return cachedPrimaryProfileId;
+    const primary = await prisma.profile.findFirst({
+      where: { userId: auth.user.id, isPrimary: true },
+      select: { id: true },
+    });
+    if (primary) {
+      cachedPrimaryProfileId = primary.id;
+      return primary.id;
+    }
+    const fallbackName = auth.user.displayName || auth.user.email?.split("@")[0] || "Profile 1";
+    const created = await prisma.profile.create({
+      data: {
+        userId: auth.user.id,
+        name: fallbackName,
+        avatarUrl: auth.user.avatarUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Justin&backgroundColor=e50914",
+        isKids: false,
+        isPrimary: true,
+      },
+      select: { id: true },
+    });
+    cachedPrimaryProfileId = created.id;
+    return created.id;
+  };
+
   for (const item of items) {
-    const key = String(item.key || item.progressKey || "").trim();
-    if (!key) continue;
+    const rawKey = String(item.key || item.progressKey || "").trim();
+    if (!rawKey) continue;
+
+    // Resolve target profileId: item.profileId > query parameter > key prefix
+    let candidatePid = item.profileId || queryProfileId || null;
+    let cleanKey = rawKey;
+
+    if (!candidatePid && rawKey.startsWith("p:")) {
+      const parts = rawKey.split(":");
+      if (parts[1]) {
+        candidatePid = parts[1];
+      }
+    }
+
+    let resolvedProfileId = null;
+    if (candidatePid) {
+      // IDOR Protection: verify target profile belongs to this user
+      const owned = await prisma.profile.findFirst({
+        where: { id: candidatePid, userId: auth.user.id },
+        select: { id: true },
+      });
+      if (owned) {
+        resolvedProfileId = owned.id;
+      } else {
+        // Log security warning tripwire if someone tries to write to unowned profile
+        console.warn("[CANARY] IDOR attempt on WatchProgress write", {
+          userId: auth.user.id,
+          candidatePid,
+          progressKey: rawKey,
+        });
+        continue;
+      }
+    }
+
+    if (!resolvedProfileId) {
+      resolvedProfileId = await getPrimaryProfileId();
+      // Regression Canary: tripwire for unassigned profile write
+      console.warn("[CANARY] WatchProgress write unassigned to specific profile; defaulted to primary", {
+        userId: auth.user.id,
+        resolvedProfileId,
+        progressKey: rawKey,
+      });
+    }
+
     const updatedAt = new Date(
       Number(item.updatedAt) || Date.parse(item.updatedAt) || Date.now()
     );
     const existing = await prisma.watchProgress.findUnique({
       where: {
-        userId_progressKey: { userId: auth.user.id, progressKey: key },
+        userId_profileId_progressKey: {
+          userId: auth.user.id,
+          profileId: resolvedProfileId,
+          progressKey: cleanKey,
+        },
       },
     });
 
@@ -107,6 +200,7 @@ export async function handlePutWatchProgress(request) {
         const sibling = await prisma.watchProgress.findFirst({
           where: {
             userId: auth.user.id,
+            profileId: resolvedProfileId,
             subjectId: subId,
             NOT: { poster: null },
           },
@@ -124,11 +218,16 @@ export async function handlePutWatchProgress(request) {
 
     await prisma.watchProgress.upsert({
       where: {
-        userId_progressKey: { userId: auth.user.id, progressKey: key },
+        userId_profileId_progressKey: {
+          userId: auth.user.id,
+          profileId: resolvedProfileId,
+          progressKey: cleanKey,
+        },
       },
       create: {
         userId: auth.user.id,
-        progressKey: key,
+        profileId: resolvedProfileId,
+        progressKey: cleanKey,
         position: finalPos,
         duration: Number(item.duration) || 0,
         title: finalTitle,
@@ -169,8 +268,42 @@ export async function handleSyncGuestHistory(request) {
   }
   const body = await request.json().catch(() => ({}));
   const items = Array.isArray(body.items) ? body.items : [];
+  const url = new URL(request.url);
+  const targetProfileId = url.searchParams.get("profileId") || url.searchParams.get("profile_id");
   const prisma = getPrisma();
   let upserted = 0;
+
+  // Resolve target profile (or primary profile)
+  let resolvedProfileId = null;
+  if (targetProfileId) {
+    const owned = await prisma.profile.findFirst({
+      where: { id: targetProfileId, userId: auth.user.id },
+      select: { id: true },
+    });
+    if (owned) resolvedProfileId = owned.id;
+  }
+
+  if (!resolvedProfileId) {
+    const primary = await prisma.profile.findFirst({
+      where: { userId: auth.user.id, isPrimary: true },
+      select: { id: true },
+    });
+    resolvedProfileId = primary?.id || null;
+  }
+
+  if (!resolvedProfileId) {
+    const created = await prisma.profile.create({
+      data: {
+        userId: auth.user.id,
+        name: auth.user.displayName || "Profile 1",
+        avatarUrl: auth.user.avatarUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Justin&backgroundColor=e50914",
+        isKids: false,
+        isPrimary: true,
+      },
+      select: { id: true },
+    });
+    resolvedProfileId = created.id;
+  }
 
   for (const item of items) {
     if (!item.subjectId) continue;
@@ -179,7 +312,11 @@ export async function handleSyncGuestHistory(request) {
 
     const existing = await prisma.watchProgress.findUnique({
       where: {
-        userId_progressKey: { userId: auth.user.id, progressKey: key },
+        userId_profileId_progressKey: {
+          userId: auth.user.id,
+          profileId: resolvedProfileId,
+          progressKey: key,
+        },
       },
     });
 
@@ -189,10 +326,15 @@ export async function handleSyncGuestHistory(request) {
 
     await prisma.watchProgress.upsert({
       where: {
-        userId_progressKey: { userId: auth.user.id, progressKey: key },
+        userId_profileId_progressKey: {
+          userId: auth.user.id,
+          profileId: resolvedProfileId,
+          progressKey: key,
+        },
       },
       create: {
         userId: auth.user.id,
+        profileId: resolvedProfileId,
         progressKey: key,
         subjectId: item.subjectId,
         detailPath: item.detailPath || null,
@@ -222,15 +364,31 @@ export async function handleDeleteWatchProgress(request) {
   }
   const url = new URL(request.url);
   const key = url.searchParams.get("key");
+  const targetProfileId = url.searchParams.get("profileId") || url.searchParams.get("profile_id");
   const prisma = getPrisma();
+
+  const whereClause = { userId: auth.user.id };
+  if (targetProfileId) {
+    // IDOR Protection: Verify profile belongs to this user
+    const userProfile = await prisma.profile.findFirst({
+      where: { id: targetProfileId, userId: auth.user.id },
+      select: { id: true },
+    });
+    if (!userProfile) {
+      return { status: 403, body: { error: "Profile access forbidden" } };
+    }
+    whereClause.profileId = targetProfileId;
+  }
+
   if (key) {
+    whereClause.progressKey = key;
     await prisma.watchProgress.deleteMany({
-      where: { userId: auth.user.id, progressKey: key },
+      where: whereClause,
     });
     return { status: 200, body: { ok: true, deleted: key } };
   }
   const result = await prisma.watchProgress.deleteMany({
-    where: { userId: auth.user.id },
+    where: whereClause,
   });
   return { status: 200, body: { ok: true, deletedCount: result.count } };
 }
