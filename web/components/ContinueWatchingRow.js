@@ -167,11 +167,13 @@ export default function ContinueWatchingRow() {
       if (isSignedIn) {
         pullWatchProgress(activePid)
           .then((remote) => {
-            const filtered = (remote || []).filter((i) => {
+            const local = listLocalWatch(activePid) || [];
+            const combined = [...(remote || []), ...local];
+            const filtered = combined.filter((i) => {
               if ((Number(i.position) || 0) <= 2) return false;
               if (activePid === "1") return true;
               const itemPid = i.profileId || (i.key?.startsWith("p:") ? i.key.split(":")[1] : "1");
-              return String(itemPid) === activePid;
+              return String(itemPid) === activePid || activePid === "1";
             });
             setItems(deduplicateShows(filtered));
           })

@@ -434,7 +434,7 @@ export async function pullWatchProgress(targetProfileId) {
       return String(item.profileId) === activePid || activePid === "1";
     }
     const itemPid = item.key?.startsWith("p:") ? item.key.split(":")[1] : "1";
-    return String(itemPid) === activePid;
+    return String(itemPid) === activePid || activePid === "1";
   });
 }
 
