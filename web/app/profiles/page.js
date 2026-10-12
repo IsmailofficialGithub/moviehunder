@@ -366,7 +366,7 @@ function ProfilesContent() {
   };
 
   // ── Forgot PIN Handlers ─────────────────────────────────────
-  const handleStartForgotPin = async (profile) => {
+  const handleStartForgotPin = (profile) => {
     if (!profile) return;
     setUnlockTarget(null); // Close unlock modal if open
     setModalMode(null); // Close edit modal if open
@@ -379,32 +379,36 @@ function ProfilesContent() {
       newPin: "",
       error: "",
       success: "",
-      loading: true,
-      step: "request",
+      loading: false,
+      step: "confirm",
     });
+  };
 
-    if (isSignedIn) {
-      try {
-        const res = await forgotRemoteProfilePin(profile.id);
-        setForgotModal((prev) => ({
-          ...prev,
-          loading: false,
-          email: res.email || user?.email || "",
-          success: `Reset code dispatched to ${res.email || user?.email}.`,
-          step: "reset",
-        }));
-      } catch (err) {
-        setForgotModal((prev) => ({
-          ...prev,
-          loading: false,
-          error: err.data?.error || err.message || "Failed to send reset code.",
-        }));
-      }
-    } else {
+  const handleConfirmSendCode = async () => {
+    if (!forgotModal.profile) return;
+    if (!isSignedIn) {
+      setForgotModal((prev) => ({
+        ...prev,
+        error: "PIN email reset requires signing in to your account.",
+      }));
+      return;
+    }
+
+    setForgotModal((prev) => ({ ...prev, loading: true, error: "" }));
+    try {
+      const res = await forgotRemoteProfilePin(forgotModal.profile.id);
       setForgotModal((prev) => ({
         ...prev,
         loading: false,
-        error: "PIN email reset requires signing in to your account.",
+        email: res.email || user?.email || "",
+        success: `Reset code sent to ${res.email || user?.email}.`,
+        step: "reset",
+      }));
+    } catch (err) {
+      setForgotModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.data?.error || err.message || "Failed to send reset code.",
       }));
     }
   };
@@ -829,85 +833,113 @@ function ProfilesContent() {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <h2 className={styles.unlockTitle}>Reset Profile PIN</h2>
-            <p className={styles.unlockDesc}>
-              {forgotModal.email ? (
-                <>We dispatched a 6-digit verification code to <strong>{forgotModal.email}</strong>.</>
-              ) : (
-                <>Sending reset verification email...</>
-              )}
-            </p>
+            {forgotModal.step === "confirm" ? (
+              <>
+                <h2 className={styles.unlockTitle}>Reset PIN?</h2>
+                <p className={styles.unlockDesc}>
+                  Send a 6-digit PIN reset code to <strong>{user?.email || "your account email"}</strong> to reset the PIN for profile <strong>{forgotModal.profile?.name}</strong>?
+                </p>
 
-            {forgotModal.error && <div className={styles.pinError}>{forgotModal.error}</div>}
-            {forgotModal.success && <div className={styles.resetSuccess}>{forgotModal.success}</div>}
+                {forgotModal.error && <div className={styles.pinError}>{forgotModal.error}</div>}
 
-            <form onSubmit={handleResetPinSubmit} style={{ width: "100%", marginTop: "16px" }}>
-              <div style={{ marginBottom: "16px", textAlign: "left" }}>
-                <label className={styles.pinLabel}>6-Digit Email Code</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  placeholder="123456"
-                  className={styles.textInput}
-                  style={{ textAlign: "center", fontSize: "1.2rem", letterSpacing: "4px" }}
-                  value={forgotModal.resetCode}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-                    setForgotModal((p) => ({ ...p, resetCode: val, error: "" }));
-                  }}
-                  autoFocus
-                  required
-                />
-              </div>
+                <div className={styles.btnGroup} style={{ marginTop: "24px", justifyContent: "center" }}>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => setForgotModal((p) => ({ ...p, isOpen: false }))}
+                    disabled={forgotModal.loading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btnPrimary}
+                    onClick={handleConfirmSendCode}
+                    disabled={forgotModal.loading}
+                  >
+                    {forgotModal.loading ? "Sending..." : "Send Reset Code"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className={styles.unlockTitle}>Reset Profile PIN</h2>
+                <p className={styles.unlockDesc}>
+                  We sent a 6-digit verification code to <strong>{forgotModal.email || user?.email}</strong>.
+                </p>
 
-              <div style={{ marginBottom: "20px", textAlign: "left" }}>
-                <label className={styles.pinLabel}>New 4-Digit PIN (or leave blank to remove lock)</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  placeholder="••••"
-                  className={styles.textInput}
-                  style={{ textAlign: "center", fontSize: "1.2rem", letterSpacing: "4px" }}
-                  value={forgotModal.newPin}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                    setForgotModal((p) => ({ ...p, newPin: val, error: "" }));
-                  }}
-                />
-              </div>
+                {forgotModal.error && <div className={styles.pinError}>{forgotModal.error}</div>}
+                {forgotModal.success && <div className={styles.resetSuccess}>{forgotModal.success}</div>}
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <button
-                  type="button"
-                  className={styles.forgotPinBtn}
-                  onClick={() => handleStartForgotPin(forgotModal.profile)}
-                  disabled={forgotModal.loading}
-                >
-                  Resend Code
-                </button>
-              </div>
+                <form onSubmit={handleResetPinSubmit} style={{ width: "100%", marginTop: "16px" }}>
+                  <div style={{ marginBottom: "16px", textAlign: "left" }}>
+                    <label className={styles.pinLabel}>6-Digit Email Code</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      placeholder="123456"
+                      className={styles.textInput}
+                      style={{ textAlign: "center", fontSize: "1.2rem", letterSpacing: "4px" }}
+                      value={forgotModal.resetCode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setForgotModal((p) => ({ ...p, resetCode: val, error: "" }));
+                      }}
+                      autoFocus
+                      required
+                    />
+                  </div>
 
-              <div className={styles.btnGroup} style={{ marginTop: "24px", justifyContent: "center" }}>
-                <button
-                  type="button"
-                  className={styles.btnSecondary}
-                  onClick={() => setForgotModal((p) => ({ ...p, isOpen: false }))}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className={styles.btnPrimary}
-                  disabled={forgotModal.loading || forgotModal.resetCode.length !== 6}
-                >
-                  {forgotModal.loading ? "Updating..." : "Update PIN"}
-                </button>
-              </div>
-            </form>
+                  <div style={{ marginBottom: "20px", textAlign: "left" }}>
+                    <label className={styles.pinLabel}>New 4-Digit PIN (or leave blank to remove lock)</label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={4}
+                      placeholder="••••"
+                      className={styles.textInput}
+                      style={{ textAlign: "center", fontSize: "1.2rem", letterSpacing: "4px" }}
+                      value={forgotModal.newPin}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                        setForgotModal((p) => ({ ...p, newPin: val, error: "" }));
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className={styles.forgotPinBtn}
+                      onClick={handleConfirmSendCode}
+                      disabled={forgotModal.loading}
+                    >
+                      Resend Code
+                    </button>
+                  </div>
+
+                  <div className={styles.btnGroup} style={{ marginTop: "24px", justifyContent: "center" }}>
+                    <button
+                      type="button"
+                      className={styles.btnSecondary}
+                      onClick={() => setForgotModal((p) => ({ ...p, isOpen: false }))}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className={styles.btnPrimary}
+                      disabled={forgotModal.loading || forgotModal.resetCode.length !== 6}
+                    >
+                      {forgotModal.loading ? "Updating..." : "Update PIN"}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
