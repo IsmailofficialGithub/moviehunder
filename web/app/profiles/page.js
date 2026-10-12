@@ -668,7 +668,8 @@ function ProfilesContent() {
                           inputMode="numeric"
                           pattern="[0-9]*"
                           maxLength={4}
-                          placeholder="Current PIN"
+                          placeholder="••••"
+                          title="Enter 4-digit current PIN"
                           className={styles.pinInput}
                           value={formProfile.oldPin}
                           onChange={(e) => {
