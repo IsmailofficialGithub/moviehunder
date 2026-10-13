@@ -21,6 +21,9 @@ function getTransporter() {
     host: String(process.env.SMTP_HOST).trim(),
     port,
     secure,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
     auth: {
       user: String(process.env.SMTP_USER || "").trim(),
       pass: String(process.env.SMTP_PASS || "").trim().replace(/\s+/g, ""),

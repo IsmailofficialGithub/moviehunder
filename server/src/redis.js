@@ -23,7 +23,13 @@ export function getRedisConfig(targetPort) {
 }
 
 async function tryConnect(config) {
-  const client = createClient(config);
+  const client = createClient({
+    ...config,
+    socket: {
+      connectTimeout: 2000,
+      reconnectStrategy: false,
+    },
+  });
   client.on("error", (err) => console.error("Redis Client Error", err));
   try {
     await client.connect();

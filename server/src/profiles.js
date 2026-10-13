@@ -28,14 +28,13 @@ const memoryResetCodes = new Map();
 
 async function storeResetCode(profileId, code) {
   memoryResetCodes.set(profileId, { code, expiresAt: Date.now() + 15 * 60 * 1000 });
-  try {
-    const redis = await safeGetRedis();
+  safeGetRedis().then(redis => {
     if (redis) {
-      await redis.set(`pin_reset:${profileId}`, code, { EX: 900 });
+      redis.set(`pin_reset:${profileId}`, code, { EX: 900 }).catch(err => {
+        console.error("[profiles/pin-reset] Redis set error:", err?.message);
+      });
     }
-  } catch (err) {
-    console.error("[profiles/pin-reset] Redis set error, using memory fallback:", err?.message);
-  }
+  }).catch(() => {});
 }
 
 async function getStoredResetCode(profileId) {
@@ -653,15 +652,14 @@ export async function handleForgotPin(request, profileId) {
   const code = String(crypto.randomInt(100000, 999999));
   await storeResetCode(profile.id, code);
 
-  try {
-    await sendPinResetEmail({
-      to: auth.user.email,
-      profileName: profile.name,
-      code,
-    });
-  } catch (err) {
-    console.error("[profiles/forgot-pin] mail error:", err);
-  }
+  // Dispatch email asynchronously so SMTP network delays never stall the response
+  sendPinResetEmail({
+    to: auth.user.email,
+    profileName: profile.name,
+    code,
+  }).catch((err) => {
+    console.error("[profiles/forgot-pin] mail error:", err?.message || err);
+  });
 
   return {
     status: 200,
