@@ -43,15 +43,19 @@ export async function resolveUserProfile(prisma, userId, profileId) {
   if (!profileId) return null;
   let profile = await prisma.profile.findFirst({ where: { id: profileId, userId } });
   if (profile) return profile;
+
+  const all = await prisma.profile.findMany({
+    where: { userId },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+  });
+
   if (profileId === "1") {
-    return (await prisma.profile.findFirst({ where: { userId, isPrimary: true } })) ||
-           (await prisma.profile.findFirst({ where: { userId }, orderBy: { createdAt: "asc" } }));
+    return all.find((p) => p.isPrimary) || all[0] || null;
   }
+
   if (profileId === "2") {
-    profile = await prisma.profile.findFirst({ where: { userId, isKids: true } });
+    profile = all.find((p) => p.isKids) || (all.length >= 2 ? all[1] : null);
     if (!profile) {
-      const all = await prisma.profile.findMany({ where: { userId }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] });
-      if (all.length >= 2) return all[1];
       return await prisma.profile.create({
         data: {
           userId,

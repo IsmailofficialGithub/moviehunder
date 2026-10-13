@@ -115,7 +115,12 @@ fi
 
 # 6. Restart PM2 processes gracefully
 echo "[6/7] Reloading PM2 processes..."
-if ! (sudo /usr/bin/pm2 reload moviehunter-api moviehunter-relay --update-env || sudo /usr/bin/pm2 restart moviehunter-api moviehunter-relay --update-env); then
+if sudo /usr/bin/pm2 describe moviehunter-relay > /dev/null 2>&1; then
+  sudo /usr/bin/pm2 reload moviehunter-relay --update-env || sudo /usr/bin/pm2 restart moviehunter-relay --update-env || true
+else
+  sudo /usr/bin/pm2 start play-relay.mjs --name moviehunter-relay --update-env || true
+fi
+if ! (sudo /usr/bin/pm2 reload moviehunter-api --update-env || sudo /usr/bin/pm2 restart moviehunter-api --update-env); then
   echo "ERROR: PM2 restart failed"
   rollback
 fi
