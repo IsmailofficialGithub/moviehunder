@@ -60,8 +60,36 @@ export function validateAndGenerateEnv(rawContent, targetDir = ".") {
     throw new Error("GOOGLE_REDIRECT_URI must point to https://api.offstream.co");
   }
 
-  // 3. Write files cleanly preserving raw content
-  const cleanedContent = rawContent.trim() + "\n";
+  // 3. Apply optional environment overrides (e.g. SMTP credentials passed via GitHub secrets/vars)
+  const overrideKeys = {
+    SMTP_HOST: process.env.SMTP_HOST,
+    SMTP_PORT: process.env.SMTP_PORT,
+    SMTP_SECURE: process.env.SMTP_SECURE,
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_PASS: process.env.SMTP_PASS,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    REDIS_HOST: process.env.REDIS_HOST,
+    REDIS_PORT: process.env.REDIS_PORT,
+    REDIS_PASSWORD: process.env.REDIS_PASSWORD,
+    REDIS_URL: process.env.REDIS_URL,
+  };
+
+  const updatedLines = [...lines];
+  for (const [key, val] of Object.entries(overrideKeys)) {
+    if (!val) continue;
+    const idx = updatedLines.findIndex((l) => {
+      const trimmed = l.trim();
+      return !trimmed.startsWith("#") && (trimmed.startsWith(`${key}=`) || trimmed === key);
+    });
+    if (idx !== -1) {
+      updatedLines[idx] = `${key}=${val}`;
+    } else {
+      updatedLines.push(`${key}=${val}`);
+    }
+  }
+
+  // 4. Write files cleanly preserving content with overrides
+  const cleanedContent = updatedLines.join("\n").trim() + "\n";
   const envPath = path.join(targetDir, ".env");
   const devVarsPath = path.join(targetDir, ".dev.vars");
 

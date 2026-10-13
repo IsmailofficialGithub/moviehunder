@@ -99,6 +99,12 @@ jobs:
         working-directory: server
         env:
           RAW_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+          SMTP_USER: ${{ secrets.SMTP_USER || vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS || vars.SMTP_PASS }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST || vars.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || vars.SMTP_PORT || '465' }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE || vars.SMTP_SECURE || 'true' }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM || vars.EMAIL_FROM || 'MovieHunter <lalagggg786@gmail.com>' }}
         run: node scripts/generate-env.mjs
 
       - name: Package Release
