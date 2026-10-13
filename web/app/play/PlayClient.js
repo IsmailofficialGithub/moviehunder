@@ -76,14 +76,16 @@ export default function PlayClient() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, isSignedIn } = useAuth();
-  const [activeProfile, setActiveProfile] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("active_profile")) || null; } catch { return null; }
-  });
+  const [activeProfile, setActiveProfile] = useState(() => getActiveProfile(user));
   useEffect(() => {
-    const onProfileChange = (e) => setActiveProfile(e.detail || null);
+    setActiveProfile(getActiveProfile(user));
+  }, [user]);
+
+  useEffect(() => {
+    const onProfileChange = (e) => setActiveProfile(e.detail || getActiveProfile(user));
     window.addEventListener("mh:profile:change", onProfileChange);
     return () => window.removeEventListener("mh:profile:change", onProfileChange);
-  }, []);
+  }, [user]);
 
 
   let subjectId = params.get("subjectId") || params.get("id") || "";
@@ -294,7 +296,7 @@ export default function PlayClient() {
               {activeProfile?.avatar
                 ? <img src={activeProfile.avatar} alt={activeProfile.name || "Profile"} className={styles.profileAvatar} />
                 : <User size={14} />}
-              <span>{activeProfile?.name || user?.display_name || user?.name || "Profile"}</span>
+              <span>{activeProfile?.name || "Profile"}</span>
             </Link>
           ) : (
             <Link href="/login" className={styles.loginBtn}>

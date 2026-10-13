@@ -744,6 +744,13 @@ export default function StreamPlayer({
   useEffect(() => {
     return () => {
       clearMediaSession();
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+          videoRef.current.removeAttribute("src");
+          videoRef.current.load();
+        } catch {}
+      }
     };
   }, []);
 
@@ -1056,8 +1063,14 @@ export default function StreamPlayer({
     video.addEventListener("error", onVideoError);
     return () => {
       video.removeEventListener("loadeddata", onReady);
+      video.removeEventListener("loadedmetadata", onReady);
       video.removeEventListener("error", onVideoError);
       clearTimeout(videoRetryTimer.current);
+      try {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      } catch {}
     };
   }, [mounted, src]);
 
