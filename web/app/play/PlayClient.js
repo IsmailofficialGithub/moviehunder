@@ -18,6 +18,7 @@ import StreamPlayer from "../../components/StreamPlayer";
 import { getEpisodes } from "../../lib/api";
 import { useAuth } from "../../components/AuthProvider";
 import { addHistoryItem } from "../../lib/guestHistory";
+import { getActiveProfile } from "../../lib/profiles";
 import styles from "./play.module.css";
 
 function normalizeSeasons(raw = []) {
@@ -75,6 +76,15 @@ export default function PlayClient() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, isSignedIn } = useAuth();
+  const [activeProfile, setActiveProfile] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("active_profile")) || null; } catch { return null; }
+  });
+  useEffect(() => {
+    const onProfileChange = (e) => setActiveProfile(e.detail || null);
+    window.addEventListener("mh:profile:change", onProfileChange);
+    return () => window.removeEventListener("mh:profile:change", onProfileChange);
+  }, []);
+
 
   let subjectId = params.get("subjectId") || params.get("id") || "";
   let detailPath = params.get("detail_path") || "";
@@ -281,8 +291,10 @@ export default function PlayClient() {
 
           {isSignedIn ? (
             <Link href="/profiles" className={styles.userBtn}>
-              <User size={14} />
-              <span>{user?.display_name || user?.name || "Profile"}</span>
+              {activeProfile?.avatar
+                ? <img src={activeProfile.avatar} alt={activeProfile.name || "Profile"} className={styles.profileAvatar} />
+                : <User size={14} />}
+              <span>{activeProfile?.name || user?.display_name || user?.name || "Profile"}</span>
             </Link>
           ) : (
             <Link href="/login" className={styles.loginBtn}>
