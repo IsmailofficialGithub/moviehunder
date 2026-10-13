@@ -97,7 +97,7 @@ export default function PlayClient() {
         title = meta.title;
       }
       if (!poster && meta.poster) poster = meta.poster;
-    } catch {}
+    } catch { }
   }
 
   // Derive human-readable title from detailPath slug if numeric or empty
@@ -126,7 +126,7 @@ export default function PlayClient() {
       if (String(se) !== "0" || String(ep) !== "0") {
         localStorage.setItem(`history_last_${subjectId}`, JSON.stringify({ se: String(se), ep: String(ep) }));
       }
-    } catch {}
+    } catch { }
   }
 
   useEffect(() => {
@@ -269,15 +269,15 @@ export default function PlayClient() {
         </div>
 
         <div className={styles.headerActions}>
-          <Link href="/account" className={styles.goPremiumBtn}>
+          {/* <Link href="/account" className={styles.goPremiumBtn}>
             <Sparkles size={14} className={styles.goldSparkle} />
             <span>Go Premium</span>
-          </Link>
+          </Link> */}
 
-          <Link href="/download" className={styles.downloadBtn}>
+          {/* <Link href="/download" className={styles.downloadBtn}>
             <Smartphone size={14} />
             <span>Download App</span>
-          </Link>
+          </Link> */}
 
           {isSignedIn ? (
             <Link href="/profiles" className={styles.userBtn}>
@@ -325,7 +325,7 @@ export default function PlayClient() {
             {/* Under-player bar */}
             <div className={styles.underPlayerBar}>
               <span className={styles.infringeText}>
-                Find any content infringes on your rights, please contact us.
+                {" "}
               </span>
               <button
                 type="button"
@@ -361,11 +361,7 @@ export default function PlayClient() {
 
             {/* Resources Card */}
             <div className={styles.panelCard}>
-              <div className={styles.panelTitle}>Resources</div>
-              <div className={styles.sourceMeta}>
-                <span>Source: <strong>{streamMeta?.host || "nexdrive.fun"}</strong></span>
-                <span className={styles.sourceBy}> By Chelsey Angwi</span>
-              </div>
+              <div className={styles.panelTitle}>Sources</div>
 
               {/* Selectors Row */}
               <div className={styles.selectRow}>

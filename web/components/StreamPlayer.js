@@ -1344,18 +1344,6 @@ export default function StreamPlayer({
 
   return (
     <div className={styles.wrap}>
-      <header className={styles.toolbar}>
-        <div className={styles.titleRow}>
-          <div className={styles.titleBlock}>
-            <h1 className={styles.title}>{displayTitle}</h1>
-            <p className={styles.meta}>
-              {Number(se) > 0 || Number(ep) > 0 ? `S${se}E${ep}` : "Movie"}
-              {active ? ` · ${active.resolution}` : ""}
-            </p>
-          </div>
-        </div>
-      </header>
-
       {settingsOpen ? (
         <FullscreenPortal>
         <div
