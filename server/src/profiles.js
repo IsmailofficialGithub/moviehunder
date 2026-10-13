@@ -23,6 +23,51 @@ async function safeGetRedis() {
   }
 }
 
+// In-memory fallback map for PIN reset codes (TTL: 15 minutes)
+const memoryResetCodes = new Map();
+
+async function storeResetCode(profileId, code) {
+  memoryResetCodes.set(profileId, { code, expiresAt: Date.now() + 15 * 60 * 1000 });
+  try {
+    const redis = await safeGetRedis();
+    if (redis) {
+      await redis.set(`pin_reset:${profileId}`, code, { EX: 900 });
+    }
+  } catch (err) {
+    console.error("[profiles/pin-reset] Redis set error, using memory fallback:", err?.message);
+  }
+}
+
+async function getStoredResetCode(profileId) {
+  try {
+    const redis = await safeGetRedis();
+    if (redis) {
+      const stored = await redis.get(`pin_reset:${profileId}`);
+      if (stored) return stored;
+    }
+  } catch (err) {
+    console.error("[profiles/pin-reset] Redis get error, checking memory fallback:", err?.message);
+  }
+  const mem = memoryResetCodes.get(profileId);
+  if (mem) {
+    if (Date.now() < mem.expiresAt) return mem.code;
+    memoryResetCodes.delete(profileId);
+  }
+  return null;
+}
+
+async function clearStoredResetCode(profileId) {
+  memoryResetCodes.delete(profileId);
+  try {
+    const redis = await safeGetRedis();
+    if (redis) {
+      await redis.del(`pin_reset:${profileId}`);
+    }
+  } catch (err) {
+    console.error("[profiles/pin-reset] Redis del error:", err?.message);
+  }
+}
+
 // Return sanitized profile object without exposing pin hash
 function sanitizeProfile(p) {
   if (!p) return null;
@@ -297,11 +342,10 @@ export async function handleUpdateProfile(request, profileId) {
     if (profile.pin) {
       let authorized = false;
       if (body.resetCode) {
-        const redis = await safeGetRedis();
-        const stored = redis ? await redis.get(`pin_reset:${profile.id}`) : null;
+        const stored = await getStoredResetCode(profile.id);
         if (stored && stored === String(body.resetCode).trim()) {
           authorized = true;
-          if (redis) await redis.del(`pin_reset:${profile.id}`);
+          await clearStoredResetCode(profile.id);
         }
       } else if (body.oldPin) {
         const validOld = await argon2.verify(profile.pin, String(body.oldPin).trim()).catch(() => false);
@@ -607,10 +651,7 @@ export async function handleForgotPin(request, profileId) {
   }
 
   const code = String(crypto.randomInt(100000, 999999));
-  const redis = await safeGetRedis();
-  if (redis) {
-    await redis.set(`pin_reset:${profile.id}`, code, { EX: 900 });
-  }
+  await storeResetCode(profile.id, code);
 
   try {
     await sendPinResetEmail({
@@ -657,7 +698,7 @@ export async function handleResetPin(request, profileId) {
   const resetCode = String(body.resetCode || "").trim();
 
   const redis = await safeGetRedis();
-  const stored = redis ? await redis.get(`pin_reset:${profile.id}`) : null;
+  const stored = await getStoredResetCode(profile.id);
   if (!stored || stored !== resetCode) {
     return {
       status: 400,
@@ -679,10 +720,8 @@ export async function handleResetPin(request, profileId) {
     data: { pin: newPinHash },
   });
 
-  if (redis) {
-    await redis.del(`pin_reset:${profile.id}`);
-    await clearPinAttempts(redis, profile.id, auth.user.id);
-  }
+  await clearStoredResetCode(profile.id);
+  await clearPinAttempts(redis, profile.id, auth.user.id);
 
   return {
     status: 200,

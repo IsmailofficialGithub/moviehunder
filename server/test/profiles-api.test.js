@@ -241,4 +241,28 @@ test("Forgot PIN code generation: produces valid 6-digit numeric string", () => 
   assert.equal(/^\d{6}$/.test(code), true, "Reset code must be a 6-digit numeric string");
 });
 
+test("Redis configuration defaults to port 6380 and supports password", async () => {
+  const { getRedisConfig } = await import("../src/redis.js");
+  const oldUrl = process.env.REDIS_URL;
+  const oldPort = process.env.REDIS_PORT;
+  const oldPass = process.env.REDIS_PASSWORD;
+  delete process.env.REDIS_URL;
+  delete process.env.REDIS_PORT;
+  delete process.env.REDIS_PASSWORD;
+
+  const defaultConfig = getRedisConfig();
+  assert.ok(defaultConfig.url.includes(":6380"), "Default Redis port should be 6380 for moviehunter container");
+
+  process.env.REDIS_PASSWORD = "secret_password";
+  const passConfig = getRedisConfig();
+  assert.equal(passConfig.password, "secret_password");
+  assert.ok(passConfig.url.includes("secret_password"));
+
+  if (oldUrl) process.env.REDIS_URL = oldUrl;
+  if (oldPort) process.env.REDIS_PORT = oldPort;
+  if (oldPass) process.env.REDIS_PASSWORD = oldPass;
+  else delete process.env.REDIS_PASSWORD;
+});
+
+
 
