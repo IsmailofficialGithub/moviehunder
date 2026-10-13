@@ -151,6 +151,7 @@ export default function StreamPlayer({
   nextEpisode = null,
   onPrevEpisode = null,
   onNextEpisode = null,
+  onStreamMeta = null,
 }) {
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -852,6 +853,9 @@ export default function StreamPlayer({
       setSources(result.sources);
       setQualityIndex(pickDefaultIndex(result.sources));
       setStatus("ready");
+      if (typeof onStreamMeta === "function") {
+        onStreamMeta({ host: result.host, sources: result.sources, via: result.via });
+      }
     } catch (err) {
       setError(friendlyPlaybackError(err));
       setStatus("error");
