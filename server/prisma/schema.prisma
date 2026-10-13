@@ -221,7 +221,7 @@ model Profile {
   userId    String   @map("user_id")
   name      String
   avatarUrl String?  @map("avatar_url")
-  isKids    Boolean  @default(false)
+  isKids    Boolean  @default(false) @map("is_kids")
   pin       String?
   isPrimary Boolean  @default(false) @map("is_primary")
   createdAt DateTime @default(now()) @map("created_at")
