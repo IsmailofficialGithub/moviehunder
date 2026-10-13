@@ -198,11 +198,15 @@ function ProfilesContent() {
         setIsUnlocking(false);
         const remaining = err.data?.attemptsRemaining;
         const msg = err.data?.error || err.message;
-        setUnlockError(
-          remaining !== undefined
-            ? `Incorrect PIN (${remaining} attempts remaining)`
-            : msg || "Incorrect PIN. Please try again."
-        );
+        if (remaining === 0 || err.status === 429) {
+          setUnlockError(msg || "Too many failed attempts. Profile locked for 15 minutes.");
+        } else if (remaining !== undefined) {
+          setUnlockError(
+            `Incorrect PIN (${remaining} attempt${remaining === 1 ? "" : "s"} remaining)`
+          );
+        } else {
+          setUnlockError(msg || "Incorrect PIN. Please try again.");
+        }
         return;
       }
     }

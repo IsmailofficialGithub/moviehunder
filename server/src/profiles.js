@@ -132,37 +132,70 @@ async function getUserPlanLimits(prisma, userId) {
   }
 }
 
-// Read PIN attempts from Redis
-async function getPinAttempts(redis, profileId, userId) {
-  if (!redis) return 0;
-  try {
-    const val = await redis.get(`pin_attempts:${profileId}:${userId}`);
-    return val ? parseInt(val, 10) : 0;
-  } catch {
+// In-memory fallback map for failed PIN attempts (TTL: 15 minutes)
+const memoryPinAttempts = new Map();
+
+function getMemoryPinAttempts(key) {
+  const entry = memoryPinAttempts.get(key);
+  if (!entry) return 0;
+  if (Date.now() > entry.expiresAt) {
+    memoryPinAttempts.delete(key);
     return 0;
+  }
+  return entry.count;
+}
+
+function recordMemoryPinAttempt(key) {
+  const current = getMemoryPinAttempts(key);
+  const next = current + 1;
+  memoryPinAttempts.set(key, {
+    count: next,
+    expiresAt: Date.now() + PIN_LOCKOUT_SECONDS * 1000,
+  });
+  return next;
+}
+
+function clearMemoryPinAttempts(key) {
+  memoryPinAttempts.delete(key);
+}
+
+// Read PIN attempts from Redis with memory fallback
+async function getPinAttempts(redis, profileId, userId) {
+  const key = `pin_attempts:${profileId}:${userId}`;
+  const memCount = getMemoryPinAttempts(key);
+  if (!redis) return memCount;
+  try {
+    const val = await redis.get(key);
+    const redisCount = val ? parseInt(val, 10) : 0;
+    return Math.max(redisCount, memCount);
+  } catch {
+    return memCount;
   }
 }
 
-// Increment failed PIN attempts in Redis with 15m expiration
+// Increment failed PIN attempts in Redis with 15m expiration & memory fallback
 async function recordFailedPinAttempt(redis, profileId, userId) {
-  if (!redis) return 1;
+  const key = `pin_attempts:${profileId}:${userId}`;
+  const memCount = recordMemoryPinAttempt(key);
+  if (!redis) return memCount;
   try {
-    const key = `pin_attempts:${profileId}:${userId}`;
     const count = await redis.incr(key);
     if (count === 1) {
       await redis.expire(key, PIN_LOCKOUT_SECONDS);
     }
-    return count;
+    return Math.max(count, memCount);
   } catch {
-    return 1;
+    return memCount;
   }
 }
 
 // Clear PIN attempts on successful verification
 async function clearPinAttempts(redis, profileId, userId) {
+  const key = `pin_attempts:${profileId}:${userId}`;
+  clearMemoryPinAttempts(key);
   if (!redis) return;
   try {
-    await redis.del(`pin_attempts:${profileId}:${userId}`);
+    await redis.del(key);
   } catch {}
 }
 
@@ -573,7 +606,10 @@ export async function handleSwitchProfile(request, profileId) {
       if (attempts >= PIN_MAX_ATTEMPTS) {
         return {
           status: 429,
-          body: { error: "Profile locked due to too many failed attempts" },
+          body: {
+            error: "Too many failed attempts. Profile locked for 15 minutes.",
+            attemptsRemaining: 0,
+          },
         };
       }
       const match = await argon2.verify(profile.pin, String(pin).trim()).catch(() => false);
@@ -583,6 +619,15 @@ export async function handleSwitchProfile(request, profileId) {
       } else {
         const count = await recordFailedPinAttempt(redis, profile.id, auth.user.id);
         const remaining = Math.max(0, PIN_MAX_ATTEMPTS - count);
+        if (remaining === 0) {
+          return {
+            status: 429,
+            body: {
+              error: "Too many failed attempts. Profile locked for 15 minutes.",
+              attemptsRemaining: 0,
+            },
+          };
+        }
         return {
           status: 401,
           body: { error: "Incorrect PIN", attemptsRemaining: remaining },

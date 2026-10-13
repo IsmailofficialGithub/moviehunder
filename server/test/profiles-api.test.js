@@ -264,5 +264,24 @@ test("Redis configuration defaults to port 6380 and supports password", async ()
   else delete process.env.REDIS_PASSWORD;
 });
 
+test("Branded Dark Email Template contains official OffStream logo and dark theme colors", async () => {
+  const { emailLayout, LOGO_URL } = await import("../src/mail.js");
+  const expectedLogo = "https://offstream.co/_next/image?url=%2Fbrand%2Flogo-symbol.png&w=128&q=75";
+  assert.equal(LOGO_URL, expectedLogo);
+
+  const rendered = emailLayout({
+    title: "Test Email",
+    preheader: "Preview snippet",
+    bodyHtml: "<p>Hello World</p>",
+  });
+
+  assert.ok(rendered.includes(expectedLogo), "Template must embed the OffStream logo");
+  assert.ok(rendered.includes("#0c0c0e"), "Template must use the dark background color");
+  assert.ok(rendered.includes("#14141b"), "Template card must use dark elevated background");
+  assert.ok(rendered.includes("MovieHunter"), "Template must mention MovieHunter");
+  assert.ok(rendered.includes("OffStream"), "Template must mention OffStream");
+  assert.ok(rendered.includes("<p>Hello World</p>"), "Template must include body content");
+});
+
 
 
