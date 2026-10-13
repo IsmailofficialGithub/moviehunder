@@ -81,7 +81,7 @@ function ProfilesContent() {
           }));
           setProfiles(mapped);
           if (data.plan) setPlanQuota(data.plan);
-          saveUserProfiles(user, mapped);
+          saveUserProfiles(user, mapped, false);
 
           const activeId = getActiveProfileId();
           setActiveProfileId(activeId);
@@ -123,10 +123,8 @@ function ProfilesContent() {
       }
     };
     window.addEventListener("mh:profile:change", onProfileChange);
-    window.addEventListener("mh:profiles_list:change", refreshProfiles);
     return () => {
       window.removeEventListener("mh:profile:change", onProfileChange);
-      window.removeEventListener("mh:profiles_list:change", refreshProfiles);
     };
   }, [refreshProfiles, searchParams]);
 

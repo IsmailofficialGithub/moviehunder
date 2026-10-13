@@ -30,10 +30,13 @@ async function tryConnect(config) {
       reconnectStrategy: false,
     },
   });
-  client.on("error", (err) => console.error("Redis Client Error", err));
+  // Prevent unhandled error event crash during probe
+  client.on("error", () => {});
   try {
     await client.connect();
     await client.ping();
+    client.removeAllListeners("error");
+    client.on("error", (err) => console.error("Redis Runtime Error:", err?.message || err));
     return client;
   } catch (err) {
     try {
@@ -53,11 +56,22 @@ export async function getRedis() {
     return redisClient;
   }
 
-  // Default: try 6380 (moviehunter-redis container default), then fallback to 6379
+  // Default: try 6380 (moviehunter-redis container default)
   try {
     redisClient = await tryConnect(getRedisConfig("6380"));
     return redisClient;
   } catch (err6380) {
+    // If WRONGPASS or NOAUTH, try 6380 without password
+    if (String(err6380?.message).includes("WRONGPASS") || String(err6380?.message).includes("NOAUTH")) {
+      try {
+        redisClient = await tryConnect({
+          url: `redis://${process.env.REDIS_HOST || "127.0.0.1"}:6380`,
+        });
+        return redisClient;
+      } catch {}
+    }
+
+    // Fallback to 6379
     try {
       redisClient = await tryConnect(getRedisConfig("6379"));
       return redisClient;

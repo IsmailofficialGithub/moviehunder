@@ -49,12 +49,14 @@ export function loadUserProfiles(user) {
   return initial;
 }
 
-export function saveUserProfiles(user, profiles) {
+export function saveUserProfiles(user, profiles, notify = true) {
   if (typeof window === "undefined" || !Array.isArray(profiles)) return;
   const key = getUserProfilesKey(user?.id);
   try {
     localStorage.setItem(key, JSON.stringify(profiles));
-    window.dispatchEvent(new CustomEvent("mh:profiles_list:change", { detail: profiles }));
+    if (notify) {
+      window.dispatchEvent(new CustomEvent("mh:profiles_list:change", { detail: profiles }));
+    }
   } catch {}
 }
 
