@@ -88,7 +88,15 @@ export default function SiteHeader() {
   const logout = auth?.logout;
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
-  const [activeProfile, setActiveProfile] = useState(null);
+  const [activeProfile, setActiveProfile] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem("active_profile");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [avatarImgError, setAvatarImgError] = useState(false);
 
   const userAvatar = isSignedIn

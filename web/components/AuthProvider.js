@@ -48,26 +48,40 @@ export function AuthProvider({ children }) {
         storeSession({ user: me.user });
         ensureUserStorage(me.user.id);
         syncGuestHistoryToServer().then(() => runFullSync()).catch(() => {});
-        // Auto-hydrate real active profile from server if unset or dummy 1
+        // Auto-hydrate real active profile, cache profiles list, plan quota & preload avatars
         import("../lib/profiles.js")
-          .then(async ({ fetchRemoteProfiles, switchActiveProfile }) => {
+          .then(async ({ fetchRemoteProfiles, switchActiveProfile, saveUserProfiles, savePlanQuota, preloadProfileAvatars, PRESET_AVATARS }) => {
             try {
-              const raw = localStorage.getItem("active_profile");
-              const parsed = raw ? JSON.parse(raw) : null;
-              if (!parsed || parsed.id === "1") {
-                const res = await fetchRemoteProfiles();
-                if (res?.profiles?.length) {
-                  const primary = res.profiles.find((p) => p.isPrimary) || res.profiles[0];
-                  if (primary) {
-                    switchActiveProfile({
-                      id: primary.id,
-                      name: primary.name,
-                      avatar: primary.avatarUrl,
-                      isKids: Boolean(primary.isKids),
-                      isPrimary: Boolean(primary.isPrimary),
-                      hasPin: Boolean(primary.hasPin),
-                    });
-                  }
+              const res = await fetchRemoteProfiles();
+              if (res?.profiles?.length) {
+                const defaultAvatar = PRESET_AVATARS?.[0]?.url || "https://api.dicebear.com/7.x/avataaars/svg?seed=Justin&backgroundColor=e50914";
+                const mapped = res.profiles.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  avatar: p.avatarUrl || defaultAvatar,
+                  isKids: Boolean(p.isKids),
+                  isPrimary: Boolean(p.isPrimary),
+                  hasPin: Boolean(p.hasPin),
+                  pin: p.hasPin ? "••••" : "",
+                }));
+                saveUserProfiles(me.user, mapped, true);
+                preloadProfileAvatars(mapped);
+                if (res.plan) {
+                  savePlanQuota(res.plan);
+                }
+                const raw = localStorage.getItem("active_profile");
+                const parsed = raw ? JSON.parse(raw) : null;
+                const matchingActive = parsed ? mapped.find((p) => String(p.id) === String(parsed.id)) : null;
+                const target = matchingActive || mapped.find((p) => p.isPrimary) || mapped[0];
+                if (target) {
+                  switchActiveProfile({
+                    id: target.id,
+                    name: target.name,
+                    avatar: target.avatar,
+                    isKids: Boolean(target.isKids),
+                    isPrimary: Boolean(target.isPrimary),
+                    hasPin: Boolean(target.hasPin),
+                  });
                 }
               }
             } catch {}

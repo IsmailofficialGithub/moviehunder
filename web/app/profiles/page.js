@@ -9,6 +9,8 @@ import {
   MAX_PROFILES,
   loadUserProfiles,
   saveUserProfiles,
+  loadPlanQuota,
+  savePlanQuota,
   getActiveProfileId,
   switchActiveProfile,
   fetchRemoteProfiles,
@@ -26,10 +28,16 @@ function ProfilesContent() {
   const searchParams = useSearchParams();
   const { user, isSignedIn } = useAuth();
 
-  const [profiles, setProfiles] = useState([]);
-  const [activeProfileId, setActiveProfileId] = useState("1");
+  const [profiles, setProfiles] = useState(() => {
+    if (typeof window === "undefined") return [];
+    return loadUserProfiles(user);
+  });
+  const [activeProfileId, setActiveProfileId] = useState(() => {
+    if (typeof window === "undefined") return "1";
+    return getActiveProfileId();
+  });
   const [isManaging, setIsManaging] = useState(false);
-  const [planQuota, setPlanQuota] = useState(null);
+  const [planQuota, setPlanQuota] = useState(() => loadPlanQuota());
 
   // Add / Edit Modal state
   const [modalMode, setModalMode] = useState(null); // null | "add" | "edit"
@@ -86,7 +94,10 @@ function ProfilesContent() {
             pin: p.hasPin ? "••••" : "",
           }));
           setProfiles(mapped);
-          if (data.plan) setPlanQuota(data.plan);
+          if (data.plan) {
+            setPlanQuota(data.plan);
+            savePlanQuota(data.plan);
+          }
           saveUserProfiles(user, mapped, false);
 
           const activeId = getActiveProfileId();
@@ -104,6 +115,28 @@ function ProfilesContent() {
     setActiveProfileId(activeId);
     return { list, activeId };
   }, [user, isSignedIn]);
+
+  // Synchronously update profiles from cache when user resolves or list updates
+  useEffect(() => {
+    if (user?.id) {
+      const cached = loadUserProfiles(user);
+      if (cached && cached.length > 0) {
+        setProfiles(cached);
+      }
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    const onListChange = (e) => {
+      if (Array.isArray(e?.detail)) {
+        setProfiles(e.detail);
+      }
+    };
+    window.addEventListener("mh:profiles_list:change", onListChange);
+    return () => {
+      window.removeEventListener("mh:profiles_list:change", onListChange);
+    };
+  }, []);
 
   useEffect(() => {
     refreshProfiles().then(({ list }) => {
@@ -588,6 +621,7 @@ function ProfilesContent() {
                   alt={profile.name}
                   className={styles.avatarImg}
                   referrerPolicy="no-referrer"
+                  loading="eager"
                 />
 
                 {isKids && <span className={styles.kidsBadge}>Kids</span>}

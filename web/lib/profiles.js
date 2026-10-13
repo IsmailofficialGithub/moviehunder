@@ -1,4 +1,4 @@
-"use client";
+import { authFetch, getStoredSession } from "./auth.js";
 
 export const PRESET_AVATARS = [
   { id: "red", url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Justin&backgroundColor=e50914", label: "Red" },
@@ -11,26 +11,41 @@ export const PRESET_AVATARS = [
 
 export const MAX_PROFILES = 5;
 
+export function preloadProfileAvatars(profiles) {
+  if (typeof window === "undefined" || !Array.isArray(profiles)) return;
+  profiles.forEach((p) => {
+    const url = p?.avatar || p?.avatarUrl;
+    if (url && typeof Image !== "undefined") {
+      const img = new Image();
+      img.src = url;
+    }
+  });
+}
+
 export function getUserProfilesKey(userId) {
   return `mh.profiles.${userId || "guest"}`;
 }
 
 export function loadUserProfiles(user) {
   if (typeof window === "undefined") return [];
-  const key = getUserProfilesKey(user?.id);
+  const effectiveUser = user || getStoredSession()?.user;
+  const key = getUserProfilesKey(effectiveUser?.id);
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        preloadProfileAvatars(parsed);
+        return parsed;
+      }
     }
   } catch {}
 
-  const userAvatar = user?.avatar_url || user?.avatarUrl || user?.picture;
+  const userAvatar = effectiveUser?.avatar_url || effectiveUser?.avatarUrl || effectiveUser?.picture;
   const initial = [
     {
       id: "1",
-      name: user?.display_name || user?.name || "Justin",
+      name: effectiveUser?.display_name || effectiveUser?.name || "Justin",
       avatar: userAvatar || PRESET_AVATARS[0].url,
       isKids: false,
       pin: "",
@@ -45,18 +60,38 @@ export function loadUserProfiles(user) {
   ];
   try {
     localStorage.setItem(key, JSON.stringify(initial));
+    preloadProfileAvatars(initial);
   } catch {}
   return initial;
 }
 
 export function saveUserProfiles(user, profiles, notify = true) {
   if (typeof window === "undefined" || !Array.isArray(profiles)) return;
-  const key = getUserProfilesKey(user?.id);
+  const effectiveUser = user || getStoredSession()?.user;
+  const key = getUserProfilesKey(effectiveUser?.id);
   try {
     localStorage.setItem(key, JSON.stringify(profiles));
+    preloadProfileAvatars(profiles);
     if (notify) {
       window.dispatchEvent(new CustomEvent("mh:profiles_list:change", { detail: profiles }));
     }
+  } catch {}
+}
+
+export function loadPlanQuota() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("mh.plan_quota");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function savePlanQuota(plan) {
+  if (typeof window === "undefined" || !plan) return;
+  try {
+    localStorage.setItem("mh.plan_quota", JSON.stringify(plan));
   } catch {}
 }
 
@@ -93,8 +128,6 @@ export function switchActiveProfile(profile) {
     window.dispatchEvent(new Event("storage"));
   } catch {}
 }
-
-import { authFetch } from "./auth.js";
 
 // API endpoints for backend integration
 export async function fetchRemoteProfiles() {
