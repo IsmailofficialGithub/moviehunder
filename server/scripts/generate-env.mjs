@@ -72,6 +72,9 @@ export function validateAndGenerateEnv(rawContent, targetDir = ".") {
     REDIS_PORT: process.env.REDIS_PORT,
     REDIS_PASSWORD: process.env.REDIS_PASSWORD,
     REDIS_URL: process.env.REDIS_URL,
+    PIN_RESET_RATE_LIMIT_ENABLED: process.env.PIN_RESET_RATE_LIMIT_ENABLED,
+    PIN_RESET_WINDOW_HOURS: process.env.PIN_RESET_WINDOW_HOURS,
+    PIN_RESET_MAX_ATTEMPTS: process.env.PIN_RESET_MAX_ATTEMPTS,
   };
 
   const updatedLines = [...lines];

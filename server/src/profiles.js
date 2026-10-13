@@ -624,8 +624,14 @@ export async function handleSwitchProfile(request, profileId) {
   };
 }
 
+// PIN reset rate-limit config — all env-overridable, feature-flag killswitch
+const PIN_RATE_LIMIT_ENABLED = process.env.PIN_RESET_RATE_LIMIT_ENABLED !== "false";
+const PIN_RATE_WINDOW_HOURS = Number(process.env.PIN_RESET_WINDOW_HOURS) || 3;
+const PIN_RATE_MAX = Number(process.env.PIN_RESET_MAX_ATTEMPTS) || 3;
+
 // POST /api/profiles/:id/forgot-pin
 // Generates a 6-digit reset code, stores in Redis (15m), and emails to user.
+// Rate-limited to PIN_RATE_MAX per PIN_RATE_WINDOW_HOURS (stored in DB, fail-open on DB error).
 export async function handleForgotPin(request, profileId) {
   const auth = await requireUser(request);
   if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
@@ -649,15 +655,104 @@ export async function handleForgotPin(request, profileId) {
     return { status: 400, body: { error: "This profile has no PIN set" } };
   }
 
+  // ── Rate limiting ────────────────────────────────────────────
+  if (PIN_RATE_LIMIT_ENABLED) {
+    try {
+      const windowStart = new Date(Date.now() - PIN_RATE_WINDOW_HOURS * 60 * 60 * 1000);
+      const count = await prisma.pinResetRequest.count({
+        where: { profileId: profile.id, sentAt: { gte: windowStart } },
+      });
+
+      if (count >= PIN_RATE_MAX) {
+        // Find when the oldest send in window expires so client knows when to retry
+        const oldest = await prisma.pinResetRequest.findFirst({
+          where: { profileId: profile.id, sentAt: { gte: windowStart } },
+          orderBy: { sentAt: "asc" },
+        });
+        const nextResetAt = oldest
+          ? new Date(oldest.sentAt.getTime() + PIN_RATE_WINDOW_HOURS * 60 * 60 * 1000)
+          : new Date(Date.now() + PIN_RATE_WINDOW_HOURS * 60 * 60 * 1000);
+        const retryAfterSeconds = Math.max(0, Math.ceil((nextResetAt - Date.now()) / 1000));
+
+        console.log(
+          `[profiles/forgot-pin] rate-limit hit profileId=${profile.id} count=${count} retryAfter=${retryAfterSeconds}s`
+        );
+
+        return {
+          status: 429,
+          headers: { "Retry-After": String(retryAfterSeconds) },
+          body: {
+            ok: false,
+            error: `You've reached the maximum of ${PIN_RATE_MAX} reset emails per ${PIN_RATE_WINDOW_HOURS} hours. Try again later.`,
+            attemptsUsed: count,
+            attemptsMax: PIN_RATE_MAX,
+            nextResetAt: nextResetAt.toISOString(),
+            retryAfterSeconds,
+          },
+        };
+      }
+
+      // Record this send
+      await prisma.pinResetRequest.create({ data: { profileId: profile.id } });
+
+      const attemptsUsed = count + 1;
+      const isLastAttempt = attemptsUsed >= PIN_RATE_MAX;
+
+      // Next reset time = when first record in window expires
+      const firstInWindow = await prisma.pinResetRequest.findFirst({
+        where: { profileId: profile.id, sentAt: { gte: windowStart } },
+        orderBy: { sentAt: "asc" },
+      });
+      const nextResetAt = firstInWindow
+        ? new Date(firstInWindow.sentAt.getTime() + PIN_RATE_WINDOW_HOURS * 60 * 60 * 1000)
+        : new Date(Date.now() + PIN_RATE_WINDOW_HOURS * 60 * 60 * 1000);
+
+      const code = String(crypto.randomInt(100000, 999999));
+      await storeResetCode(profile.id, code);
+
+      let mailOk = true;
+      try {
+        await sendPinResetEmail({ to: auth.user.email, profileName: profile.name, code });
+      } catch (err) {
+        mailOk = false;
+        console.error("[profiles/forgot-pin] mail error:", err?.message || err);
+      }
+
+      if (!mailOk) {
+        return {
+          status: 200,
+          body: {
+            ok: false,
+            error: "mail_failed",
+            attemptsUsed,
+            attemptsMax: PIN_RATE_MAX,
+            nextResetAt: nextResetAt.toISOString(),
+          },
+        };
+      }
+
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          message: `A 6-digit reset code has been sent to ${auth.user.email}`,
+          email: auth.user.email,
+          attemptsUsed,
+          attemptsMax: PIN_RATE_MAX,
+          nextResetAt: nextResetAt.toISOString(),
+          isLastAttempt,
+        },
+      };
+    } catch (dbErr) {
+      // shortcut: fail-open on rate-limit DB error, upgrade to circuit breaker if abuse is observed
+      console.error("[profiles/forgot-pin] rate-limit DB error (failing open):", dbErr?.message);
+    }
+  }
+
+  // Fallback (rate-limit disabled or DB failed): best-effort send, async
   const code = String(crypto.randomInt(100000, 999999));
   await storeResetCode(profile.id, code);
-
-  // Dispatch email asynchronously so SMTP network delays never stall the response
-  sendPinResetEmail({
-    to: auth.user.email,
-    profileName: profile.name,
-    code,
-  }).catch((err) => {
+  sendPinResetEmail({ to: auth.user.email, profileName: profile.name, code }).catch((err) => {
     console.error("[profiles/forgot-pin] mail error:", err?.message || err);
   });
 

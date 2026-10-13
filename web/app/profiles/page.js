@@ -62,8 +62,14 @@ function ProfilesContent() {
     error: "",
     success: "",
     loading: false,
-    step: "request", // "request" | "reset"
+    step: "confirm", // "confirm" | "reset"
+    attemptsUsed: 0,
+    attemptsMax: 3,
+    isLastAttempt: false,
+    nextResetAt: null,   // ISO string — when the 3h window resets
+    resendCooldown: 0,  // seconds remaining before next resend allowed
   });
+  const [, forceUpdate] = useState(0); // for countdown ticks
 
   const refreshProfiles = useCallback(async () => {
     if (isSignedIn) {
@@ -364,11 +370,34 @@ function ProfilesContent() {
   };
 
   // ── Forgot PIN Handlers ─────────────────────────────────────
+
+  // localStorage key namespaced by profileId
+  const resendCooldownKey = (profileId) => `pinReset:cooldown:${profileId}`;
+
+  // Read persisted resend-until timestamp for a profile
+  const getResendUntil = (profileId) => {
+    try { return Number(localStorage.getItem(resendCooldownKey(profileId))) || 0; } catch { return 0; }
+  };
+
+  // Resend countdown ticker
+  useEffect(() => {
+    if (!forgotModal.isOpen) return;
+    const tick = () => {
+      const until = getResendUntil(forgotModal.profile?.id);
+      const secs = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      setForgotModal((p) => p.resendCooldown !== secs ? { ...p, resendCooldown: secs } : p);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [forgotModal.isOpen, forgotModal.profile?.id]);
+
   const handleStartForgotPin = (profile) => {
     if (!profile) return;
-    setUnlockTarget(null); // Close unlock modal if open
-    setModalMode(null); // Close edit modal if open
-
+    setUnlockTarget(null);
+    setModalMode(null);
+    const until = getResendUntil(profile.id);
+    const cooldown = Math.max(0, Math.ceil((until - Date.now()) / 1000));
     setForgotModal({
       isOpen: true,
       profile,
@@ -379,6 +408,11 @@ function ProfilesContent() {
       success: "",
       loading: false,
       step: "confirm",
+      attemptsUsed: 0,
+      attemptsMax: 3,
+      isLastAttempt: false,
+      nextResetAt: null,
+      resendCooldown: cooldown,
     });
   };
 
@@ -391,23 +425,79 @@ function ProfilesContent() {
       }));
       return;
     }
+    if (forgotModal.resendCooldown > 0) return; // blocked by timer
 
-    setForgotModal((prev) => ({ ...prev, loading: true, error: "" }));
+    setForgotModal((prev) => ({ ...prev, loading: true, error: "", success: "" }));
     try {
       const res = await forgotRemoteProfilePin(forgotModal.profile.id);
+
+      if (!res.ok && res.error === "mail_failed") {
+        // Email failed but attempt was counted — start cooldown, stay on confirm
+        const until = Date.now() + 60_000;
+        try { localStorage.setItem(resendCooldownKey(forgotModal.profile.id), String(until)); } catch {}
+        setForgotModal((prev) => ({
+          ...prev,
+          loading: false,
+          attemptsUsed: res.attemptsUsed ?? prev.attemptsUsed,
+          attemptsMax: res.attemptsMax ?? prev.attemptsMax,
+          nextResetAt: res.nextResetAt ?? prev.nextResetAt,
+          resendCooldown: 60,
+          error: "Something went wrong sending the email. Please try again in a minute.",
+        }));
+        return;
+      }
+
+      if (!res.ok && res.retryAfterSeconds != null) {
+        // Hard rate-limit
+        const h = Math.floor(res.retryAfterSeconds / 3600);
+        const m = Math.floor((res.retryAfterSeconds % 3600) / 60);
+        const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+        setForgotModal((prev) => ({
+          ...prev,
+          loading: false,
+          attemptsUsed: res.attemptsUsed ?? prev.attemptsUsed,
+          attemptsMax: res.attemptsMax ?? prev.attemptsMax,
+          nextResetAt: res.nextResetAt ?? prev.nextResetAt,
+          error: `You've used all ${res.attemptsMax ?? 3} reset emails. Try again in ${timeStr}.`,
+        }));
+        return;
+      }
+
+      // Success — start 60s resend cooldown
+      const until = Date.now() + 60_000;
+      try { localStorage.setItem(resendCooldownKey(forgotModal.profile.id), String(until)); } catch {}
+
       setForgotModal((prev) => ({
         ...prev,
         loading: false,
         email: res.email || user?.email || "",
         success: `Reset code sent to ${res.email || user?.email}.`,
         step: "reset",
+        attemptsUsed: res.attemptsUsed ?? prev.attemptsUsed,
+        attemptsMax: res.attemptsMax ?? prev.attemptsMax,
+        isLastAttempt: Boolean(res.isLastAttempt),
+        nextResetAt: res.nextResetAt ?? prev.nextResetAt,
+        resendCooldown: 60,
       }));
     } catch (err) {
-      setForgotModal((prev) => ({
-        ...prev,
-        loading: false,
-        error: err.data?.error || err.message || "Failed to send reset code.",
-      }));
+      const data = err.data || {};
+      // Server-sent 429 arrives as a thrown error in some client wrappers
+      if (data.retryAfterSeconds != null) {
+        const h = Math.floor(data.retryAfterSeconds / 3600);
+        const m = Math.floor((data.retryAfterSeconds % 3600) / 60);
+        const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+        setForgotModal((prev) => ({
+          ...prev,
+          loading: false,
+          error: `You've used all ${data.attemptsMax ?? 3} reset emails. Try again in ${timeStr}.`,
+        }));
+      } else {
+        setForgotModal((prev) => ({
+          ...prev,
+          loading: false,
+          error: data.error || err.message || "Something went wrong. Please try again in a minute.",
+        }));
+      }
     }
   };
 
@@ -838,6 +928,11 @@ function ProfilesContent() {
                   Send a 6-digit PIN reset code to <strong>{user?.email || "your account email"}</strong> to reset the PIN for profile <strong>{forgotModal.profile?.name}</strong>?
                 </p>
 
+                {forgotModal.isLastAttempt && !forgotModal.error && (
+                  <div className={styles.pinWarning}>
+                    ⚠️ This is your last reset email. You won&apos;t be able to request another for {forgotModal.nextResetAt ? Math.ceil((new Date(forgotModal.nextResetAt) - Date.now()) / 3600000) : 3} hours.
+                  </div>
+                )}
                 {forgotModal.error && <div className={styles.pinError}>{forgotModal.error}</div>}
 
                 <div className={styles.btnGroup} style={{ marginTop: "24px", justifyContent: "center" }}>
@@ -853,9 +948,13 @@ function ProfilesContent() {
                     type="button"
                     className={styles.btnPrimary}
                     onClick={handleConfirmSendCode}
-                    disabled={forgotModal.loading}
+                    disabled={forgotModal.loading || forgotModal.resendCooldown > 0}
                   >
-                    {forgotModal.loading ? "Sending..." : "Send Reset Code"}
+                    {forgotModal.loading
+                      ? "Sending..."
+                      : forgotModal.resendCooldown > 0
+                      ? `Wait ${forgotModal.resendCooldown}s`
+                      : "Send Reset Code"}
                   </button>
                 </div>
               </>
@@ -913,9 +1012,13 @@ function ProfilesContent() {
                       type="button"
                       className={styles.forgotPinBtn}
                       onClick={handleConfirmSendCode}
-                      disabled={forgotModal.loading}
+                      disabled={forgotModal.loading || forgotModal.resendCooldown > 0}
                     >
-                      Resend Code
+                      {forgotModal.resendCooldown > 0
+                        ? `Resend in ${forgotModal.resendCooldown}s`
+                        : forgotModal.isLastAttempt
+                        ? "Resend (last attempt)"
+                        : "Resend Code"}
                     </button>
                   </div>
 

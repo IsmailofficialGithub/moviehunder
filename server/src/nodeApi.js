@@ -242,7 +242,11 @@ function fromHandler(result) {
   if (result.redirect) {
     return Response.redirect(result.redirect, result.status || 302);
   }
-  return json(result.body ?? {}, result.status || 200);
+  const res = json(result.body ?? {}, result.status || 200);
+  if (result.headers) {
+    Object.entries(result.headers).forEach(([k, v]) => res.headers.set(k, v));
+  }
+  return res;
 }
 
 export function isNodeApiPath(pathname) {

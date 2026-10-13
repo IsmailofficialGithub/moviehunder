@@ -105,6 +105,9 @@ jobs:
           SMTP_PORT: ${{ secrets.SMTP_PORT || vars.SMTP_PORT || '465' }}
           SMTP_SECURE: ${{ secrets.SMTP_SECURE || vars.SMTP_SECURE || 'true' }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM || vars.EMAIL_FROM || 'MovieHunter <lalagggg786@gmail.com>' }}
+          PIN_RESET_RATE_LIMIT_ENABLED: ${{ vars.PIN_RESET_RATE_LIMIT_ENABLED || 'true' }}
+          PIN_RESET_WINDOW_HOURS: ${{ vars.PIN_RESET_WINDOW_HOURS || '3' }}
+          PIN_RESET_MAX_ATTEMPTS: ${{ vars.PIN_RESET_MAX_ATTEMPTS || '3' }}
         run: node scripts/generate-env.mjs
 
       - name: Package Release

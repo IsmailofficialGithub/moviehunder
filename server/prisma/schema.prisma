@@ -259,3 +259,12 @@ model DeviceVerification {
   @@unique([householdId, deviceId])
   @@map("device_verifications")
 }
+
+model PinResetRequest {
+  id        String   @id @default(cuid())
+  profileId String   @map("profile_id")
+  sentAt    DateTime @default(now()) @map("sent_at")
+
+  @@index([profileId, sentAt])
+  @@map("pin_reset_requests")
+}
