@@ -152,12 +152,23 @@ export default function StreamPlayer({
   onPrevEpisode = null,
   onNextEpisode = null,
   onStreamMeta = null,
+  qualityIndex: externalQualityIndex = null,
+  onQualityChange: externalOnQualityChange = null,
+  audioLanguage = "Original",
+  onAvailableAudioLanguages = null,
 }) {
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
   const [mounted, setMounted] = useState(false);
   const [sources, setSources] = useState([]);
-  const [qualityIndex, setQualityIndex] = useState(0);
+  const [internalQualityIndex, setInternalQualityIndex] = useState(0);
+  const qualityIndex = externalQualityIndex !== null ? externalQualityIndex : internalQualityIndex;
+  const setQualityIndex = (idx) => {
+    setInternalQualityIndex(idx);
+    if (typeof externalOnQualityChange === "function") {
+      externalOnQualityChange(idx);
+    }
+  };
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [navBusy, setNavBusy] = useState(null);
@@ -1023,6 +1034,34 @@ export default function StreamPlayer({
         video.currentTime = Math.max(0, resume);
       } catch {
         // ignore
+      }
+      // If browser supports audioTracks (Safari / Chrome flags / HLS)
+      if (video.audioTracks && video.audioTracks.length > 0) {
+        const available = [];
+        for (let i = 0; i < video.audioTracks.length; i++) {
+          const t = video.audioTracks[i];
+          available.push({ id: t.id || i, label: t.label || t.language || `Track ${i + 1}`, language: t.language });
+        }
+        if (typeof onAvailableAudioLanguages === "function") {
+          onAvailableAudioLanguages(available);
+        }
+        // Match chosen language
+        const target = String(audioLanguage || "").toLowerCase();
+        let matched = false;
+        for (let i = 0; i < video.audioTracks.length; i++) {
+          const t = video.audioTracks[i];
+          const l = (t.language || "").toLowerCase();
+          const lbl = (t.label || "").toLowerCase();
+          if (l.includes(target) || lbl.includes(target)) {
+            t.enabled = true;
+            matched = true;
+          } else {
+            t.enabled = false;
+          }
+        }
+        if (!matched && video.audioTracks[0]) {
+          video.audioTracks[0].enabled = true;
+        }
       }
       video.play().catch(() => {});
     };

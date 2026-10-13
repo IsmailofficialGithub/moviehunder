@@ -19,6 +19,7 @@ import { getEpisodes } from "../../lib/api";
 import { useAuth } from "../../components/AuthProvider";
 import { addHistoryItem } from "../../lib/guestHistory";
 import { getActiveProfile } from "../../lib/profiles";
+import { formatBytes } from "../../lib/stream";
 import styles from "./play.module.css";
 
 function normalizeSeasons(raw = []) {
@@ -150,9 +151,11 @@ export default function PlayClient() {
   const isSeries = Number(se) > 0 || Number(ep) > 0;
   const [seasons, setSeasons] = useState([]);
   const [activeSeason, setActiveSeason] = useState(String(Number(se) > 0 ? se : "1"));
-  const [selectedAudioLang, setSelectedAudioLang] = useState("Hindi dub");
+  const [selectedAudioLang, setSelectedAudioLang] = useState("Original");
   const [formatMode, setFormatMode] = useState("dash"); // "dash" | "mp4"
   const [streamMeta, setStreamMeta] = useState(null);
+  const [selectedQuality, setSelectedQuality] = useState(0);
+  const [availableAudioLanguages, setAvailableAudioLanguages] = useState([]);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportCategory, setReportCategory] = useState("buffering");
   const [reportSubmitted, setReportSubmitted] = useState(false);
@@ -275,7 +278,7 @@ export default function PlayClient() {
           </Link>
           <h1 className={styles.mediaTitle}>
             {title || "Now Playing"}
-            {selectedAudioLang && <span className={styles.langTag}> [{selectedAudioLang}]</span>}
+            {selectedAudioLang && selectedAudioLang !== "Original" && <span className={styles.langTag}> [{selectedAudioLang}]</span>}
             {seasonRangeText && <span className={styles.seasonTag}> {seasonRangeText}</span>}
           </h1>
         </div>
@@ -333,6 +336,10 @@ export default function PlayClient() {
                 onPrevEpisode={() => goTo(prevEpisode)}
                 onNextEpisode={() => goTo(nextEpisode)}
                 onStreamMeta={(meta) => setStreamMeta(meta)}
+                qualityIndex={selectedQuality}
+                onQualityChange={(q) => setSelectedQuality(q)}
+                audioLanguage={selectedAudioLang}
+                onAvailableAudioLanguages={(langs) => setAvailableAudioLanguages(langs)}
               />
             </div>
 
@@ -373,28 +380,60 @@ export default function PlayClient() {
               </div>
             </div>
 
-            {/* Resources Card */}
+            {/* Sources Card */}
             <div className={styles.panelCard}>
-              <div className={styles.panelTitle}>Sources</div>
+              <div className={styles.panelHeaderRow}>
+                <span className={styles.panelTitle}>Sources</span>
+                <span className={styles.sourcePill}>
+                  {streamMeta?.host ? streamMeta.host : "CDN"}
+                </span>
+              </div>
+
+              {/* Real Stream Qualities */}
+              {streamMeta?.sources?.length > 0 && (
+                <div className={styles.streamSourcesList}>
+                  <div className={styles.streamSourcesLabel}>Select Quality</div>
+                  <div className={styles.streamSourcesGrid}>
+                    {streamMeta.sources.map((s, idx) => {
+                      const isSelected = selectedQuality === idx;
+                      const size = formatBytes(s.size_bytes);
+                      return (
+                        <button
+                          key={s.id || s.url || idx}
+                          type="button"
+                          className={`${styles.streamSourceBtn} ${
+                            isSelected ? styles.streamSourceBtnActive : ""
+                          }`}
+                          onClick={() => setSelectedQuality(idx)}
+                        >
+                          <span className={styles.sourceRes}>{s.resolution}</span>
+                          {size && <span className={styles.sourceSize}>{size}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Selectors Row */}
               <div className={styles.selectRow}>
-                {/* Audio / Language dub selector */}
-                <div className={styles.selectWrapper}>
-                  <select
-                    className={styles.customSelect}
-                    value={selectedAudioLang}
-                    onChange={(e) => setSelectedAudioLang(e.target.value)}
-                  >
-                    <option value="Hindi dub">Hindi dub</option>
-                    <option value="English">English</option>
-                    <option value="Original">Original</option>
-                    <option value="Japanese dub">Japanese dub</option>
-                    <option value="Spanish dub">Spanish dub</option>
-                    <option value="Multi Audio">Multi Audio</option>
-                  </select>
-                  <ChevronDown size={14} className={styles.selectChevron} />
-                </div>
+                {/* Audio / Language selector - only shown if multiple tracks exist */}
+                {availableAudioLanguages.length > 1 && (
+                  <div className={styles.selectWrapper}>
+                    <select
+                      className={styles.customSelect}
+                      value={selectedAudioLang}
+                      onChange={(e) => setSelectedAudioLang(e.target.value)}
+                    >
+                      {availableAudioLanguages.map((t) => (
+                        <option key={t.id} value={t.label || t.language}>
+                          {t.label || t.language}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className={styles.selectChevron} />
+                  </div>
+                )}
 
                 {/* Season selector (shows if series or multiple seasons) */}
                 {seasons.length > 0 && (

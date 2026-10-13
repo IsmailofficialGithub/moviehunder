@@ -249,10 +249,76 @@
   color: #71717a;
 }
 
+.sourcePill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: rgba(189, 132, 219, 0.15);
+  color: #bd84db;
+  border: 1px solid rgba(189, 132, 219, 0.3);
+  letter-spacing: 0.2px;
+}
+
+.streamSourcesList {
+  margin-bottom: 14px;
+}
+
+.streamSourcesLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.streamSourcesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 8px;
+}
+
+.streamSourceBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 6px;
+  background: #1c1c23;
+  border: 1px solid #2e2e3a;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.streamSourceBtn:hover {
+  background: #252530;
+  border-color: #4a4a5a;
+}
+
+.streamSourceBtnActive {
+  background: rgba(189, 132, 219, 0.15) !important;
+  border-color: #bd84db !important;
+  box-shadow: 0 0 10px rgba(189, 132, 219, 0.25);
+}
+
+.sourceRes {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.sourceSize {
+  font-size: 0.68rem;
+  color: #a1a1aa;
+  margin-top: 2px;
+}
+
 /* Selectors */
 .selectRow {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
