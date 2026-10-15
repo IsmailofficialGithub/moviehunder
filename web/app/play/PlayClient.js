@@ -73,8 +73,26 @@ function playQuery({ subjectId, detailPath, se, ep, title, poster }) {
   return new URLSearchParams(q).toString();
 }
 
-function extractLanguageTag(titleText, slugText) {
-  const combined = `${titleText || ""} ${slugText || ""}`;
+function getRootTitle(titleText, detailPathText) {
+  let s = String(titleText || "");
+  if (!s || /^\d+$/.test(s.trim())) {
+    s = String(detailPathText || "")
+      .replace(/^.*\/detail\//, "")
+      .replace(/^\/+/, "")
+      .replace(/-[A-Za-z0-9]{8,16}$/, "")
+      .replace(/-/g, " ");
+  }
+  return s
+    .replace(/\[\s*[^\]]*\]|\(\s*[^)]*\)/g, " ")
+    .replace(/\bhindi\b|\bdubbed\b|\bdub\b/gi, " ")
+    .replace(/\bs\d+(?:-s\d+)?\b/gi, " ")
+    .replace(/\bseason\s*\d+\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractLanguageTag(titleText, slugText, badgeText) {
+  const combined = `${titleText || ""} ${slugText || ""} ${badgeText || ""}`;
   const m =
     combined.match(
       /\[\s*(Hindi|English|Telugu|Tamil|Japanese|Spanish|Korean|Chinese|Urdu|Punjabi|French|German|Russian|Arabic|Multi[- ]?Audio)\s*(?:Dub)?\s*\]/i
@@ -84,6 +102,9 @@ function extractLanguageTag(titleText, slugText) {
     ) ||
     combined.match(
       /\b(Hindi|Telugu|Tamil|Japanese|Spanish|Korean|Urdu)\s+(?:Dub|Dubbed)\b/i
+    ) ||
+    combined.match(
+      /\b(Hindi|English|Telugu|Tamil|Japanese|Spanish|Korean|Urdu)\b/i
     );
   if (m) {
     const raw = m[1].toLowerCase().replace(/[- ]/g, " ");
@@ -110,6 +131,11 @@ export default function PlayClient() {
 
   let subjectId = params.get("subjectId") || params.get("id") || "";
   let detailPath = params.get("detail_path") || "";
+  const se = params.get("se") || "0";
+  const ep = params.get("ep") || "0";
+  let title = params.get("title") || "";
+  let poster = params.get("poster") || "";
+  const initialTime = Number(params.get("t") || params.get("start") || params.get("position") || 0);
 
   // Restore cached metadata before defaulting detailPath to subjectId
   if (subjectId && typeof window !== "undefined") {
@@ -127,12 +153,6 @@ export default function PlayClient() {
 
   if (!subjectId && detailPath) subjectId = detailPath;
   if (!detailPath && subjectId) detailPath = subjectId;
-
-  const se = params.get("se") || "0";
-  const ep = params.get("ep") || "0";
-  let title = params.get("title") || "";
-  let poster = params.get("poster") || "";
-  const initialTime = Number(params.get("t") || params.get("start") || params.get("position") || 0);
 
   // Derive human-readable title from detailPath slug if numeric or empty
   if ((!title || /^\d+$/.test(String(title).trim())) && detailPath) {
@@ -215,19 +235,19 @@ export default function PlayClient() {
         }
 
         // Search title to find real slug and alternate CDN dubs (e.g. [Hindi], [English])
-        if (title) {
+        const queryTerm = getRootTitle(title, slugToFetch);
+        if (queryTerm) {
           try {
-            const cleanTitle = title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, "").trim();
-            const searchRes = await searchTitles(cleanTitle || title);
-            const baseClean = (cleanTitle || title).toLowerCase();
+            const searchRes = await searchTitles(queryTerm);
+            const rootClean = queryTerm.toLowerCase();
             const matching = (searchRes?.movies || []).filter((m) => {
-              const mClean = (m.name || "").replace(/\s*\[.*?\]|\s*\(.*?\)/g, "").trim().toLowerCase();
-              return mClean === baseClean || mClean.startsWith(baseClean) || baseClean.startsWith(mClean);
+              const mRoot = getRootTitle(m.name, m.slug).toLowerCase();
+              return mRoot === rootClean || mRoot.includes(rootClean) || rootClean.includes(mRoot);
             });
 
             if (matching.length > 0) {
               const dubs = matching.map((m) => {
-                const lang = extractLanguageTag(m.name, m.slug) || "Original";
+                const lang = extractLanguageTag(m.name, m.slug, m.badge) || "Original";
                 return {
                   label: lang,
                   title: m.name,
@@ -251,7 +271,7 @@ export default function PlayClient() {
                   (m) =>
                     (subjectId && String(m.subject_id) === String(subjectId)) ||
                     (m.name && m.name.toLowerCase() === title.toLowerCase()) ||
-                    (m.slug && m.slug.toLowerCase().includes(baseClean.replace(/\s+/g, "-")))
+                    (m.slug && m.slug.toLowerCase().includes(rootClean.replace(/\s+/g, "-")))
                 ) || searchRes?.movies?.[0];
               if (found?.slug) {
                 const resSlug = String(found.slug).replace(/^\/?detail\//, "").replace(/^\/+/, "");
