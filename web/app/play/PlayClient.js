@@ -15,7 +15,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import StreamPlayer from "../../components/StreamPlayer";
-import { getEpisodes } from "../../lib/api";
+import { getEpisodes, searchTitles } from "../../lib/api";
 import { useAuth } from "../../components/AuthProvider";
 import { addHistoryItem } from "../../lib/guestHistory";
 import { getActiveProfile } from "../../lib/profiles";
@@ -73,6 +73,25 @@ function playQuery({ subjectId, detailPath, se, ep, title, poster }) {
   return new URLSearchParams(q).toString();
 }
 
+function extractLanguageTag(titleText, slugText) {
+  const combined = `${titleText || ""} ${slugText || ""}`;
+  const m =
+    combined.match(
+      /\[\s*(Hindi|English|Telugu|Tamil|Japanese|Spanish|Korean|Chinese|Urdu|Punjabi|French|German|Russian|Arabic|Multi[- ]?Audio)\s*(?:Dub)?\s*\]/i
+    ) ||
+    combined.match(
+      /\(\s*(Hindi|English|Telugu|Tamil|Japanese|Spanish|Korean|Chinese|Urdu|Punjabi|French|German|Russian|Arabic|Multi[- ]?Audio)\s*(?:Dub)?\s*\)/i
+    ) ||
+    combined.match(
+      /\b(Hindi|Telugu|Tamil|Japanese|Spanish|Korean|Urdu)\s+(?:Dub|Dubbed)\b/i
+    );
+  if (m) {
+    const raw = m[1].toLowerCase().replace(/[- ]/g, " ");
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+  return null;
+}
+
 export default function PlayClient() {
   const router = useRouter();
   const params = useSearchParams();
@@ -92,6 +111,20 @@ export default function PlayClient() {
   let subjectId = params.get("subjectId") || params.get("id") || "";
   let detailPath = params.get("detail_path") || "";
 
+  // Restore cached metadata before defaulting detailPath to subjectId
+  if (subjectId && typeof window !== "undefined") {
+    try {
+      const meta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
+      if ((!detailPath || detailPath === subjectId || /^\d+$/.test(detailPath)) && meta.detailPath) {
+        detailPath = meta.detailPath;
+      }
+      if ((!title || /^\d+$/.test(String(title).trim())) && meta.title && !/^\d+$/.test(String(meta.title).trim())) {
+        title = meta.title;
+      }
+      if (!poster && meta.poster) poster = meta.poster;
+    } catch { }
+  }
+
   if (!subjectId && detailPath) subjectId = detailPath;
   if (!detailPath && subjectId) detailPath = subjectId;
 
@@ -100,18 +133,6 @@ export default function PlayClient() {
   let title = params.get("title") || "";
   let poster = params.get("poster") || "";
   const initialTime = Number(params.get("t") || params.get("start") || params.get("position") || 0);
-
-  // Restore cached metadata
-  if (subjectId && typeof window !== "undefined") {
-    try {
-      const meta = JSON.parse(localStorage.getItem(`history_meta_${subjectId}`) || "{}");
-      if (!detailPath && meta.detailPath) detailPath = meta.detailPath;
-      if ((!title || /^\d+$/.test(String(title).trim())) && meta.title && !/^\d+$/.test(String(meta.title).trim())) {
-        title = meta.title;
-      }
-      if (!poster && meta.poster) poster = meta.poster;
-    } catch { }
-  }
 
   // Derive human-readable title from detailPath slug if numeric or empty
   if ((!title || /^\d+$/.test(String(title).trim())) && detailPath) {
@@ -148,10 +169,15 @@ export default function PlayClient() {
     }
   }, [isSignedIn, subjectId, detailPath, title, poster, se, ep]);
 
-  const isSeries = Number(se) > 0 || Number(ep) > 0;
   const [seasons, setSeasons] = useState([]);
+  const isSeries = Number(se) > 0 || Number(ep) > 0 || seasons.length > 0;
   const [activeSeason, setActiveSeason] = useState(String(Number(se) > 0 ? se : "1"));
-  const [selectedAudioLang, setSelectedAudioLang] = useState("Original");
+  const initialLang = useMemo(() => {
+    return extractLanguageTag(title, detailPath) || "Original";
+  }, [title, detailPath]);
+
+  const [selectedAudioLang, setSelectedAudioLang] = useState(initialLang);
+  const [availableDubs, setAvailableDubs] = useState([]);
   const [formatMode, setFormatMode] = useState("dash"); // "dash" | "mp4"
   const [streamMeta, setStreamMeta] = useState(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
@@ -167,27 +193,90 @@ export default function PlayClient() {
   }, [se]);
 
   useEffect(() => {
-    if (!detailPath) {
+    let slugToFetch = String(detailPath || "")
+      .replace(/^\/?detail\//, "")
+      .replace(/^\/+/, "")
+      .trim();
+
+    if (!slugToFetch && !subjectId && !title) {
       setSeasons([]);
       return;
     }
+
     let cancelled = false;
-    getEpisodes(detailPath)
-      .then((data) => {
+
+    async function loadEpisodes() {
+      try {
+        let epData = null;
+        if (slugToFetch && !/^\d+$/.test(slugToFetch)) {
+          try {
+            epData = await getEpisodes(slugToFetch);
+          } catch {}
+        }
+
+        // Search title to find real slug and alternate CDN dubs (e.g. [Hindi], [English])
+        if (title) {
+          try {
+            const cleanTitle = title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, "").trim();
+            const searchRes = await searchTitles(cleanTitle || title);
+            const baseClean = (cleanTitle || title).toLowerCase();
+            const matching = (searchRes?.movies || []).filter((m) => {
+              const mClean = (m.name || "").replace(/\s*\[.*?\]|\s*\(.*?\)/g, "").trim().toLowerCase();
+              return mClean === baseClean || mClean.startsWith(baseClean) || baseClean.startsWith(mClean);
+            });
+
+            if (matching.length > 0) {
+              const dubs = matching.map((m) => {
+                const lang = extractLanguageTag(m.name, m.slug) || "Original";
+                return {
+                  label: lang,
+                  title: m.name,
+                  slug: String(m.slug || "").replace(/^\/?detail\//, "").replace(/^\/+/, ""),
+                  subjectId: m.subject_id ? String(m.subject_id) : "",
+                  poster: m.poster_url || "",
+                };
+              });
+              const seenL = new Set();
+              const uniqueDubs = dubs.filter((d) => {
+                if (seenL.has(d.label)) return false;
+                seenL.add(d.label);
+                return true;
+              });
+              if (!cancelled) setAvailableDubs(uniqueDubs);
+            }
+
+            if (!epData?.seasons || epData.seasons.length === 0) {
+              const found =
+                matching.find(
+                  (m) =>
+                    (subjectId && String(m.subject_id) === String(subjectId)) ||
+                    (m.name && m.name.toLowerCase() === title.toLowerCase()) ||
+                    (m.slug && m.slug.toLowerCase().includes(baseClean.replace(/\s+/g, "-")))
+                ) || searchRes?.movies?.[0];
+              if (found?.slug) {
+                const resSlug = String(found.slug).replace(/^\/?detail\//, "").replace(/^\/+/, "");
+                epData = await getEpisodes(resSlug);
+              }
+            }
+          } catch {}
+        }
+
         if (cancelled) return;
-        const normalized = normalizeSeasons(data?.seasons || []);
+        const normalized = normalizeSeasons(epData?.seasons || []);
         setSeasons(normalized);
         if (normalized.length > 0 && Number(se) <= 0) {
           setActiveSeason(String(normalized[0].season));
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setSeasons([]);
-      });
+      }
+    }
+
+    loadEpisodes();
     return () => {
       cancelled = true;
     };
-  }, [detailPath, se]);
+  }, [detailPath, subjectId, title, se]);
 
   const flatEpisodeList = useMemo(() => flattenEpisodes(seasons), [seasons]);
 
@@ -246,8 +335,10 @@ export default function PlayClient() {
     const s = seasons.find((item) => String(item.season) === String(activeSeason));
     if (s?.episodes?.length) return s.episodes;
     if (isSeries && seasons.length === 0) {
-      // Fallback single season 1..10
-      return Array.from({ length: Math.max(Number(ep) || 4, 4) }, (_, i) => ({
+      // Fallback single season
+      const cur = Number(ep) || 1;
+      const count = Math.max(cur + 5, 24);
+      return Array.from({ length: count }, (_, i) => ({
         se: String(activeSeason || "1"),
         ep: String(i + 1),
       }));
@@ -257,6 +348,60 @@ export default function PlayClient() {
 
   const toggleFormat = () => {
     setFormatMode((prev) => (prev === "dash" ? "mp4" : "dash"));
+  };
+
+  const currentLanguageTag = useMemo(() => {
+    return extractLanguageTag(title, detailPath) || selectedAudioLang || "Original";
+  }, [title, detailPath, selectedAudioLang]);
+
+  const combinedAudioOptions = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    // 1. Add CDN dub variants
+    for (const d of availableDubs) {
+      if (!seen.has(d.label)) {
+        seen.add(d.label);
+        list.push({ id: `dub_${d.label}`, label: d.label, isDub: true, dub: d });
+      }
+    }
+
+    // 2. Add machine audio tracks if available
+    for (const t of availableAudioLanguages) {
+      const lbl = t.label || t.language;
+      if (!seen.has(lbl)) {
+        seen.add(lbl);
+        list.push({ id: String(t.id), label: lbl, isDub: false, track: t });
+      }
+    }
+
+    // 3. Ensure currentLanguageTag is present
+    if (currentLanguageTag && !seen.has(currentLanguageTag)) {
+      list.unshift({ id: `cur_${currentLanguageTag}`, label: currentLanguageTag, isDub: false });
+    }
+
+    return list;
+  }, [availableDubs, availableAudioLanguages, currentLanguageTag]);
+
+  const handleAudioSelect = (val) => {
+    setSelectedAudioLang(val);
+    const targetDub = availableDubs.find((d) => d.label === val);
+    if (targetDub) {
+      const targetSlug = targetDub.slug;
+      const targetSub = targetDub.subjectId;
+      if ((targetSlug && targetSlug !== detailPath) || (targetSub && targetSub !== subjectId)) {
+        router.push(
+          `/play?${playQuery({
+            subjectId: targetSub || subjectId,
+            detailPath: targetSlug || detailPath,
+            se,
+            ep,
+            title: targetDub.title || title,
+            poster: targetDub.poster || poster,
+          })}`
+        );
+      }
+    }
   };
 
   const handleReportSubmit = (e) => {
@@ -296,10 +441,18 @@ export default function PlayClient() {
 
           {isSignedIn ? (
             <Link href="/profiles" className={styles.userBtn}>
-              {activeProfile?.avatar
-                ? <img src={activeProfile.avatar} alt={activeProfile.name || "Profile"} className={styles.profileAvatar} />
-                : <User size={14} />}
-              <span>{activeProfile?.name || "Profile"}</span>
+              <div className={styles.profileAvatarWrap}>
+                {activeProfile?.avatar ? (
+                  <img
+                    src={activeProfile.avatar}
+                    alt={activeProfile.name || "Profile"}
+                    className={styles.profileAvatar}
+                  />
+                ) : (
+                  <User size={13} className={styles.profileAvatarFallback} />
+                )}
+              </div>
+              <span className={styles.profileName}>{activeProfile?.name || "Profile"}</span>
             </Link>
           ) : (
             <Link href="/login" className={styles.loginBtn}>
@@ -339,7 +492,16 @@ export default function PlayClient() {
                 qualityIndex={selectedQuality}
                 onQualityChange={(q) => setSelectedQuality(q)}
                 audioLanguage={selectedAudioLang}
-                onAvailableAudioLanguages={(langs) => setAvailableAudioLanguages(langs)}
+                onAvailableAudioLanguages={(langs) => {
+                  const list = Array.isArray(langs) ? langs : [];
+                  setAvailableAudioLanguages(list);
+                  if (list.length > 0) {
+                    const active = list.find((l) => l.enabled) || list[0];
+                    if (active && (!selectedAudioLang || selectedAudioLang === "Original")) {
+                      setSelectedAudioLang(active.label || active.language);
+                    }
+                  }
+                }}
               />
             </div>
 
@@ -359,40 +521,89 @@ export default function PlayClient() {
             </div>
           </div>
 
-          {/* Right: Sidebar Controls (Format & Resources) */}
+          {/* Right: Sidebar Controls (Episodes & Stream Quality) */}
           <aside className={styles.sidebar}>
-            {/* Format Card */}
+            {/* Episodes Card for TV series */}
+            {isSeries && (
+              <div className={styles.panelCard}>
+                <div className={styles.panelHeaderRow}>
+                  <div className={styles.panelTitleWithCount}>
+                    <span className={styles.panelTitle}>Episodes</span>
+                    {currentSeasonEpisodes.length > 0 && (
+                      <span className={styles.countBadge}>
+                        {currentSeasonEpisodes.length} eps
+                      </span>
+                    )}
+                  </div>
+
+                  {seasons.length > 0 && (
+                    <div className={styles.seasonSelectWrap}>
+                      <select
+                        className={styles.seasonSelect}
+                        value={activeSeason}
+                        onChange={(e) => {
+                          const newSe = e.target.value;
+                          setActiveSeason(newSe);
+                          const targetSeason = seasons.find((s) => String(s.season) === String(newSe));
+                          if (targetSeason?.episodes?.[0]) {
+                            goTo(targetSeason.episodes[0]);
+                          }
+                        }}
+                      >
+                        {seasons.map((s) => (
+                          <option key={s.season} value={String(s.season)}>
+                            Season {String(s.season).padStart(2, "0")}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={13} className={styles.seasonChevron} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Episode Grid */}
+                {currentSeasonEpisodes.length > 0 ? (
+                  <div className={styles.episodeGrid}>
+                    {currentSeasonEpisodes.map((item) => {
+                      const isPlaying = String(item.se) === String(se) && String(item.ep) === String(ep);
+                      return (
+                        <button
+                          key={`${item.se}-${item.ep}`}
+                          type="button"
+                          className={`${styles.episodeBtn} ${isPlaying ? styles.episodeBtnPlaying : ""}`}
+                          onClick={() => goTo(item)}
+                          title={`Season ${item.se} Episode ${item.ep}`}
+                        >
+                          {isPlaying ? (
+                            <span className={styles.equalizerIcon}>
+                              <span className={styles.eqBar1}></span>
+                              <span className={styles.eqBar2}></span>
+                              <span className={styles.eqBar3}></span>
+                            </span>
+                          ) : (
+                            String(item.ep).padStart(2, "0")
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={styles.singleMovieInfo}>
+                    <p>Loading episodes...</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Stream Quality & Format Card */}
             <div className={styles.panelCard}>
               <div className={styles.panelHeaderRow}>
-                <span className={styles.panelTitle}>Format</span>
-                <button
-                  type="button"
-                  className={styles.switchBtn}
-                  onClick={toggleFormat}
-                >
-                  Switch
-                </button>
-              </div>
-              <div className={styles.panelSubtitle}>
-                {formatMode === "dash"
-                  ? "High efficiency (DASH/H.265)"
-                  : "Standard compatibility (H.264/MP4)"}
-              </div>
-            </div>
-
-            {/* Sources Card */}
-            <div className={styles.panelCard}>
-              <div className={styles.panelHeaderRow}>
-                <span className={styles.panelTitle}>Sources</span>
-                <span className={styles.sourcePill}>
-                  {streamMeta?.host ? streamMeta.host : "CDN"}
-                </span>
+                <span className={styles.panelTitle}>Stream Quality</span>
               </div>
 
-              {/* Real Stream Qualities */}
-              {streamMeta?.sources?.length > 0 && (
+              {/* Stream Qualities */}
+              {streamMeta?.sources?.length > 0 ? (
                 <div className={styles.streamSourcesList}>
-                  <div className={styles.streamSourcesLabel}>Select Quality</div>
                   <div className={styles.streamSourcesGrid}>
                     {streamMeta.sources.map((s, idx) => {
                       const isSelected = selectedQuality === idx;
@@ -413,85 +624,54 @@ export default function PlayClient() {
                     })}
                   </div>
                 </div>
+              ) : (
+                <div className={styles.streamAutoStatus}>
+                  <span>Optimal Stream Active</span>
+                </div>
               )}
 
-              {/* Selectors Row */}
-              <div className={styles.selectRow}>
-                {/* Audio / Language selector - only shown if multiple tracks exist */}
-                {availableAudioLanguages.length > 1 && (
+              {/* Audio / Language selector based on CDN tags & tracks */}
+              <div className={styles.settingRow}>
+                <span className={styles.settingLabel}>Audio Track</span>
+                {combinedAudioOptions.length > 1 ? (
                   <div className={styles.selectWrapper}>
                     <select
                       className={styles.customSelect}
                       value={selectedAudioLang}
-                      onChange={(e) => setSelectedAudioLang(e.target.value)}
+                      onChange={(e) => handleAudioSelect(e.target.value)}
                     >
-                      {availableAudioLanguages.map((t) => (
-                        <option key={t.id} value={t.label || t.language}>
-                          {t.label || t.language}
+                      {combinedAudioOptions.map((t) => (
+                        <option key={t.id} value={t.label}>
+                          {t.label}
                         </option>
                       ))}
                     </select>
                     <ChevronDown size={14} className={styles.selectChevron} />
                   </div>
-                )}
-
-                {/* Season selector (shows if series or multiple seasons) */}
-                {seasons.length > 0 && (
-                  <div className={styles.selectWrapper}>
-                    <select
-                      className={styles.customSelect}
-                      value={activeSeason}
-                      onChange={(e) => {
-                        const newSe = e.target.value;
-                        setActiveSeason(newSe);
-                        const targetSeason = seasons.find((s) => String(s.season) === String(newSe));
-                        if (targetSeason?.episodes?.[0]) {
-                          goTo(targetSeason.episodes[0]);
-                        }
-                      }}
-                    >
-                      {seasons.map((s) => (
-                        <option key={s.season} value={String(s.season)}>
-                          Season {String(s.season).padStart(2, "0")}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className={styles.selectChevron} />
+                ) : (
+                  <div className={styles.audioPill}>
+                    <span className={styles.audioPillDot}></span>
+                    <span>{currentLanguageTag}</span>
                   </div>
                 )}
               </div>
 
-              {/* Episode Number Grid */}
-              {currentSeasonEpisodes.length > 0 ? (
-                <div className={styles.episodeGrid}>
-                  {currentSeasonEpisodes.map((item) => {
-                    const isPlaying = String(item.se) === String(se) && String(item.ep) === String(ep);
-                    return (
-                      <button
-                        key={`${item.se}-${item.ep}`}
-                        type="button"
-                        className={`${styles.episodeBtn} ${isPlaying ? styles.episodeBtnPlaying : ""}`}
-                        onClick={() => goTo(item)}
-                        title={`Season ${item.se} Episode ${item.ep}`}
-                      >
-                        {isPlaying ? (
-                          <span className={styles.equalizerIcon}>
-                            <span className={styles.eqBar1}></span>
-                            <span className={styles.eqBar2}></span>
-                            <span className={styles.eqBar3}></span>
-                          </span>
-                        ) : (
-                          String(item.ep).padStart(2, "0")
-                        )}
-                      </button>
-                    );
-                  })}
+              {/* Stream Format Row */}
+              <div className={styles.formatRow}>
+                <div className={styles.formatInfo}>
+                  <span className={styles.settingLabel}>Format</span>
+                  <span className={styles.formatDesc}>
+                    {formatMode === "dash" ? "High efficiency (DASH)" : "Standard (H.264)"}
+                  </span>
                 </div>
-              ) : (
-                <div className={styles.singleMovieInfo}>
-                  <p>Full length feature stream ready</p>
-                </div>
-              )}
+                <button
+                  type="button"
+                  className={styles.switchBtn}
+                  onClick={toggleFormat}
+                >
+                  Switch
+                </button>
+              </div>
             </div>
           </aside>
         </div>

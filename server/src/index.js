@@ -1343,11 +1343,12 @@ async function handleDetail(slug) {
 // ══════════════════════════════════════════════════════════════════
 
 async function handleEpisodes(slug) {
+  const cleanSlug = String(slug || "").replace(/^\/?detail\//, "").replace(/^\/+/, "").trim();
   let nuxt;
   let lastErr;
   for (const host of cfg().SITE_HOSTS) {
     try {
-      nuxt = await fetchNuxtData(`${host}/detail/${slug}`);
+      nuxt = await fetchNuxtData(`${host}/detail/${cleanSlug}`);
       break;
     } catch (err) {
       lastErr = err;

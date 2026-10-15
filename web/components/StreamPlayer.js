@@ -83,6 +83,61 @@ const SUB_LANGUAGES = [
   { id: "all", label: "ALL" },
 ];
 
+const ISO_LANG_MAP = {
+  hi: "Hindi", hin: "Hindi",
+  en: "English", eng: "English",
+  te: "Telugu", tel: "Telugu",
+  ta: "Tamil", tam: "Tamil",
+  ur: "Urdu", urd: "Urdu",
+  es: "Spanish", spa: "Spanish",
+  ja: "Japanese", jpn: "Japanese",
+  fr: "French", fra: "French", fre: "French",
+  de: "German", deu: "German", ger: "German",
+  ko: "Korean", kor: "Korean",
+  zh: "Chinese", zho: "Chinese", chi: "Chinese",
+  ar: "Arabic", ara: "Arabic",
+  ru: "Russian", rus: "Russian",
+  pt: "Portuguese", por: "Portuguese",
+  it: "Italian", ita: "Italian",
+  bn: "Bengali", ben: "Bengali",
+  mr: "Marathi", mar: "Marathi",
+  ml: "Malayalam", mal: "Malayalam",
+  kn: "Kannada", kan: "Kannada",
+  pa: "Punjabi", pan: "Punjabi",
+  tr: "Turkish", tur: "Turkish",
+};
+
+function normalizeLangLabel(lang, label, idx) {
+  const code = String(lang || "").trim().toLowerCase();
+  const rawLbl = String(label || "").trim();
+  const mapped = ISO_LANG_MAP[code];
+  if (mapped && (!rawLbl || rawLbl.toLowerCase().startsWith("track"))) {
+    return mapped;
+  }
+  if (rawLbl) return rawLbl;
+  if (mapped) return mapped;
+  if (code) return code.toUpperCase();
+  return `Track ${idx + 1}`;
+}
+
+function isTrackLanguageMatch(track, targetLanguage) {
+  if (!track || !targetLanguage) return false;
+  const target = String(targetLanguage).trim().toLowerCase();
+  const lang = String(track.language || "").trim().toLowerCase();
+  const label = String(track.label || "").trim().toLowerCase();
+  const mapped = (ISO_LANG_MAP[lang] || "").toLowerCase();
+
+  if (String(track.id).toLowerCase() === target) return true;
+  if (label === target || lang === target || mapped === target) return true;
+  if (target === "original" || target === "default") return false;
+
+  if (label && (label.includes(target) || target.includes(label))) return true;
+  if (mapped && (mapped.includes(target) || target.includes(mapped))) return true;
+  if (lang && (target.includes(lang) || lang.includes(target))) return true;
+
+  return false;
+}
+
 const FONT_SIZES = [
   { id: "sm", label: "Small", size: 14 },
   { id: "md", label: "Normal", size: 18 },
@@ -1036,32 +1091,47 @@ export default function StreamPlayer({
         // ignore
       }
       // If browser supports audioTracks (Safari / Chrome flags / HLS)
-      if (video.audioTracks && video.audioTracks.length > 0) {
+      const syncAudioTracks = () => {
+        if (!video.audioTracks || video.audioTracks.length === 0) return;
         const available = [];
         for (let i = 0; i < video.audioTracks.length; i++) {
           const t = video.audioTracks[i];
-          available.push({ id: t.id || i, label: t.label || t.language || `Track ${i + 1}`, language: t.language });
+          const displayLabel = normalizeLangLabel(t.language, t.label, i);
+          available.push({
+            id: String(t.id ?? i),
+            label: displayLabel,
+            language: t.language || "",
+            enabled: !!t.enabled,
+          });
         }
         if (typeof onAvailableAudioLanguages === "function") {
           onAvailableAudioLanguages(available);
         }
-        // Match chosen language
-        const target = String(audioLanguage || "").toLowerCase();
-        let matched = false;
-        for (let i = 0; i < video.audioTracks.length; i++) {
-          const t = video.audioTracks[i];
-          const l = (t.language || "").toLowerCase();
-          const lbl = (t.label || "").toLowerCase();
-          if (l.includes(target) || lbl.includes(target)) {
-            t.enabled = true;
-            matched = true;
-          } else {
-            t.enabled = false;
+
+        if (audioLanguage) {
+          let matched = false;
+          for (let i = 0; i < video.audioTracks.length; i++) {
+            const t = video.audioTracks[i];
+            if (isTrackLanguageMatch(t, audioLanguage)) {
+              t.enabled = true;
+              matched = true;
+            } else {
+              t.enabled = false;
+            }
+          }
+          if (!matched && (audioLanguage === "Original" || !video.audioTracks.some((x) => x.enabled))) {
+            if (video.audioTracks[0]) video.audioTracks[0].enabled = true;
           }
         }
-        if (!matched && video.audioTracks[0]) {
-          video.audioTracks[0].enabled = true;
-        }
+      };
+
+      if (video.audioTracks && video.audioTracks.length > 0) {
+        syncAudioTracks();
+      }
+      if (video.audioTracks) {
+        video.audioTracks.addEventListener?.("addtrack", syncAudioTracks);
+        video.audioTracks.addEventListener?.("removetrack", syncAudioTracks);
+        video.audioTracks.addEventListener?.("change", syncAudioTracks);
       }
       video.play().catch(() => {});
     };
@@ -1104,6 +1174,11 @@ export default function StreamPlayer({
       video.removeEventListener("loadeddata", onReady);
       video.removeEventListener("loadedmetadata", onReady);
       video.removeEventListener("error", onVideoError);
+      if (video.audioTracks) {
+        video.audioTracks.removeEventListener?.("addtrack", syncAudioTracks);
+        video.audioTracks.removeEventListener?.("removetrack", syncAudioTracks);
+        video.audioTracks.removeEventListener?.("change", syncAudioTracks);
+      }
       clearTimeout(videoRetryTimer.current);
       try {
         video.pause();
@@ -1112,6 +1187,25 @@ export default function StreamPlayer({
       } catch {}
     };
   }, [mounted, src]);
+
+  // Reactively switch audio track when audioLanguage prop changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !video.audioTracks || video.audioTracks.length <= 1 || !audioLanguage) return;
+    let matched = false;
+    for (let i = 0; i < video.audioTracks.length; i++) {
+      const t = video.audioTracks[i];
+      if (isTrackLanguageMatch(t, audioLanguage)) {
+        t.enabled = true;
+        matched = true;
+      } else {
+        t.enabled = false;
+      }
+    }
+    if (!matched && audioLanguage === "Original" && video.audioTracks[0]) {
+      video.audioTracks[0].enabled = true;
+    }
+  }, [audioLanguage]);
 
   // Tie subtitle lines to video.currentTime (+ sync offset)
   useEffect(() => {
