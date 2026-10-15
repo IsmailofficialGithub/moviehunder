@@ -5,7 +5,7 @@ import BannerAd468x60 from "../components/ads/BannerAd468x60";
 import NativeBannerAd from "../components/ads/NativeBannerAd";
 import HomeSeoSection from "../components/HomeSeoSection";
 
-export const revalidate = 300;
+export const revalidate = 3600;
 
 export const metadata = {
   title: "Watch Free Movies and TV Shows Online | Offstream",

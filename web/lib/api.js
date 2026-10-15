@@ -21,25 +21,25 @@ async function api(path, { signal, next, cache } = {}) {
   return res.json();
 }
 
-// Enable 300-second (5 min) revalidation for catalog endpoints
+// Enable 3600-second (1 hour) revalidation for catalog endpoints to minimize ISR writes
 export function getHome() {
-  return api("/home", { next: { revalidate: 300 } });
+  return api("/home", { next: { revalidate: 3600 } });
 }
 
 export function getMovies() {
-  return api("/movies", { next: { revalidate: 300 } });
+  return api("/movies", { next: { revalidate: 3600 } });
 }
 
 export function getTvSeries() {
-  return api("/tv-series", { next: { revalidate: 300 } });
+  return api("/tv-series", { next: { revalidate: 3600 } });
 }
 
 export function getAnimation() {
-  return api("/animation", { next: { revalidate: 300 } });
+  return api("/animation", { next: { revalidate: 3600 } });
 }
 
 export function getRanking() {
-  return api("/ranking", { next: { revalidate: 300 } });
+  return api("/ranking", { next: { revalidate: 3600 } });
 }
 
 export function searchTitles(q) {

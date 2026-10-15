@@ -176,7 +176,11 @@ export async function GET(request) {
       serverCache.set(`${detailPath}_${se}_${ep}`, { payload, ts: Date.now() });
     }
 
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, {
+      headers: {
+        "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600",
+      },
+    });
   } catch (err) {
     console.error("[api/stream/resolve] error:", err);
     return NextResponse.json(

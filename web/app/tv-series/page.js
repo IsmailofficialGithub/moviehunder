@@ -2,7 +2,7 @@ import CategoryView from "../../components/CategoryView";
 import { getTvSeries } from "../../lib/api";
 import { friendlyPageError } from "../../lib/errors";
 
-export const revalidate = 300;
+export const revalidate = 3600;
 
 export const metadata = {
   title: "Watch Free TV Shows Online — Stream TV Series Free | Offstream",
