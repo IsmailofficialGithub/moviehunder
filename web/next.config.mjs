@@ -49,14 +49,6 @@ const nextConfig = {
         destination: `${backend}/api/profiles/:path*`,
       },
       {
-        source: "/api/watchlist/:path*",
-        destination: `${backend}/api/watchlist/:path*`,
-      },
-      {
-        source: "/api/watchlist",
-        destination: `${backend}/api/watchlist`,
-      },
-      {
         source: "/detail/:slug*",
         destination: "/title/:slug*",
       },

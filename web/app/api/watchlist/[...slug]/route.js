@@ -11,12 +11,16 @@ export async function DELETE(request, { params }) {
     const slugParts = resolvedParams?.slug || [];
     const subPath = Array.isArray(slugParts) ? slugParts.join("/") : slugParts;
 
+    const appKey = String(process.env.APP_CLIENT_KEY || "").trim();
+    const headers = {
+      Accept: "application/json",
+      ...(auth ? { Authorization: auth } : {}),
+      ...(appKey ? { "X-App-Key": appKey } : {}),
+    };
+
     const res = await fetch(`${BACKEND}/api/watchlist/${subPath}`, {
       method: "DELETE",
-      headers: {
-        Authorization: auth,
-        Accept: "application/json",
-      },
+      headers,
       signal: AbortSignal.timeout(4000),
     });
 
