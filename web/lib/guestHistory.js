@@ -9,8 +9,8 @@ localforage.config({
 });
 
 // A static key for client-side obfuscation. 
-// Key is securely injected via environment variables, not hardcoded in source.
-const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_GUEST_ENCRYPTION_KEY;
+// Key can be injected via environment variables or falls back to a default client obfuscation key.
+const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_GUEST_ENCRYPTION_KEY || 'movies_hunder_guest_history_key';
 const HISTORY_KEY = 'encrypted_history_queue';
 
 /**
@@ -34,6 +34,7 @@ function decryptData(cipherText) {
   try {
     const bytes = CryptoJS.AES.decrypt(cipherText, ENCRYPTION_KEY);
     const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+    if (!decryptedStr) return [];
     return JSON.parse(decryptedStr);
   } catch (error) {
     console.error('Failed to decrypt history data', error);

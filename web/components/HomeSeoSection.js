@@ -8,7 +8,7 @@ import styles from "./HomeSeoSection.module.css";
 const FAQS = [
   {
     q: "Where can I watch free movies and TV shows online?",
-    a: "You can watch free movies and TV shows online right here on Offstream (offstream.co). We offer a massive catalog of full movies, episodic television series, anime, and dramas available to stream in HD without registration or subscription fees.",
+    a: "You can watch free movies and TV shows online right here on Offstream - offstream.co. We offer a massive catalog of full movies, episodic television series, anime, and dramas available to stream in HD without registration or subscription fees.",
   },
   {
     q: "How can I stream free full movies online without paying?",
@@ -57,7 +57,7 @@ export default function HomeSeoSection() {
 
       <div className={styles.header}>
         <h1 className={styles.mainTitle}>
-          Watch Free Movies and TV Shows Online | Offstream
+          Offstream — Watch Free Movies and TV Shows Online
         </h1>
         <p className={styles.introText}>
           Welcome to <strong>Offstream</strong> (offstream.co) — one of the top free online movie streaming sites in 2026. Discover thousands of free movies to stream, watch free full movies online, and stream trending TV shows in ultra HD with zero subscription fees. Whether you want to watch free movies online, explore fresh movies to watch online for free, or enjoy Hollywood, Bollywood, and Hindi dubbed releases, Offstream delivers an uninterrupted streaming experience.

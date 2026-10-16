@@ -6,19 +6,23 @@
     "dev": "next dev --turbopack --port 3001",
     "build": "next build",
     "start": "next start --port 3001",
-    "lint": "eslint"
+    "lint": "eslint",
+    "graphify:update": "graphify update ..",
+    "graphify:query": "graphify query"
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.3.7",
     "@vercel/speed-insights": "^2.0.0",
     "crypto-js": "^4.2.0",
+    "hls.js": "^1.7.3",
     "jszip": "^3.10.1",
     "localforage": "^1.10.0",
     "lucide-react": "^1.41.0",
     "media-chrome": "^4.19.2",
     "next": "15.5.23",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "undici": "^8.12.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

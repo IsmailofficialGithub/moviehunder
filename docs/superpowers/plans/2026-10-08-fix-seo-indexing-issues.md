@@ -75,7 +75,7 @@
 - [ ] **Step 2: Add `noindex` to `web/app/play/page.js`**
   Update metadata in `web/app/play/page.js` to include `robots: { index: false, follow: false }`.
 - [ ] **Step 3: Create `web/app/support/layout.js` & fix placeholder support email**
-  Export metadata in `web/app/support/layout.js` with `alternates: { canonical: "https://offstream.co/support" }` and title "Support · Offstream". In `support/page.js` and `terms/page.js`, replace placeholder `support@moviehunter.example.com` with `support@offstream.co`.
+  Export metadata in `web/app/support/layout.js` with `alternates: { canonical: "https://offstream.co/support" }` and title "Support · Offstream". In `support/page.js` and `terms/page.js`, replace placeholder `mail@ismailabbasi.qzz.io` with `support@offstream.co`.
 
 ---
 

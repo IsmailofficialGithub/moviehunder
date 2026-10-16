@@ -59,3 +59,40 @@ export function alreadyHasHindiResults(movies) {
       /hindi/i.test(String(m?.badge || ""))
   );
 }
+
+export function synthesizeHindiFallback(primaryList, isHindiQuery = false) {
+  if (!Array.isArray(primaryList) || !primaryList.length) return primaryList;
+  const list = [...primaryList];
+  if (alreadyHasHindiResults(list)) return list;
+
+  const topMatch =
+    list.find((m) => m?.slug && (m.subject_type === 1 || m.subject_type === 2)) ||
+    list.find((m) => m?.slug) ||
+    list[0];
+
+  if (!topMatch || !topMatch.slug) return list;
+
+  const cleanName = String(topMatch.name || "")
+    .replace(/\[\s*[^\]]*\]|\(\s*[^)]*\)/g, "")
+    .replace(/\bs\d+(?:-s\d+)?\b/gi, "")
+    .trim();
+
+  const hindiItem = {
+    ...topMatch,
+    name: `${cleanName} [Hindi Dub]`,
+    badge: "Hindi",
+    dub_lang: "hi",
+    server: "2",
+    slug: topMatch.slug,
+    url: `/title/${encodeURIComponent(topMatch.slug)}?lang=Hindi&server=2`,
+  };
+
+  if (isHindiQuery) {
+    list.unshift(hindiItem);
+  } else {
+    const idx = list.indexOf(topMatch);
+    list.splice(idx + 1, 0, hindiItem);
+  }
+  return list;
+}
+

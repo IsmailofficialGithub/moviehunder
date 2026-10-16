@@ -757,6 +757,18 @@ export default function SiteHeader() {
                     </Link>
 
                     <Link
+                      href="/watchlist"
+                      className={`${styles.dropdownItem} ${pathname.startsWith("/watchlist") ? styles.dropdownItemActive : ""}`}
+                      onClick={() => setProfileMenuOpen(false)}
+                      role="menuitem"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" className={styles.dropdownItemIcon} aria-hidden>
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>Watchlist</span>
+                    </Link>
+
+                    <Link
                       href="/history"
                       className={`${styles.dropdownItem} ${pathname.startsWith("/history") ? styles.dropdownItemActive : ""}`}
                       onClick={() => setProfileMenuOpen(false)}

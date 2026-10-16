@@ -44,13 +44,6 @@ export const DEFAULT_CATEGORIES = [
     priority: "0.85",
     changeFreq: "Daily",
   },
-  {
-    title: "Live Search & Discovery",
-    path: "/search",
-    description: "Instant title search with smart suggestion indexing across the full catalog.",
-    priority: "0.7",
-    changeFreq: "Weekly",
-  },
 ];
 
 export const DEFAULT_GENRES = [

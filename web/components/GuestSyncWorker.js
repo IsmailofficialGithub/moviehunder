@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useAuth } from "../components/AuthProvider";
 import { syncGuestHistoryToServer } from "../lib/guestHistory";
+import { fetchRemoteWatchlist, mergeGuestWatchlistToServer } from "../lib/watchlist";
 
 export default function GuestSyncWorker() {
   const { isSignedIn } = useAuth();
@@ -10,11 +11,30 @@ export default function GuestSyncWorker() {
   useEffect(() => {
     if (!isSignedIn) return;
 
-    // Periodically attempt to sync any remaining guest history to the server
-    // This is useful in case the initial hydration sync failed (e.g., offline)
+    // 1. Initial sync on login / app start
+    mergeGuestWatchlistToServer().catch(() => {});
+    fetchRemoteWatchlist().catch(() => {});
+    syncGuestHistoryToServer().catch(() => {});
+
+    // 2. Periodic background sync (every 60s) for multi-device sync
     const interval = setInterval(() => {
       syncGuestHistoryToServer().catch(() => {});
+      fetchRemoteWatchlist().catch(() => {});
     }, 60000);
+
+    // 3. Tab focus / visibility change sync
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchRemoteWatchlist().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    // 4. Profile change sync
+    const onProfileChange = () => {
+      fetchRemoteWatchlist().catch(() => {});
+    };
+    window.addEventListener("mh:profile:change", onProfileChange);
 
     const handleBeforeUnload = () => {
       syncGuestHistoryToServer().catch(() => {});
@@ -24,6 +44,8 @@ export default function GuestSyncWorker() {
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("mh:profile:change", onProfileChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [isSignedIn]);

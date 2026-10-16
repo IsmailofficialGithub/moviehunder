@@ -67,6 +67,12 @@
   display: none;
 }
 
+@media (max-width: 768px) {
+  .topbarPlay {
+    display: none !important;
+  }
+}
+
 .nav {
   display: flex;
   align-items: center;

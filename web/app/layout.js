@@ -8,16 +8,9 @@ import GlobalAds from "../components/ads/GlobalAds";
 import { AuthProvider } from "../components/AuthProvider";
 import GuestSyncWorker from "../components/GuestSyncWorker";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Inter } from "next/font/google";
 import NavigationProgressBar from "../components/NavigationProgressBar";
 import { HoverPreviewProvider } from "../components/HoverPreview";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://offstream.co";
 const gaId = process.env.NEXT_PUBLIC_GA_ID || "G-Z38RNJP55E";
@@ -29,7 +22,7 @@ export const metadata = {
     template: "%s · Offstream",
   },
   description:
-    "Watch free movies and TV shows online on Offstream (offstream.co). Stream thousands of free full movies, Hollywood blockbusters, Bollywood cinema, Hindi dubbed releases, and TV series in HD with zero ads.",
+    "Watch free movies and TV shows online on Offstream - offstream.co. Stream thousands of free full movies, Hollywood blockbusters, Bollywood cinema, Hindi dubbed releases, and TV series in HD with zero ads.",
   keywords: [
     "Watch Free Movies and TV Shows Online",
     "Watch Free Movies Online",
@@ -74,7 +67,7 @@ export const metadata = {
     siteName: "Offstream",
     title: "Offstream — Watch Free Movies & TV Series Online",
     description:
-      "Stream Hollywood, Bollywood, Hindi dubbed movies & TV series online for free in HD on Offstream (offstream.co).",
+      "Stream Hollywood, Bollywood, Hindi dubbed movies & TV series online for free in HD on Offstream - offstream.co.",
     images: [
       {
         url: "/brand/logo-full.png",
@@ -88,7 +81,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "Offstream — Watch Free Movies & TV Series Online",
     description:
-      "Watch Hollywood, Bollywood, and Hindi dubbed movies & TV series free with no ads on Offstream (offstream.co).",
+      "Watch Hollywood, Bollywood, and Hindi dubbed movies & TV series free with no ads on Offstream - offstream.co.",
     images: ["/brand/logo-full.png"],
   },
   verification: {
@@ -132,7 +125,7 @@ const jsonLd = {
       name: "Offstream",
       alternateName: ["offstream.co", "Offstream Movies", "Movies Hunder", "MovieHunter", "OffStream"],
       description:
-        "Watch free movies and series online on Offstream (offstream.co). Stream Hollywood, Bollywood, Hindi dubbed movies, and TV shows ads-free.",
+        "Watch free movies and series online on Offstream - offstream.co. Stream Hollywood, Bollywood, Hindi dubbed movies, and TV shows ads-free.",
       potentialAction: {
         "@type": "SearchAction",
         target: {
@@ -207,7 +200,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en">
       <head>
         <script
           type="application/ld+json"

@@ -28,7 +28,7 @@ export default function SiteFooter() {
               <span className={styles.brandName}>Offstream</span>
             </div>
             <p className={styles.brandDesc}>
-              Watch free movies and TV series online on Offstream (offstream.co). Stream Hollywood, Bollywood, Hindi dubbed movies, and top series with no ads.
+              Watch free movies and TV series online on Offstream - offstream.co. Stream Hollywood, Bollywood, Hindi dubbed movies, and top series with no ads.
             </p>
           </div>
 
@@ -70,7 +70,7 @@ export default function SiteFooter() {
         </div>
 
         <div className={styles.bottomSection}>
-          <span>&copy; {new Date().getFullYear()} Offstream (offstream.co). All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} Offstream - offstream.co. All rights reserved.</span>
           <div className={styles.bottomLinks}>
             <Link href="/sitemap">HTML Sitemap</Link>
             <span>&bull;</span>

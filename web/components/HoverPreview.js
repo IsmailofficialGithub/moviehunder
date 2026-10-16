@@ -10,7 +10,8 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Play, Volume2, VolumeX, Star, X } from "lucide-react";
+import { Play, Volume2, VolumeX, Star, X, Bookmark } from "lucide-react";
+import { useWatchlist } from "../lib/watchlist";
 import styles from "./HoverPreview.module.css";
 
 const HoverPreviewContext = createContext({
@@ -114,6 +115,11 @@ export function HoverPreviewProvider({ children }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
+  const {
+    inWatchlist,
+    isSaving: watchlistSaving,
+    toggle: toggleWatchlistState,
+  } = useWatchlist(activeItem?.id || activeItem?.slug);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 340 });
   const [isOpen, setIsOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -954,6 +960,29 @@ export function HoverPreviewProvider({ children }) {
                 >
                   <Play size={15} fill="#000" color="#000" />
                   <span>Play</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`${styles.watchlistActionBtn} ${
+                    inWatchlist ? styles.watchlistActionBtnSaved : ""
+                  } ${watchlistSaving ? styles.watchlistActionBtnSaving : ""}`}
+                  disabled={watchlistSaving}
+                  aria-pressed={inWatchlist}
+                  aria-busy={watchlistSaving || undefined}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleWatchlistState(activeItem);
+                  }}
+                  title={inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+                  aria-label={inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+                >
+                  <Bookmark
+                    size={14}
+                    fill={inWatchlist ? "currentColor" : "none"}
+                    strokeWidth={inWatchlist ? 0 : 2}
+                  />
                 </button>
               </div>
             </div>

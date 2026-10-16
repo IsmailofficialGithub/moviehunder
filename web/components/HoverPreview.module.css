@@ -274,6 +274,48 @@
   transform: scale(0.98);
 }
 
+.watchlistActionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.watchlistActionBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: scale(1.06);
+}
+
+.watchlistActionBtn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.watchlistActionBtnSaved {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.watchlistActionBtnSaved:hover:not(:disabled) {
+  background: #e5e5e5;
+  border-color: #e5e5e5;
+}
+
+.watchlistActionBtnSaving {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .closeBtn {
   position: absolute;
   top: 10px;

@@ -8,16 +8,16 @@ import HomeSeoSection from "../components/HomeSeoSection";
 export const revalidate = 3600;
 
 export const metadata = {
-  title: "Watch Free Movies and TV Shows Online | Offstream",
+  title: "Offstream — Watch Free Movies and TV Shows Online",
   description:
     "Stream thousands of free movies and TV shows online in HD on Offstream with zero ads. Free Hollywood, Bollywood, and trending series.",
   alternates: {
     canonical: "https://offstream.co",
   },
   openGraph: {
-    title: "Watch Free Movies and TV Shows Online | Offstream",
+    title: "Offstream — Watch Free Movies and TV Shows Online",
     description:
-      "Watch free movies and TV shows online on Offstream (offstream.co). Stream thousands of free full movies in HD with zero ads.",
+      "Watch free movies and TV shows online on Offstream - offstream.co. Stream thousands of free full movies in HD with zero ads.",
     url: "https://offstream.co",
     siteName: "Offstream",
     type: "website",

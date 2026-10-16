@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Play,
+  Bookmark,
   ChevronDown,
   ChevronUp,
   Star,
@@ -17,6 +18,7 @@ import {
 import BtnSpinner from "./BtnSpinner";
 import TitleCard from "./TitleCard";
 import LazyPoster from "./LazyPoster";
+import { useWatchlist } from "../lib/watchlist";
 import styles from "./DetailClient.module.css";
 
 function defaultEpisode(seasons) {
@@ -62,6 +64,7 @@ function isUsefulReview(content) {
 
 export default function DetailClient({ slug, detail, episodes }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const meta = detail?.metadata || {};
   const seasons = useMemo(() => {
@@ -95,6 +98,11 @@ export default function DetailClient({ slug, detail, episodes }) {
   const subjectId = meta.id || episodes?.subject_id;
   const isSeries = seasons.length > 0;
   const defaults = defaultEpisode(seasons);
+  const {
+    inWatchlist,
+    isSaving: watchlistSaving,
+    toggle: toggleWatchlistState,
+  } = useWatchlist(subjectId || slug);
 
   const [selectedSe, setSelectedSe] = useState(defaults.se);
   const [selectedEp, setSelectedEp] = useState(defaults.ep);
@@ -298,6 +306,11 @@ export default function DetailClient({ slug, detail, episodes }) {
     });
     if (meta.poster) q.set("poster", meta.poster);
 
+    const requestedLang = searchParams?.get("lang") || (meta.title && /\[\s*hindi\s*\]/i.test(meta.title) ? "Hindi" : "");
+    const requestedServer = searchParams?.get("server") || (requestedLang.toLowerCase() === "hindi" ? "2" : "");
+    if (requestedLang) q.set("lang", requestedLang);
+    if (requestedServer) q.set("server", requestedServer);
+
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(
@@ -386,6 +399,42 @@ export default function DetailClient({ slug, detail, episodes }) {
                   </span>
                 </>
               )}
+            </button>
+
+            <button
+              type="button"
+              className={`${styles.watchlistBtn} ${
+                inWatchlist ? styles.watchlistBtnSaved : ""
+              } ${watchlistSaving ? styles.watchlistBtnSaving : ""}`}
+              disabled={watchlistSaving}
+              aria-pressed={inWatchlist}
+              aria-busy={watchlistSaving || undefined}
+              onClick={() => {
+                toggleWatchlistState({
+                  id: subjectId || slug,
+                  subjectId: subjectId || slug,
+                  slug,
+                  name: meta.title,
+                  title: meta.title,
+                  poster: meta.poster,
+                  poster_url: meta.poster,
+                  detailPath: slug,
+                  type: isSeries ? "tv" : "movie",
+                  year: meta.year,
+                  rating: meta.rating,
+                  badge: meta.badge,
+                });
+              }}
+              title={inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+            >
+              <Bookmark
+                size={16}
+                fill={inWatchlist ? "currentColor" : "none"}
+                strokeWidth={inWatchlist ? 0 : 2}
+              />
+              <span>
+                {watchlistSaving ? "Saving…" : inWatchlist ? "Saved" : "Watchlist"}
+              </span>
             </button>
 
             {!subjectId ? (

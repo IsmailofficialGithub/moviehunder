@@ -169,6 +169,49 @@
   box-shadow: none;
 }
 
+.watchlistBtn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  font-family: inherit;
+  outline: none;
+}
+
+.watchlistBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.38);
+}
+
+.watchlistBtn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.watchlistBtnSaved {
+  background: #ffffff;
+  color: #050505;
+  border-color: #ffffff;
+}
+
+.watchlistBtnSaved:hover:not(:disabled) {
+  background: #e6e6e6;
+  border-color: #e6e6e6;
+}
+
+.watchlistBtnSaving {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .warn {
   color: var(--danger);
   font-size: 13px;

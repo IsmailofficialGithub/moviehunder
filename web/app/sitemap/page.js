@@ -15,7 +15,7 @@ export async function generateMetadata() {
   return {
     title: "Sitemap & Content Directory — Free Movies & TV Series",
     description:
-      "Explore the comprehensive directory of free movies, TV series, Hindi dubbed titles, Hollywood and Bollywood releases on Offstream (offstream.co).",
+      "Explore the comprehensive directory of free movies, TV series, Hindi dubbed titles, Hollywood and Bollywood releases on Offstream - offstream.co.",
     alternates: {
       canonical: `${siteUrl}/sitemap`,
     },
@@ -31,7 +31,7 @@ export async function generateMetadata() {
       card: "summary_large_image",
       title: "Sitemap & Content Directory · Offstream",
       description:
-        "Comprehensive index of free movies, TV shows, and entertainment on Offstream (offstream.co).",
+        "Comprehensive index of free movies, TV shows, and entertainment on Offstream - offstream.co.",
     },
   };
 }
@@ -49,7 +49,7 @@ export default function SitemapPage() {
         url: `${siteUrl}/sitemap`,
         name: "Offstream Directory & Sitemap",
         description:
-          "Comprehensive architectural index of all media categories, streaming hubs, and indexed titles on Offstream (offstream.co).",
+          "Comprehensive architectural index of all media categories, streaming hubs, and indexed titles on Offstream - offstream.co.",
         isPartOf: {
           "@type": "WebSite",
           "@id": `${siteUrl}/#website`,

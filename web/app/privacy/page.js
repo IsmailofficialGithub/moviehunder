@@ -69,7 +69,7 @@ export default function PrivacyPolicy() {
           If you have questions or comments about this Privacy Policy, please contact us at:
         </p>
         <p>
-          <strong>Email:</strong> support@moviehunter.example.com
+          <strong>Email:</strong> mail@ismailabbasi.qzz.io
         </p>
       </div>
     </div>

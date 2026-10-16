@@ -55,10 +55,15 @@ export default function TitleCard({ item }) {
     setIsNavigating(true);
   };
 
+  const cardHref =
+    item.url && item.url.startsWith("/title/")
+      ? item.url
+      : `/title/${encodeURIComponent(slug)}${item.server === "2" ? "?server=2&lang=Hindi" : ""}`;
+
   return (
     <Link
       ref={cardRef}
-      href={`/title/${encodeURIComponent(slug)}`}
+      href={cardHref}
       prefetch={true}
       className={`${styles.card} ${isNavigating ? styles.navigating : ""}`}
       onClick={handleCardClick}

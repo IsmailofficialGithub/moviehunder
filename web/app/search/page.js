@@ -9,6 +9,7 @@ import {
 import {
   alreadyHasHindiResults,
   mergeWithHindiVariants,
+  synthesizeHindiFallback,
 } from "../../lib/searchEnrich";
 
 export const dynamic = "force-dynamic";
@@ -20,11 +21,15 @@ export async function generateMetadata({ searchParams }) {
     ? `Watch "${q}" Free Online — Movies & Series`
     : "Search Free Movies, TV Series & Hindi Dubbed";
   const desc = q
-    ? `Stream results for "${q}" online free in HD on Offstream (offstream.co). Watch movies and series with no ads.`
+    ? `Stream results for "${q}" online free in HD on Offstream - offstream.co. Watch movies and series with no ads.`
     : "Search thousands of free movies, TV series, Hindi dubbed films, Hollywood and Bollywood titles on Offstream.";
   return {
     title,
     description: desc,
+    robots: {
+      index: false,
+      follow: true,
+    },
     alternates: {
       canonical: q ? `https://offstream.co/search?q=${encodeURIComponent(q)}` : "https://offstream.co/search",
     },
@@ -87,7 +92,7 @@ export default async function SearchPage({ searchParams }) {
           if (fallbackData?.movies?.length) {
             movies = fallbackData.movies;
           }
-        } catch {}
+        } catch { }
       }
     }
     const alreadyHindiQuery = /\bhindi\b|\bdub(bed)?\b/i.test(q);
@@ -105,7 +110,11 @@ export default async function SearchPage({ searchParams }) {
       } catch {
         // keep primary
       }
-    } else if (!alreadyHindiQuery && alreadyHasHindiResults(movies)) {
+    }
+
+    if (!alreadyHasHindiResults(movies)) {
+      movies = synthesizeHindiFallback(movies, alreadyHindiQuery);
+    } else {
       movies = movies.map((m) =>
         isHindiLike(m) && !m.badge
           ? { ...m, badge: "Hindi", dub_lang: m.dub_lang || "hi" }

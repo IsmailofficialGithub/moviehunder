@@ -88,4 +88,18 @@ test("on-page SEO and LLM search optimization standards", () => {
   // 5. next.config.mjs must disable poweredByHeader
   const nextConfigContent = fs.readFileSync(path.join(__dirname, "../next.config.mjs"), "utf-8");
   assert.ok(nextConfigContent.includes("poweredByHeader: false"), "next.config.mjs must have poweredByHeader: false");
+
+  // 6. Title page must extract metadata from detail.metadata and build rich schema
+  const titlePageContent = fs.readFileSync(path.join(__dirname, "../app/title/[slug]/page.js"), "utf-8");
+  assert.ok(titlePageContent.includes("detail?.metadata"), "Title page must extract metadata from detail.metadata");
+  assert.ok(titlePageContent.includes("aggregateRating"), "Title page must include aggregateRating structured data");
+
+  // 7. Sitemap route must not include disallowed /search
+  const sitemapRouteContent = fs.readFileSync(path.join(__dirname, "../app/sitemap.xml/route.js"), "utf-8");
+  assert.ok(!sitemapRouteContent.includes('`${siteUrl}/search`'), "Sitemap XML must not include /search");
+
+  // 8. Search page must include noindex robots tag
+  const searchPageContent = fs.readFileSync(path.join(__dirname, "../app/search/page.js"), "utf-8");
+  assert.ok(searchPageContent.includes("index: false"), "Search page must have index: false");
 });
+

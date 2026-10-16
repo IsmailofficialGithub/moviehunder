@@ -24,7 +24,7 @@ export async function GET() {
   const siteUrl = getSiteUrl();
   const nowIso = new Date().toISOString();
 
-  // Static routes
+  // Static indexable routes (disallowed /search and private routes intentionally omitted)
   const staticRoutes = [
     { loc: `${siteUrl}`, lastmod: nowIso, changefreq: "daily", priority: "1.0" },
     { loc: `${siteUrl}/movies`, lastmod: nowIso, changefreq: "daily", priority: "0.95" },
@@ -32,26 +32,13 @@ export async function GET() {
     { loc: `${siteUrl}/animation`, lastmod: nowIso, changefreq: "daily", priority: "0.9" },
     { loc: `${siteUrl}/ranking`, lastmod: nowIso, changefreq: "daily", priority: "0.85" },
     { loc: `${siteUrl}/songs`, lastmod: nowIso, changefreq: "daily", priority: "0.85" },
-    { loc: `${siteUrl}/search`, lastmod: nowIso, changefreq: "weekly", priority: "0.7" },
     { loc: `${siteUrl}/sitemap`, lastmod: nowIso, changefreq: "daily", priority: "0.75" },
     { loc: `${siteUrl}/support`, lastmod: nowIso, changefreq: "monthly", priority: "0.5" },
     { loc: `${siteUrl}/terms`, lastmod: nowIso, changefreq: "monthly", priority: "0.4" },
     { loc: `${siteUrl}/privacy`, lastmod: nowIso, changefreq: "monthly", priority: "0.4" },
   ];
 
-  // Dynamic catalog titles, pre-seeded with default items for guaranteed instant responses
   const titlesMap = new Map();
-
-  for (const item of DEFAULT_TITLES) {
-    if (item?.slug) {
-      titlesMap.set(item.slug, {
-        loc: `${siteUrl}/title/${encodeURIComponent(item.slug)}`,
-        lastmod: nowIso,
-        changefreq: "weekly",
-        priority: "0.8",
-      });
-    }
-  }
 
   const addItems = (items) => {
     if (!Array.isArray(items)) return;
@@ -70,11 +57,19 @@ export async function GET() {
         }
       }
 
+      const poster =
+        item.poster_url ||
+        item.cover ||
+        item.poster ||
+        item.image ||
+        null;
+
       titlesMap.set(slug, {
         loc: `${siteUrl}/title/${encodeURIComponent(slug)}`,
         lastmod: parsedDate,
         changefreq: "weekly",
         priority: "0.8",
+        image: poster,
       });
     }
   };
@@ -89,7 +84,7 @@ export async function GET() {
 
   try {
     const timeoutPromise = new Promise((resolve) =>
-      setTimeout(() => resolve("timeout"), 3500)
+      setTimeout(() => resolve("timeout"), 12000)
     );
 
     const fetchPromise = Promise.allSettled([
@@ -116,17 +111,35 @@ export async function GET() {
     console.error("[Sitemap XML Route] Error fetching dynamic catalog:", err?.message);
   }
 
+  // If live catalog fetch returned zero items (e.g. backend offline during build), fall back to default items
+  if (titlesMap.size === 0) {
+    for (const item of DEFAULT_TITLES) {
+      if (item?.slug) {
+        titlesMap.set(item.slug, {
+          loc: `${siteUrl}/title/${encodeURIComponent(item.slug)}`,
+          lastmod: nowIso,
+          changefreq: "weekly",
+          priority: "0.8",
+        });
+      }
+    }
+  }
+
   const allRoutes = [...staticRoutes, ...titlesMap.values()];
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 ${allRoutes
   .map(
     (r) => `  <url>
     <loc>${escapeXml(r.loc)}</loc>
     <lastmod>${r.lastmod}</lastmod>
     <changefreq>${r.changefreq}</changefreq>
-    <priority>${r.priority}</priority>
+    <priority>${r.priority}</priority>${
+      r.image
+        ? `\n    <image:image>\n      <image:loc>${escapeXml(r.image)}</image:loc>\n    </image:image>`
+        : ""
+    }
   </url>`
   )
   .join("\n")}
