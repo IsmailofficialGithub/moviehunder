@@ -122,9 +122,14 @@ export function getActiveProfileId() {
 
 export function switchActiveProfile(profile) {
   if (!profile || typeof window === "undefined") return;
+  const normalized = {
+    ...profile,
+    avatar: profile.avatar || profile.avatarUrl || profile.avatar_url || "",
+    avatarUrl: profile.avatarUrl || profile.avatar || profile.avatar_url || "",
+  };
   try {
-    localStorage.setItem("active_profile", JSON.stringify(profile));
-    window.dispatchEvent(new CustomEvent("mh:profile:change", { detail: profile }));
+    localStorage.setItem("active_profile", JSON.stringify(normalized));
+    window.dispatchEvent(new CustomEvent("mh:profile:change", { detail: normalized }));
     window.dispatchEvent(new Event("storage"));
   } catch {}
 }

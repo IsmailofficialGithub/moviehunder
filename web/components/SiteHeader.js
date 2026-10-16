@@ -109,7 +109,9 @@ export default function SiteHeader() {
        null)
     : null;
 
-  const profileAvatar = isSignedIn ? activeProfile?.avatar : null;
+  const profileAvatar = isSignedIn
+    ? (activeProfile?.avatar || activeProfile?.avatarUrl || activeProfile?.avatar_url || null)
+    : null;
   const effectiveAvatar =
     (isSignedIn && !avatarImgError && (profileAvatar || userAvatar)) || null;
 
@@ -165,7 +167,7 @@ export default function SiteHeader() {
 
   useEffect(() => {
     setAvatarImgError(false);
-  }, [userAvatar, profileAvatar]);
+  }, [userAvatar, profileAvatar, activeProfile?.id, activeProfile?.avatar, activeProfile?.avatarUrl]);
 
   const [profilesList, setProfilesList] = useState([]);
 
@@ -198,11 +200,16 @@ export default function SiteHeader() {
       setProfileMenuOpen(false);
       return;
     }
-    setActiveProfile(prof);
+    const normalized = {
+      ...prof,
+      avatar: prof.avatar || prof.avatarUrl || prof.avatar_url || "",
+      avatarUrl: prof.avatarUrl || prof.avatar || prof.avatar_url || "",
+    };
+    setActiveProfile(normalized);
     setAvatarImgError(false);
     try {
-      localStorage.setItem("active_profile", JSON.stringify(prof));
-      window.dispatchEvent(new CustomEvent("mh:profile:change", { detail: prof }));
+      localStorage.setItem("active_profile", JSON.stringify(normalized));
+      window.dispatchEvent(new CustomEvent("mh:profile:change", { detail: normalized }));
       window.dispatchEvent(new Event("storage"));
     } catch {}
     setProfileMenuOpen(false);
@@ -647,6 +654,7 @@ export default function SiteHeader() {
                 >
                   {effectiveAvatar ? (
                     <img
+                      key={effectiveAvatar}
                       src={effectiveAvatar}
                       alt={displayName || "Avatar"}
                       className={styles.avatarImg}
@@ -673,6 +681,7 @@ export default function SiteHeader() {
                       <div className={styles.dropdownAvatar}>
                         {effectiveAvatar ? (
                           <img
+                            key={effectiveAvatar}
                             src={effectiveAvatar}
                             alt={displayName || "Avatar"}
                             className={styles.avatarImg}
@@ -711,6 +720,7 @@ export default function SiteHeader() {
                             const isActive = activeProfile?.id
                               ? String(activeProfile.id) === String(p.id)
                               : p.id === "1";
+                            const pAvatar = p.avatar || p.avatarUrl || p.avatar_url;
                             return (
                               <button
                                 key={p.id}
@@ -719,9 +729,9 @@ export default function SiteHeader() {
                                 onClick={() => switchProfile(p)}
                               >
                                 <div className={styles.dropdownMiniAvatar}>
-                                  {p.avatar ? (
+                                  {pAvatar ? (
                                     <img
-                                      src={p.avatar}
+                                      src={pAvatar}
                                       alt={p.name}
                                       className={styles.avatarImg}
                                       referrerPolicy="no-referrer"
