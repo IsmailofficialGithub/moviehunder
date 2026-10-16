@@ -221,6 +221,7 @@ export default function StreamPlayer({
   const [activeSlot, setActiveSlot] = useState("A");
   const videoRef = useRef(null);
   videoRef.current = (activeSlot === "A" ? videoRefA.current : videoRefB.current) || videoRefA.current || videoRefB.current;
+  const controllerRef = useRef(null);
   const canvasRef = useRef(null);
   const hlsRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -850,10 +851,33 @@ export default function StreamPlayer({
     return () => window.removeEventListener("keydown", onKey);
   }, [subPanelOpen, settingsOpen]);
 
-  // Spacebar 2X speed: clicking Space toggles 2X speed, holding plays in 2X
+  const togglePlayPause = useCallback((e) => {
+    e?.stopPropagation?.();
+    const v = videoRef.current || (activeSlot === "A" ? videoRefA.current : videoRefB.current);
+    if (!v) return;
+    if (v.paused) {
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  }, [activeSlot]);
+
+  // Re-synchronize MediaController when active video slot or server changes
+  useEffect(() => {
+    const controller = controllerRef.current;
+    const activeVid = activeSlot === "A" ? videoRefA.current : videoRefB.current;
+    if (!controller || !activeVid) return;
+    if (typeof controller.handleMediaUpdated === "function") {
+      controller.handleMediaUpdated(activeVid);
+    } else if (typeof controller.mediaSetCallback === "function") {
+      controller.mediaSetCallback(activeVid);
+    }
+  }, [activeSlot, server]);
+
+  // Spacebar: hold > 2s triggers 2X speed (releasing restores speed), press <= 2s toggles play/pause
   useEffect(() => {
     if (!mounted) return;
-    let spaceDownTime = 0;
+    let spaceHoldTimer = null;
 
     const onKeyDown = (e) => {
       if (e.code !== "Space" && e.key !== " ") return;
@@ -862,15 +886,13 @@ export default function StreamPlayer({
         return;
       }
       e.preventDefault();
-
-      if (!spaceDownTime) {
-        spaceDownTime = Date.now();
-      }
+      if (e.repeat) return;
 
       const video = videoRef.current;
       if (!video) return;
 
-      if (!isHolding2xRef.current) {
+      clearTimeout(spaceHoldTimer);
+      spaceHoldTimer = setTimeout(() => {
         prevRateRef.current = video.playbackRate === 2 ? 1 : (video.playbackRate || 1);
         isHolding2xRef.current = true;
         setHold2xActive(true);
@@ -878,7 +900,7 @@ export default function StreamPlayer({
         if (video.paused) {
           video.play().catch(() => {});
         }
-      }
+      }, 2000);
     };
 
     const onKeyUp = (e) => {
@@ -889,26 +911,19 @@ export default function StreamPlayer({
       }
       e.preventDefault();
 
-      const duration = Date.now() - spaceDownTime;
-      spaceDownTime = 0;
-      isHolding2xRef.current = false;
-
+      clearTimeout(spaceHoldTimer);
       const video = videoRef.current;
       if (!video) return;
 
-      // If held for > 250ms, release back to normal rate
-      if (duration > 250) {
+      if (isHolding2xRef.current) {
+        isHolding2xRef.current = false;
         setHold2xActive(false);
         video.playbackRate = prevRateRef.current || 1;
       } else {
-        // Quick click/tap: toggle 2X speed
-        if (video.playbackRate === 2 && hold2xActive) {
-          setHold2xActive(false);
-          video.playbackRate = 1;
+        if (video.paused) {
+          video.play().catch(() => {});
         } else {
-          setHold2xActive(true);
-          video.playbackRate = 2;
-          if (video.paused) video.play().catch(() => {});
+          video.pause();
         }
       }
     };
@@ -916,10 +931,11 @@ export default function StreamPlayer({
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     return () => {
+      clearTimeout(spaceHoldTimer);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [mounted, hold2xActive]);
+  }, [mounted]);
 
   const load = useCallback(async () => {
     if (!subjectId || !detailPath) {
@@ -1226,11 +1242,9 @@ export default function StreamPlayer({
       } catch {}
     }
 
-    if (isNewEp && resume === 0) {
-      try {
-        video.currentTime = 0;
-      } catch {}
-    }
+    try {
+      video.currentTime = Math.max(0, resume);
+    } catch {}
 
     const syncAudioTracks = () => {
       const available = [];
@@ -2561,6 +2575,7 @@ export default function StreamPlayer({
 
         {mounted ? (
           <MediaController
+            ref={controllerRef}
             className={styles.controller}
             hotkeys="nospace"
             autohide="5"
@@ -2666,7 +2681,7 @@ export default function StreamPlayer({
                       <SkipBack size={32} fill="currentColor" strokeWidth={2} />
                     </button>
                   ) : null}
-                  <MediaPlayButton />
+                  <MediaPlayButton onClick={togglePlayPause} />
                   {nextEpisode && onNextEpisode ? (
                     <button
                       type="button"
@@ -2699,7 +2714,7 @@ export default function StreamPlayer({
                     <SkipBack size={20} fill="currentColor" strokeWidth={2} />
                   </button>
                 ) : null}
-                <MediaPlayButton />
+                <MediaPlayButton onClick={togglePlayPause} />
                 {nextEpisode && onNextEpisode ? (
                   <button
                     type="button"

@@ -1323,9 +1323,15 @@
 }
 
 .controller[mediabuffering] .centerNavBtn,
-.controller[mediabuffering] media-play-button {
+.controller[mediabuffering] .centerOverlay > media-play-button {
   opacity: 0 !important;
   pointer-events: none;
+}
+
+.bottomBar media-play-button {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
 }
 
 .centerOverlay > media-play-button {
