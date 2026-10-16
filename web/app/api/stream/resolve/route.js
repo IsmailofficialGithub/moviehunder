@@ -197,8 +197,8 @@ export async function GET(request) {
           parseInt(String(s.resolution || "").replace(/p$/i, ""), 10) || 0;
         const ticket = createPlaybackTicket(s.url);
         const directUrl = relayBase
-          ? `${relayBase}/api/media?url=${encodeURIComponent(s.url)}`
-          : null;
+          ? `${relayBase}/api/media?ticket=${ticket}`
+          : `/api/media?ticket=${ticket}`;
         return {
           url: `/api/media?ticket=${ticket}`,
           direct_url: directUrl,

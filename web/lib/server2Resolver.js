@@ -33,7 +33,7 @@ export async function resolveServer2Streams({ title, detailPath, se = "0", ep = 
     };
     if (appKey) serverHeaders["X-App-Key"] = appKey;
 
-    // 1. Search for sibling/alternate direct bcdnxw streams for this title
+    // 1. Search for sibling/alternate direct streams for this title
     const searchRes = await fetch(
       `${base}/search?q=${encodeURIComponent(query)}`,
       { headers: serverHeaders, signal: AbortSignal.timeout(3500) }
@@ -69,7 +69,7 @@ export async function resolveServer2Streams({ title, detailPath, se = "0", ep = 
     }
 
     if (!altMatch) {
-      // Prefer a sibling title that is DIFFERENT from currentSlug (e.g. if current is English, find the root bcdnxw entry)
+      // Prefer a sibling title that is DIFFERENT from currentSlug
       altMatch = candidates.find(
         (m) =>
           m.slug &&
@@ -90,7 +90,7 @@ export async function resolveServer2Streams({ title, detailPath, se = "0", ep = 
 
     if (!targetSubjectId && !targetSlug) return null;
 
-    // 2. Fetch direct streams for the alternate/bcdnxw subject
+    // 2. Fetch direct streams for the alternate subject
     const curSe = String(se || "0");
     const curEp = String(ep || "0");
 
@@ -146,8 +146,8 @@ export async function resolveServer2Streams({ title, detailPath, se = "0", ep = 
           parseInt(String(s.resolution || "").replace(/p$/i, ""), 10) || 0;
         const ticket = createPlaybackTicket(s.url);
         const directUrl = relayBase
-          ? `${relayBase}/api/media?url=${encodeURIComponent(s.url)}`
-          : null;
+          ? `${relayBase}/api/media?ticket=${ticket}`
+          : `/api/media?ticket=${ticket}`;
         return {
           url: `/api/media?ticket=${ticket}`,
           direct_url: directUrl,
@@ -166,7 +166,7 @@ export async function resolveServer2Streams({ title, detailPath, se = "0", ep = 
     return {
       ok: true,
       host: "Server 2",
-      via: "bcdnxw",
+      via: "direct",
       sources: maskedSources,
       meta: {
         id: targetSubjectId,
