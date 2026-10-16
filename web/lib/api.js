@@ -43,7 +43,7 @@ export function getRanking() {
 }
 
 export function searchTitles(q) {
-  return api(`/search?q=${encodeURIComponent(q)}`);
+  return api(`/api/search?q=${encodeURIComponent(q)}`);
 }
 
 export function searchSuggest(q, { signal } = {}) {
@@ -51,14 +51,24 @@ export function searchSuggest(q, { signal } = {}) {
 }
 
 export function getDetail(slug) {
-  return api(`/detail/${encodeURIComponent(slug)}`);
+  return api(`/api/detail/${encodeURIComponent(slug)}`);
 }
 
 export function getEpisodes(slug) {
-  return api(`/episodes/${encodeURIComponent(slug)}`);
+  return api(`/api/episodes/${encodeURIComponent(slug)}`);
 }
 
-/** Free Audius catalog via backend */
+// Fetch content-type-aware recommendations (anime, movie, series)
+export function getRecommendations({ type = "movie", exclude = "", limit = 16 } = {}) {
+  const q = new URLSearchParams({
+    type: String(type || "movie"),
+    exclude: String(exclude || ""),
+    limit: String(limit || 16),
+  });
+  return api(`/api/recommendations?${q.toString()}`);
+}
+
+// Free Audius catalog via backend
 export function searchMusic(q, { limit = 24 } = {}) {
   const query = String(q || "").trim();
   const path = query

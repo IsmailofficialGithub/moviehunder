@@ -49,8 +49,40 @@ const nextConfig = {
         destination: `${backend}/api/profiles/:path*`,
       },
       {
+        source: "/api/watchlist/:path*",
+        destination: `${backend}/api/watchlist/:path*`,
+      },
+      {
+        source: "/api/watchlist",
+        destination: `${backend}/api/watchlist`,
+      },
+      {
+        source: "/detail/:slug*",
+        destination: "/title/:slug*",
+      },
+      {
         source: "/search/suggest",
         destination: `${backend}/search/suggest`,
+      },
+      {
+        source: "/ranking/:path*",
+        destination: `${backend}/ranking/:path*`,
+      },
+      {
+        source: "/api/stream/:path*",
+        destination: `${backend}/api/stream/:path*`,
+      },
+      {
+        source: "/watch/:path*",
+        destination: `${backend}/watch/:path*`,
+      },
+      {
+        source: "/api/subtitles/:path*",
+        destination: `${backend}/api/subtitles/:path*`,
+      },
+      {
+        source: "/presence/:path*",
+        destination: `${backend}/presence/:path*`,
       },
     ];
   },
