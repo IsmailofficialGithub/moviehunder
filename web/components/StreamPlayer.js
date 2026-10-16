@@ -874,7 +874,7 @@ export default function StreamPlayer({
     }
   }, [activeSlot, server]);
 
-  // Spacebar: hold > 2s triggers 2X speed (releasing restores speed), press <= 2s toggles play/pause
+  // Spacebar: hold > 1s triggers 2X speed (releasing restores speed), press <= 1s toggles play/pause
   useEffect(() => {
     if (!mounted) return;
     let spaceHoldTimer = null;
@@ -900,7 +900,7 @@ export default function StreamPlayer({
         if (video.paused) {
           video.play().catch(() => {});
         }
-      }, 2000);
+      }, 1000);
     };
 
     const onKeyUp = (e) => {
