@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Hls from "hls.js";
 import {
   MediaController,
   MediaControlBar,
@@ -211,8 +212,17 @@ export default function StreamPlayer({
   onQualityChange: externalOnQualityChange = null,
   audioLanguage = "Original",
   onAvailableAudioLanguages = null,
+  server = "1",
+  onStatusChange = null,
 }) {
+  const videoRefA = useRef(null);
+  const videoRefB = useRef(null);
+  const activeSlotRef = useRef("A");
+  const [activeSlot, setActiveSlot] = useState("A");
   const videoRef = useRef(null);
+  videoRef.current = (activeSlot === "A" ? videoRefA.current : videoRefB.current) || videoRefA.current || videoRefB.current;
+  const canvasRef = useRef(null);
+  const hlsRef = useRef(null);
   const fileInputRef = useRef(null);
   const [mounted, setMounted] = useState(false);
   const [sources, setSources] = useState([]);
@@ -224,7 +234,13 @@ export default function StreamPlayer({
       externalOnQualityChange(idx);
     }
   };
-  const [status, setStatus] = useState("idle");
+  const [status, setStatusInternal] = useState("idle");
+  const setStatus = (st) => {
+    setStatusInternal(st);
+    if (typeof onStatusChange === "function") {
+      onStatusChange(st);
+    }
+  };
   const [error, setError] = useState("");
   const [navBusy, setNavBusy] = useState(null);
   const [subtitles, setSubtitles] = useState([]);
@@ -805,18 +821,20 @@ export default function StreamPlayer({
       window.removeEventListener("pagehide", onLeave);
       document.removeEventListener("visibilitychange", onLeave);
     };
-  }, [mounted, displayTitle, onPrevEpisode, onNextEpisode]);
+  }, [mounted, displayTitle, onPrevEpisode, onNextEpisode, activeSlot]);
 
   useEffect(() => {
     return () => {
       clearMediaSession();
-      if (videoRef.current) {
-        try {
-          videoRef.current.pause();
-          videoRef.current.removeAttribute("src");
-          videoRef.current.load();
-        } catch {}
-      }
+      [videoRefA.current, videoRefB.current].forEach((v) => {
+        if (v) {
+          try {
+            v.pause();
+            v.removeAttribute("src");
+            v.load();
+          } catch {}
+        }
+      });
     };
   }, []);
 
@@ -919,6 +937,9 @@ export default function StreamPlayer({
         detailPath,
         se,
         ep,
+        server,
+        title,
+        lang: audioLanguage,
       });
       if (!result.sources.length) {
         throw new Error("No playable streams returned");
@@ -933,7 +954,7 @@ export default function StreamPlayer({
       setError(friendlyPlaybackError(err));
       setStatus("error");
     }
-  }, [subjectId, detailPath, se, ep]);
+  }, [subjectId, detailPath, se, ep, server, title, audioLanguage]);
 
   useEffect(() => {
     load();
@@ -1017,10 +1038,130 @@ export default function StreamPlayer({
   };
 
   const active = sources[qualityIndex] || null;
-  const src = useMemo(
+  const targetSrc = useMemo(
     () => (active ? proxiedMediaUrl(active.url) : ""),
     [active]
   );
+  const [appliedSrc, setAppliedSrc] = useState("");
+  const preloaderRef = useRef(null);
+  const preloaderTimerRef = useRef(null);
+
+  // Seamless quality switching:
+  // 1. If HLS master playlist with multiple bitrate levels: switch hls.nextLevel so current chunk finishes at current quality and next chunk loads at new quality with zero reload/stall.
+  // 2. If separate stream/MP4 URLs: keep current video playing while background preloader buffers the chunk at currentTime, then switch appliedSrc seamlessly without getting stuck.
+  useEffect(() => {
+    if (!targetSrc) {
+      setAppliedSrc("");
+      return;
+    }
+    if (!appliedSrc) {
+      setAppliedSrc(targetSrc);
+      return;
+    }
+    if (targetSrc === appliedSrc) return;
+
+    const currentKey = `${subjectId}_${se}_${ep}`;
+    const isNewEp = lastEpKeyRef.current !== currentKey;
+    if (isNewEp) {
+      setAppliedSrc(targetSrc);
+      return;
+    }
+
+    // Check if current HLS instance supports internal nextLevel switching
+    if (hlsRef.current && hlsRef.current.levels && hlsRef.current.levels.length > 1) {
+      const targetLevel = qualityIndex < hlsRef.current.levels.length ? qualityIndex : -1;
+      hlsRef.current.nextLevel = targetLevel;
+      return;
+    }
+
+    const currentVid = activeSlotRef.current === "A" ? videoRefA.current : videoRefB.current;
+    const standbyVid = activeSlotRef.current === "A" ? videoRefB.current : videoRefA.current;
+
+    if (!currentVid || !standbyVid) {
+      setAppliedSrc(targetSrc);
+      return;
+    }
+
+    const isPlaying = !currentVid.paused && !currentVid.ended && (currentVid.currentTime || 0) > 0;
+
+    if (!isPlaying) {
+      standbyVid.src = targetSrc;
+      try {
+        standbyVid.currentTime = currentVid.currentTime || 0;
+      } catch {}
+      standbyVid.load();
+      const nextSlot = activeSlotRef.current === "A" ? "B" : "A";
+      activeSlotRef.current = nextSlot;
+      setActiveSlot(nextSlot);
+      videoRef.current = standbyVid;
+      setAppliedSrc(targetSrc);
+      return;
+    }
+
+    // Video is actively playing: pre-buffer standbyVid in background while currentVid keeps playing with audio!
+    if (preloaderTimerRef.current) clearTimeout(preloaderTimerRef.current);
+
+    standbyVid.src = targetSrc;
+    standbyVid.muted = true;
+    standbyVid.playbackRate = currentVid.playbackRate || 1;
+    standbyVid.load();
+
+    let swapped = false;
+    const doSwap = () => {
+      if (swapped) return;
+      swapped = true;
+      if (preloaderTimerRef.current) clearTimeout(preloaderTimerRef.current);
+
+      // Instant seamless handoff: unmute standby, mute & pause old video.
+      // Do NOT seek standbyVid here - re-seeking an actively playing video forces a buffer flush & audio jerk!
+      standbyVid.muted = currentVid.muted;
+      standbyVid.volume = currentVid.volume;
+      standbyVid.playbackRate = currentVid.playbackRate || 1;
+
+      currentVid.muted = true;
+      currentVid.pause();
+
+      const nextSlot = activeSlotRef.current === "A" ? "B" : "A";
+      activeSlotRef.current = nextSlot;
+      setActiveSlot(nextSlot);
+      videoRef.current = standbyVid;
+      setAppliedSrc(targetSrc);
+    };
+
+    const onStandbyMetadata = () => {
+      try {
+        standbyVid.currentTime = currentVid.currentTime || 0;
+      } catch {}
+    };
+
+    const onStandbyCanPlay = () => {
+      try {
+        const drift = Math.abs((currentVid.currentTime || 0) - (standbyVid.currentTime || 0));
+        if (drift > 0.4) {
+          standbyVid.currentTime = currentVid.currentTime || 0;
+        }
+      } catch {}
+      standbyVid.play().catch(() => {});
+    };
+
+    const onStandbyPlaying = () => {
+      doSwap();
+    };
+
+    standbyVid.addEventListener("loadedmetadata", onStandbyMetadata, { once: true });
+    standbyVid.addEventListener("canplay", onStandbyCanPlay, { once: true });
+    standbyVid.addEventListener("playing", onStandbyPlaying, { once: true });
+
+    // Safety fallback: generous window so background preloading completes without rushing
+    preloaderTimerRef.current = setTimeout(doSwap, 6000);
+
+    return () => {
+      if (preloaderTimerRef.current) clearTimeout(preloaderTimerRef.current);
+      standbyVid.removeEventListener("loadedmetadata", onStandbyMetadata);
+      standbyVid.removeEventListener("canplay", onStandbyCanPlay);
+      standbyVid.removeEventListener("playing", onStandbyPlaying);
+    };
+  }, [targetSrc, qualityIndex, appliedSrc, subjectId, se, ep]);
 
   const activeTrack = useMemo(
     () => subtitles.find((t) => t.id === activeSubId) || null,
@@ -1034,21 +1175,28 @@ export default function StreamPlayer({
 
   useEffect(() => {
     if (!mounted) return;
-    const video = videoRef.current;
-    if (!video || !src) return;
+    const video = activeSlot === "A" ? videoRefA.current : videoRefB.current;
+    if (!video || !appliedSrc) return;
     const currentKey = `${subjectId}_${se}_${ep}`;
     const isNewEp = lastEpKeyRef.current !== currentKey;
     lastEpKeyRef.current = currentKey;
 
+    const curTime = video.currentTime || 0;
+    const wasPlaying = !video.paused && !video.ended;
+
     let resume = 0;
-    if (!isNewEp && resumeAtRef.current > 0) {
-      resume = resumeAtRef.current;
-    } else if (!isNewEp && Number(initialTime) > 0) {
-      resume = Number(initialTime);
+    if (!isNewEp) {
+      if (resumeAtRef.current > 0) {
+        resume = resumeAtRef.current;
+      } else if (curTime > 0) {
+        resume = curTime;
+      } else if (Number(initialTime) > 0) {
+        resume = Number(initialTime);
+      }
     }
     resumeAtRef.current = 0;
 
-    // Reset retry counter every time the src changes (new episode or quality change)
+    // Reset retry counter every time the appliedSrc changes (new episode or quality change)
     videoRetryCount.current = 0;
     clearTimeout(videoRetryTimer.current);
 
@@ -1078,22 +1226,28 @@ export default function StreamPlayer({
       } catch {}
     }
 
-    try {
-      video.currentTime = 0;
-    } catch {}
-
-    video.src = src;
-    video.load();
-    const onReady = () => {
+    if (isNewEp && resume === 0) {
       try {
-        video.currentTime = Math.max(0, resume);
-      } catch {
-        // ignore
-      }
-      // If browser supports audioTracks (Safari / Chrome flags / HLS)
-      const syncAudioTracks = () => {
-        if (!video.audioTracks || video.audioTracks.length === 0) return;
-        const available = [];
+        video.currentTime = 0;
+      } catch {}
+    }
+
+    const syncAudioTracks = () => {
+      const available = [];
+      const hlsTracks = hlsRef.current?.audioTracks || [];
+
+      if (hlsTracks.length > 0) {
+        for (let i = 0; i < hlsTracks.length; i++) {
+          const t = hlsTracks[i];
+          const displayLabel = normalizeLangLabel(t.lang || t.language, t.name || t.label, i);
+          available.push({
+            id: String(t.id ?? i),
+            label: displayLabel,
+            language: t.lang || t.language || "",
+            enabled: hlsRef.current.audioTrack === i,
+          });
+        }
+      } else if (video.audioTracks && video.audioTracks.length > 0) {
         for (let i = 0; i < video.audioTracks.length; i++) {
           const t = video.audioTracks[i];
           const displayLabel = normalizeLangLabel(t.language, t.label, i);
@@ -1104,11 +1258,26 @@ export default function StreamPlayer({
             enabled: !!t.enabled,
           });
         }
-        if (typeof onAvailableAudioLanguages === "function") {
-          onAvailableAudioLanguages(available);
-        }
+      }
 
-        if (audioLanguage) {
+      if (available.length > 0 && typeof onAvailableAudioLanguages === "function") {
+        onAvailableAudioLanguages(available);
+      }
+
+      if (audioLanguage) {
+        if (hlsTracks.length > 0) {
+          let matchedIdx = -1;
+          for (let i = 0; i < hlsTracks.length; i++) {
+            const t = hlsTracks[i];
+            if (isTrackLanguageMatch({ id: t.id, language: t.lang || t.language, label: t.name || t.label }, audioLanguage)) {
+              matchedIdx = i;
+              break;
+            }
+          }
+          if (matchedIdx >= 0) {
+            hlsRef.current.audioTrack = matchedIdx;
+          }
+        } else if (video.audioTracks && video.audioTracks.length > 0) {
           let matched = false;
           for (let i = 0; i < video.audioTracks.length; i++) {
             const t = video.audioTracks[i];
@@ -1123,54 +1292,133 @@ export default function StreamPlayer({
             if (video.audioTracks[0]) video.audioTracks[0].enabled = true;
           }
         }
-      };
-
-      if (video.audioTracks && video.audioTracks.length > 0) {
-        syncAudioTracks();
       }
+    };
+
+    const isHls = typeof appliedSrc === "string" && (appliedSrc.includes(".m3u8") || appliedSrc.includes("/mpd/"));
+
+    const isAlreadyLoaded =
+      !isNewEp &&
+      video.readyState >= 2 &&
+      (video.src === appliedSrc || (video.currentSrc && video.currentSrc.includes(appliedSrc)));
+
+    if (!isAlreadyLoaded) {
+      if (isHls && Hls.isSupported()) {
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+        }
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 60,
+        });
+        hlsRef.current = hls;
+        hls.loadSource(appliedSrc);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          try {
+            if (resume > 0) video.currentTime = resume;
+          } catch {}
+          syncAudioTracks();
+          if (wasPlaying || isNewEp) {
+            video.play().catch(() => {});
+          }
+        });
+
+        hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+          syncAudioTracks();
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                break;
+            }
+          }
+        });
+      } else {
+        video.src = appliedSrc;
+        video.load();
+      }
+    } else {
+      syncAudioTracks();
+    }
+
+    let readyHandled = isAlreadyLoaded;
+    const onReady = () => {
+      if (readyHandled) return;
+      readyHandled = true;
+      if (resume > 0) {
+        try {
+          video.currentTime = resume;
+        } catch {
+          // ignore
+        }
+      }
+      syncAudioTracks();
       if (video.audioTracks) {
         video.audioTracks.addEventListener?.("addtrack", syncAudioTracks);
         video.audioTracks.addEventListener?.("removetrack", syncAudioTracks);
         video.audioTracks.addEventListener?.("change", syncAudioTracks);
       }
-      video.play().catch(() => {});
+      if (wasPlaying || isNewEp) {
+        video.play().catch(() => {});
+      }
     };
-    video.addEventListener("loadedmetadata", onReady, { once: true });
-    video.addEventListener("loadeddata", onReady, { once: true });
+
+    if (!isAlreadyLoaded) {
+      video.addEventListener("loadedmetadata", onReady, { once: true });
+      video.addEventListener("loadeddata", onReady, { once: true });
+    }
 
     // Auto-retry on network errors (e.g. 429 rate-limit from CDN proxy).
-    // Saves current position, waits with exponential backoff, then reloads src.
     const MAX_RETRIES = 4;
     const onVideoError = () => {
       const err = video.error;
-      // Only retry on network errors (code 2) or decode errors (code 3).
-      // Don't retry on src-not-found (code 4) which is a config error.
       if (!err || err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return;
       if (videoRetryCount.current >= MAX_RETRIES) return;
 
       const attempt = videoRetryCount.current + 1;
       videoRetryCount.current = attempt;
-      // Save position before reloading so we can resume at the same spot
       const savedTime = video.currentTime || 0;
-      const delay = Math.min(1000 * 2 ** (attempt - 1), 10000); // 1s, 2s, 4s, 8s
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 10000);
 
       videoRetryTimer.current = setTimeout(() => {
-        if (!videoRef.current) return;
-        videoRef.current.src = src;
-        videoRef.current.load();
+        const v = activeSlotRef.current === "A" ? videoRefA.current : videoRefB.current;
+        if (!v) return;
+        v.src = appliedSrc;
+        v.load();
         const onRetryReady = () => {
           if (savedTime > 0) {
-            try { videoRef.current.currentTime = savedTime; } catch { // ignore
-            }
+            try { v.currentTime = savedTime; } catch {}
           }
-          videoRef.current.play().catch(() => {});
+          v.play().catch(() => {});
         };
-        videoRef.current.addEventListener("loadeddata", onRetryReady, { once: true });
+        v.addEventListener("loadeddata", onRetryReady, { once: true });
       }, delay);
     };
 
     video.addEventListener("error", onVideoError);
+    if (video.audioTracks) {
+      video.audioTracks.addEventListener?.("addtrack", syncAudioTracks);
+      video.audioTracks.addEventListener?.("removetrack", syncAudioTracks);
+      video.audioTracks.addEventListener?.("change", syncAudioTracks);
+    }
+
     return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
       video.removeEventListener("loadeddata", onReady);
       video.removeEventListener("loadedmetadata", onReady);
       video.removeEventListener("error", onVideoError);
@@ -1180,16 +1428,27 @@ export default function StreamPlayer({
         video.audioTracks.removeEventListener?.("change", syncAudioTracks);
       }
       clearTimeout(videoRetryTimer.current);
-      try {
-        video.pause();
-        video.removeAttribute("src");
-        video.load();
-      } catch {}
     };
-  }, [mounted, src]);
+  }, [mounted, appliedSrc, activeSlot]);
 
   // Reactively switch audio track when audioLanguage prop changes
   useEffect(() => {
+    if (hlsRef.current && hlsRef.current.audioTracks?.length > 1 && audioLanguage) {
+      const tracks = hlsRef.current.audioTracks;
+      let matchedIdx = -1;
+      for (let i = 0; i < tracks.length; i++) {
+        const t = tracks[i];
+        if (isTrackLanguageMatch({ id: t.id, language: t.lang || t.language, label: t.name || t.label }, audioLanguage)) {
+          matchedIdx = i;
+          break;
+        }
+      }
+      if (matchedIdx >= 0) {
+        hlsRef.current.audioTrack = matchedIdx;
+        return;
+      }
+    }
+
     const video = videoRef.current;
     if (!video || !video.audioTracks || video.audioTracks.length <= 1 || !audioLanguage) return;
     let matched = false;
@@ -1286,7 +1545,7 @@ export default function StreamPlayer({
       video.removeEventListener("seeked", update);
       video.removeEventListener("timeupdate", update);
     };
-  }, [mounted, activeSubId, activeTrack?.id, activeTrack?.offset, activeTrack?.rate]);
+  }, [mounted, activeSubId, activeTrack?.id, activeTrack?.offset, activeTrack?.rate, activeSlot]);
 
 
   useEffect(() => {
@@ -2312,13 +2571,33 @@ export default function StreamPlayer({
             onDoubleClick={handleDoubleClick}
           >
             <video
-              ref={videoRef}
-              slot="media"
+              ref={videoRefA}
+              slot={activeSlot === "A" ? "media" : undefined}
               playsInline
               preload="metadata"
               crossOrigin="anonymous"
               suppressHydrationWarning
-              className={styles.video}
+              className={`${styles.video} ${
+                activeSlot === "A" ? styles.videoActive : styles.videoHidden
+              }`}
+              style={{
+                objectFit: displayActive.fit,
+                transform:
+                  displayActive.scale !== 1
+                    ? `scale(${displayActive.scale})`
+                    : undefined,
+              }}
+            />
+            <video
+              ref={videoRefB}
+              slot={activeSlot === "B" ? "media" : undefined}
+              playsInline
+              preload="metadata"
+              crossOrigin="anonymous"
+              suppressHydrationWarning
+              className={`${styles.video} ${
+                activeSlot === "B" ? styles.videoActive : styles.videoHidden
+              }`}
               style={{
                 objectFit: displayActive.fit,
                 transform:

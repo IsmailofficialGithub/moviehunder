@@ -24,21 +24,23 @@ export async function relayHealthy() {
 // Resolve stream list.
 // In the browser, routes through secure Next.js BFF endpoint (/api/stream/resolve)
 // to shield raw CDN links, tokens, and backend relay credentials.
-export async function resolveStreams({ subjectId, detailPath, se = 0, ep = 0 }) {
+export async function resolveStreams({ subjectId, detailPath, se = 0, ep = 0, server = "1", title = "", lang = "" }) {
   const isBrowser = typeof window !== "undefined";
 
   if (isBrowser) {
     try {
       const bffUrl = `/api/stream/resolve?subjectId=${encodeURIComponent(
         subjectId
-      )}&detailPath=${encodeURIComponent(detailPath)}&se=${se}&ep=${ep}`;
+      )}&detailPath=${encodeURIComponent(detailPath)}&se=${se}&ep=${ep}&server=${encodeURIComponent(
+        server
+      )}&title=${encodeURIComponent(title)}&lang=${encodeURIComponent(lang)}`;
       const res = await fetch(bffUrl);
       if (res.ok) {
         const bffData = await res.json();
         if (Array.isArray(bffData.sources) && bffData.sources.length > 0) {
           return {
             sources: bffData.sources,
-            host: bffData.host || "secure-proxy",
+            host: bffData.host || (server === "2" ? "Server 2" : "Server 1"),
             via: bffData.via || "bff",
           };
         }

@@ -1,8 +1,8 @@
-// Server-side stream resolution route
-// Resolves streams from backend/relay and replaces raw upstream URLs with opaque tickets
+import "../../../../lib/network.js";
 import { NextResponse } from "next/server";
 import { getApiBase, getPlayRelayBase } from "../../../../lib/config";
 import { createPlaybackTicket } from "../../../../lib/mediaSecurity";
+import { resolveServer2Streams } from "../../../../lib/server2Resolver";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,14 +18,28 @@ export async function GET(request) {
     const detailPath = url.searchParams.get("detailPath");
     const se = url.searchParams.get("se") || "0";
     const ep = url.searchParams.get("ep") || "0";
+    const requestedServer = url.searchParams.get("server") || "1";
+    const requestedLang = (url.searchParams.get("lang") || "").trim().toLowerCase();
 
-    const cacheKey = `${subjectId || ""}_${detailPath || ""}_${se}_${ep}`;
-    const cachedHit =
-      serverCache.get(cacheKey) ||
-      (detailPath ? serverCache.get(`${detailPath}_${se}_${ep}`) : null) ||
-      (detailPath ? serverCache.get(detailPath) : null);
+    const cacheKey = `${subjectId || ""}_${detailPath || ""}_${se}_${ep}_s${requestedServer}_l${requestedLang}`;
+    const cachedHit = serverCache.get(cacheKey);
     if (cachedHit && Date.now() - cachedHit.ts < CACHE_TTL_MS) {
       return NextResponse.json(cachedHit.payload);
+    }
+
+    // Security: Only allow requests originating from our website
+    const origin = request.headers.get("origin") || "";
+    const referer = request.headers.get("referer") || "";
+    const secFetchSite = request.headers.get("sec-fetch-site") || "";
+    const allowed = ["offstream.co", "localhost", "127.0.0.1"];
+    const isAllowedOrigin = !origin || allowed.some((h) => origin.includes(h));
+    const isAllowedReferer = !referer || allowed.some((h) => referer.includes(h));
+
+    if (secFetchSite === "cross-site" || !isAllowedOrigin || !isAllowedReferer) {
+      return NextResponse.json(
+        { ok: false, error: "Access denied. Streams only accessible from official website." },
+        { status: 403 }
+      );
     }
 
     if (!subjectId && !detailPath) {
@@ -43,21 +57,33 @@ export async function GET(request) {
     if (appKey) serverHeaders["X-App-Key"] = appKey;
 
     let detailMeta = null;
-    if (!subjectId && detailPath) {
+    const isSubjectNumeric = subjectId && /^\d+$/.test(String(subjectId).trim());
+    if (!isSubjectNumeric && (detailPath || subjectId)) {
+      const slugToQuery = detailPath || subjectId;
       try {
         const detailRes = await fetch(
-          `${getApiBase()}/detail/${encodeURIComponent(detailPath)}`,
+          `${getApiBase()}/detail/${encodeURIComponent(slugToQuery)}`,
           { headers: serverHeaders }
         );
         if (detailRes.ok) {
           const detailData = await detailRes.json();
-          subjectId = detailData?.metadata?.id;
+          if (detailData?.metadata?.id) {
+            subjectId = String(detailData.metadata.id);
+          }
           detailMeta = detailData?.metadata || null;
         }
       } catch {}
     }
 
     if (!subjectId) subjectId = detailPath;
+
+    const isHindiRequested = requestedLang === "hindi" || requestedLang.includes("hindi");
+    const s1Title = String(detailMeta?.title || url.searchParams.get("title") || "");
+    const s1Slug = String(detailPath || subjectId || "");
+    const s1HasNativeHindi = /\[\s*hindi\s*\]|\(\s*hindi\s*\)|-hindi-|\bhindi\b/i.test(`${s1Title} ${s1Slug}`);
+
+    // If Hindi is requested and Server 1 has no native Hindi dub, route directly to Server 2
+    const forceServer2 = requestedServer === "2" || (isHindiRequested && !s1HasNativeHindi);
 
     const fetchStreamAttempt = async (curSe, curEp) => {
       const sp = `/api/stream/${encodeURIComponent(
@@ -104,16 +130,54 @@ export async function GET(request) {
     };
 
     let resolved = null;
-    if (se === "0" && ep === "0") {
-      resolved = await fetchStreamAttempt("0", "0");
-      if (!resolved) {
-        resolved = await fetchStreamAttempt("1", "1");
+    if (!forceServer2) {
+      if (se === "0" && ep === "0") {
+        resolved = await fetchStreamAttempt("0", "0");
+        if (!resolved) {
+          resolved = await fetchStreamAttempt("1", "1");
+        }
+      } else {
+        resolved = await fetchStreamAttempt(se, ep);
       }
-    } else {
-      resolved = await fetchStreamAttempt(se, ep);
     }
 
-    if (!resolved || !resolved.data) {
+    // Fallback: If Server 1 has no streams or Server 2 is requested/forced -> Server 2 (Universal Multi-Source)
+    if (!resolved || !resolved.data || !Array.isArray(resolved.data.sources) || !resolved.data.sources.length) {
+      const s2 = await resolveServer2Streams({
+        title: detailMeta?.title || url.searchParams.get("title") || "",
+        detailPath: detailPath || subjectId,
+        se,
+        ep,
+        currentSubjectId: subjectId,
+        lang: requestedLang,
+      });
+
+      if (s2 && s2.sources?.length) {
+        const payload = {
+          ok: true,
+          sources: s2.sources,
+          host: "Server 2",
+          via: "fallback",
+          meta: detailMeta
+            ? {
+                id: detailMeta.id,
+                country: detailMeta.country,
+                genre: detailMeta.genre,
+                year: detailMeta.release_date,
+                rating: detailMeta.imdb_rating,
+                title: detailMeta.title,
+                duration: detailMeta.duration,
+              }
+            : s2.meta || null,
+        };
+        serverCache.set(cacheKey, { payload, ts: Date.now() });
+        return NextResponse.json(payload, {
+          headers: {
+            "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600",
+          },
+        });
+      }
+
       return NextResponse.json(
         { ok: false, error: "No playable streams found" },
         { status: 404 }
@@ -121,7 +185,6 @@ export async function GET(request) {
     }
 
     const { data, via, streamDomain } = resolved;
-
     const rawSources = Array.isArray(data.sources) ? data.sources : [];
 
     const relayBase = getPlayRelayBase();
@@ -151,8 +214,8 @@ export async function GET(request) {
     const payload = {
       ok: true,
       sources: maskedSources,
-      host: streamDomain,
-      via,
+      host: "Server 1",
+      via: "secure",
       meta: detailMeta
         ? {
             id: detailMeta.id,
@@ -171,10 +234,6 @@ export async function GET(request) {
       serverCache.delete(oldestKey);
     }
     serverCache.set(cacheKey, { payload, ts: Date.now() });
-    if (detailPath) {
-      serverCache.set(detailPath, { payload, ts: Date.now() });
-      serverCache.set(`${detailPath}_${se}_${ep}`, { payload, ts: Date.now() });
-    }
 
     return NextResponse.json(payload, {
       headers: {

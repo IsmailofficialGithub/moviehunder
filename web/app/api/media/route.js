@@ -11,6 +11,20 @@ async function handleMedia(request) {
     const url = new URL(request.url);
     const ticket = url.searchParams.get("ticket");
 
+    const origin = request.headers.get("origin") || "";
+    const referer = request.headers.get("referer") || "";
+    const secFetchSite = request.headers.get("sec-fetch-site") || "";
+    const allowed = ["offstream.co", "localhost", "127.0.0.1"];
+    const isAllowedOrigin = !origin || allowed.some((h) => origin.includes(h));
+    const isAllowedReferer = !referer || allowed.some((h) => referer.includes(h));
+
+    if (secFetchSite === "cross-site" || !isAllowedOrigin || !isAllowedReferer) {
+      return NextResponse.json(
+        { ok: false, error: "Access denied. Media requests only allowed from official website." },
+        { status: 403 }
+      );
+    }
+
     if (!ticket) {
       return NextResponse.json(
         { ok: false, error: "Playback ticket is required" },

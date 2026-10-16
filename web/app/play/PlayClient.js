@@ -1,26 +1,48 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Sparkles,
   Smartphone,
   User,
   ChevronDown,
+  ChevronLeft,
   Flag,
   Check,
   X,
   AlertCircle,
-  ArrowLeft,
+  Loader2,
+  Bookmark,
+  Star,
+  Clock,
+  Film,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import StreamPlayer from "../../components/StreamPlayer";
-import { getEpisodes, searchTitles } from "../../lib/api";
+import { getDetail, getEpisodes, getRecommendations, searchTitles } from "../../lib/api";
 import { useAuth } from "../../components/AuthProvider";
 import { addHistoryItem } from "../../lib/guestHistory";
 import { getActiveProfile } from "../../lib/profiles";
 import { formatBytes } from "../../lib/stream";
+import { useWatchlist } from "../../lib/watchlist";
 import styles from "./play.module.css";
+
+function formatDuration(val) {
+  if (!val) return null;
+  if (typeof val === "number" || /^\d+$/.test(String(val).trim())) {
+    const totalMin = Math.round(Number(val) / 60);
+    if (totalMin <= 0) return null;
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  }
+  return String(val);
+}
 
 function normalizeSeasons(raw = []) {
   if (!Array.isArray(raw)) return [];
@@ -136,6 +158,11 @@ export default function PlayClient() {
   let title = params.get("title") || "";
   let poster = params.get("poster") || "";
   const initialTime = Number(params.get("t") || params.get("start") || params.get("position") || 0);
+  const requestedLang = params.get("lang") || "";
+  const s1HasNativeHindi = /\[\s*hindi\s*\]|\(\s*hindi\s*\)|-hindi-|\bhindi\b/i.test(`${title} ${detailPath}`);
+  const initialServer =
+    params.get("server") ||
+    (requestedLang.toLowerCase().includes("hindi") && !s1HasNativeHindi ? "2" : "1");
 
   // Restore cached metadata before defaulting detailPath to subjectId
   if (subjectId && typeof window !== "undefined") {
@@ -190,21 +217,58 @@ export default function PlayClient() {
   }, [isSignedIn, subjectId, detailPath, title, poster, se, ep]);
 
   const [seasons, setSeasons] = useState([]);
-  const isSeries = Number(se) > 0 || Number(ep) > 0 || seasons.length > 0;
+  const [episodesLoading, setEpisodesLoading] = useState(
+    Number(se) > 0 || Number(ep) > 0 || String(detailPath || "").includes("episode") || String(detailPath || "").includes("-season-")
+  );
+  const isSeries = Number(se) > 0 || Number(ep) > 0 || seasons.length > 0 || episodesLoading;
   const [activeSeason, setActiveSeason] = useState(String(Number(se) > 0 ? se : "1"));
+  const [videoDetail, setVideoDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState([]);
+  const [recsLoading, setRecsLoading] = useState(true);
+  const [mobileTab, setMobileTab] = useState("overview"); // overview, episodes, quality, recommended
+  const [synopsisExpanded, setSynopsisExpanded] = useState(false);
   const initialLang = useMemo(() => {
-    return extractLanguageTag(title, detailPath) || "Original";
-  }, [title, detailPath]);
+    return requestedLang || extractLanguageTag(title, detailPath) || "Original";
+  }, [requestedLang, title, detailPath]);
 
   const [selectedAudioLang, setSelectedAudioLang] = useState(initialLang);
   const [availableDubs, setAvailableDubs] = useState([]);
   const [formatMode, setFormatMode] = useState("dash"); // "dash" | "mp4"
   const [streamMeta, setStreamMeta] = useState(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
+  const [activeServer, setActiveServer] = useState(initialServer);
   const [availableAudioLanguages, setAvailableAudioLanguages] = useState([]);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportCategory, setReportCategory] = useState("buffering");
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  const {
+    inWatchlist,
+    isSaving: watchlistSaving,
+    toggle: toggleWatchlistState,
+  } = useWatchlist(subjectId || detailPath);
+  const [recViewMode, setRecViewMode] = useState("grid");
+  const [isSwitching, setIsSwitching] = useState(false);
+  const switchingTimerRef = useRef(null);
+
+  const startSwitching = useCallback(() => {
+    setIsSwitching(true);
+    if (switchingTimerRef.current) clearTimeout(switchingTimerRef.current);
+    switchingTimerRef.current = setTimeout(() => {
+      setIsSwitching(false);
+    }, 3500);
+  }, []);
+
+  const stopSwitching = useCallback(() => {
+    if (switchingTimerRef.current) clearTimeout(switchingTimerRef.current);
+    setIsSwitching(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (switchingTimerRef.current) clearTimeout(switchingTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (Number(se) > 0) {
@@ -220,17 +284,25 @@ export default function PlayClient() {
 
     if (!slugToFetch && !subjectId && !title) {
       setSeasons([]);
+      setEpisodesLoading(false);
+      setDetailLoading(false);
+      setRecsLoading(false);
       return;
     }
 
     let cancelled = false;
 
-    async function loadEpisodes() {
+    async function loadData() {
+      setEpisodesLoading(true);
+      setDetailLoading(true);
+      setRecsLoading(true);
       try {
+        let detailData = null;
         let epData = null;
+
         if (slugToFetch && !/^\d+$/.test(slugToFetch)) {
           try {
-            epData = await getEpisodes(slugToFetch);
+            detailData = await getDetail(slugToFetch);
           } catch {}
         }
 
@@ -265,7 +337,7 @@ export default function PlayClient() {
               if (!cancelled) setAvailableDubs(uniqueDubs);
             }
 
-            if (!epData?.seasons || epData.seasons.length === 0) {
+            if (!detailData?.metadata && (!epData?.seasons || epData.seasons.length === 0)) {
               const found =
                 matching.find(
                   (m) =>
@@ -275,24 +347,80 @@ export default function PlayClient() {
                 ) || searchRes?.movies?.[0];
               if (found?.slug) {
                 const resSlug = String(found.slug).replace(/^\/?detail\//, "").replace(/^\/+/, "");
-                epData = await getEpisodes(resSlug);
+                slugToFetch = resSlug;
+                try {
+                  detailData = await getDetail(resSlug);
+                } catch {
+                  epData = await getEpisodes(resSlug).catch(() => null);
+                }
               }
             }
           } catch {}
         }
 
         if (cancelled) return;
-        const normalized = normalizeSeasons(epData?.seasons || []);
+
+        const meta = detailData?.metadata || null;
+        if (meta) {
+          setVideoDetail(meta);
+        }
+
+        const rawSeasons = meta?.seasons || epData?.seasons || [];
+        const normalized = normalizeSeasons(rawSeasons);
         setSeasons(normalized);
         if (normalized.length > 0 && Number(se) <= 0) {
           setActiveSeason(String(normalized[0].season));
         }
+
+        // Determine content type for recommended items
+        const genreStr = String(meta?.genre || "").toLowerCase();
+        let derivedType = "movie";
+        if (genreStr.includes("anime") || genreStr.includes("animation")) {
+          derivedType = "anime";
+        } else if (
+          Number(se) > 0 ||
+          Number(ep) > 0 ||
+          normalized.length > 0 ||
+          String(detailPath || "").includes("episode") ||
+          String(detailPath || "").includes("-season-")
+        ) {
+          derivedType = "series";
+        }
+
+        // Fetch type-aware recommendations
+        try {
+          const recsRes = await getRecommendations({
+            type: derivedType,
+            exclude: slugToFetch,
+            limit: 16,
+          });
+          const recList = Array.isArray(recsRes)
+            ? recsRes
+            : (recsRes?.recommendations || recsRes?.items || []);
+          if (!cancelled) {
+            if (recList.length > 0) {
+              setRecommendations(recList);
+            } else if (meta?.related?.length) {
+              setRecommendations(meta.related);
+            }
+          }
+        } catch {
+          if (!cancelled && meta?.related?.length) {
+            setRecommendations(meta.related);
+          }
+        }
       } catch {
         if (!cancelled) setSeasons([]);
+      } finally {
+        if (!cancelled) {
+          setEpisodesLoading(false);
+          setDetailLoading(false);
+          setRecsLoading(false);
+        }
       }
     }
 
-    loadEpisodes();
+    loadData();
     return () => {
       cancelled = true;
     };
@@ -337,8 +465,12 @@ export default function PlayClient() {
     );
   };
 
-  const backHref = detailPath
-    ? `/title/${encodeURIComponent(detailPath)}${isSeries ? `?se=${encodeURIComponent(se)}&ep=${encodeURIComponent(ep)}` : ""}`
+  const cleanSlug = String(detailPath || "")
+    .replace(/^\/?(?:detail|title)\//, "")
+    .replace(/^\/+/, "");
+
+  const backHref = cleanSlug
+    ? `/title/${encodeURIComponent(cleanSlug)}${isSeries ? `?se=${encodeURIComponent(se)}&ep=${encodeURIComponent(ep)}` : ""}`
     : "/";
 
   // Build Season Range label e.g. "S1-S4"
@@ -354,61 +486,70 @@ export default function PlayClient() {
   const currentSeasonEpisodes = useMemo(() => {
     const s = seasons.find((item) => String(item.season) === String(activeSeason));
     if (s?.episodes?.length) return s.episodes;
-    if (isSeries && seasons.length === 0) {
-      // Fallback single season
-      const cur = Number(ep) || 1;
-      const count = Math.max(cur + 5, 24);
-      return Array.from({ length: count }, (_, i) => ({
-        se: String(activeSeason || "1"),
-        ep: String(i + 1),
-      }));
+    if (seasons.length === 0 && Number(ep) > 0) {
+      return [{ se: String(activeSeason || "1"), ep: String(ep) }];
     }
     return [];
-  }, [seasons, activeSeason, isSeries, ep]);
+  }, [seasons, activeSeason, ep]);
 
-  const toggleFormat = () => {
-    setFormatMode((prev) => (prev === "dash" ? "mp4" : "dash"));
+  const handleServerChange = (srv) => {
+    if (srv === activeServer || isSwitching) return;
+    startSwitching();
+    setActiveServer(srv);
+    setSelectedAudioLang(srv === "1" ? "Audio 1" : "Audio 2");
   };
 
-  const currentLanguageTag = useMemo(() => {
-    return extractLanguageTag(title, detailPath) || selectedAudioLang || "Original";
-  }, [title, detailPath, selectedAudioLang]);
-
   const combinedAudioOptions = useMemo(() => {
-    const list = [];
-    const seen = new Set();
+    const list = [
+      {
+        id: "audio_1",
+        server: "1",
+        label: "Audio 1",
+      },
+      {
+        id: "audio_2",
+        server: "2",
+        label: "Audio 2",
+      },
+    ];
 
-    // 1. Add CDN dub variants
+    // Any other available dubs/alternate streams from search (Audio 3, Audio 4, etc.)
+    let idx = 3;
     for (const d of availableDubs) {
-      if (!seen.has(d.label)) {
-        seen.add(d.label);
-        list.push({ id: `dub_${d.label}`, label: d.label, isDub: true, dub: d });
-      }
-    }
-
-    // 2. Add machine audio tracks if available
-    for (const t of availableAudioLanguages) {
-      const lbl = t.label || t.language;
-      if (!seen.has(lbl)) {
-        seen.add(lbl);
-        list.push({ id: String(t.id), label: lbl, isDub: false, track: t });
-      }
-    }
-
-    // 3. Ensure currentLanguageTag is present
-    if (currentLanguageTag && !seen.has(currentLanguageTag)) {
-      list.unshift({ id: `cur_${currentLanguageTag}`, label: currentLanguageTag, isDub: false });
+      list.push({
+        id: `dub_${d.slug || idx}`,
+        server: "1",
+        label: `Audio ${idx}`,
+        dub: d,
+      });
+      idx++;
     }
 
     return list;
-  }, [availableDubs, availableAudioLanguages, currentLanguageTag]);
+  }, [availableDubs]);
 
-  const handleAudioSelect = (val) => {
-    setSelectedAudioLang(val);
-    const targetDub = availableDubs.find((d) => d.label === val);
-    if (targetDub) {
-      const targetSlug = targetDub.slug;
-      const targetSub = targetDub.subjectId;
+  const activeAudioOptionId = useMemo(() => {
+    if (activeServer === "2") return "audio_2";
+    if (activeServer === "1") return "audio_1";
+    return combinedAudioOptions[0]?.id || "audio_1";
+  }, [activeServer, combinedAudioOptions]);
+
+  const currentLanguageTag = useMemo(() => {
+    return activeServer === "2" ? "Audio 2" : "Audio 1";
+  }, [activeServer]);
+
+  const handleAudioOptionChange = (optId) => {
+    if (optId === activeAudioOptionId || isSwitching) return;
+    const opt = combinedAudioOptions.find((o) => o.id === optId);
+    if (!opt) return;
+
+    startSwitching();
+    setActiveServer(opt.server);
+    setSelectedAudioLang(opt.label);
+
+    if (opt.dub) {
+      const targetSlug = opt.dub.slug;
+      const targetSub = opt.dub.subjectId;
       if ((targetSlug && targetSlug !== detailPath) || (targetSub && targetSub !== subjectId)) {
         router.push(
           `/play?${playQuery({
@@ -416,8 +557,8 @@ export default function PlayClient() {
             detailPath: targetSlug || detailPath,
             se,
             ep,
-            title: targetDub.title || title,
-            poster: targetDub.poster || poster,
+            title: opt.dub.title || title,
+            poster: opt.dub.poster || poster,
           })}`
         );
       }
@@ -433,31 +574,531 @@ export default function PlayClient() {
     }, 1600);
   };
 
+  const renderDetailsBlock = () => {
+    const dTitle = videoDetail?.title || title || "Video";
+    const year = videoDetail?.release_date ? String(videoDetail.release_date).slice(0, 4) : null;
+    const rating = videoDetail?.imdb_rating ? Number(videoDetail.imdb_rating).toFixed(1) : null;
+    const duration = formatDuration(videoDetail?.duration);
+    const badge = videoDetail?.badge || (activeServer === "2" ? "Direct CDN" : "HD");
+    const country = videoDetail?.country || null;
+    const genres = videoDetail?.genre
+      ? videoDetail.genre.split(/[,/|]/).map((g) => g.trim()).filter(Boolean)
+      : [];
+    const topCast = Array.isArray(videoDetail?.top_cast) ? videoDetail.top_cast : [];
+    const directors = topCast.filter((c) => c?.staffType === 2).map((c) => c?.name || c);
+    const actors = topCast.filter((c) => c?.staffType !== 2).map((c) => c?.name || c);
+    const rawDesc = videoDetail?.description || "";
+    const isLongDesc = rawDesc.length > 200;
+    const displayDesc = !synopsisExpanded && isLongDesc ? `${rawDesc.slice(0, 200)}...` : rawDesc;
+
+    return (
+      <div className={styles.detailsBlock}>
+        <div className={styles.detailsHeader}>
+          <div className={styles.detailsTitleRow}>
+            <h2 className={styles.detailsTitle}>{dTitle}</h2>
+          </div>
+
+          <div className={styles.detailsPillsRow}>
+            {rating && (
+              <span className={`${styles.pillItem} ${styles.ratingPill}`}>
+                <Star size={13} fill="currentColor" />
+                <span>{rating}</span>
+              </span>
+            )}
+            {year && <span className={styles.pillItem}>{year}</span>}
+            {duration && (
+              <span className={styles.pillItem}>
+                <Clock size={12} />
+                <span>{duration}</span>
+              </span>
+            )}
+            {badge && <span className={`${styles.pillItem} ${styles.badgePill}`}>{badge}</span>}
+            {country && <span className={styles.pillItem}>{country}</span>}
+          </div>
+
+          {genres.length > 0 && (
+            <div className={styles.genreTagsRow}>
+              {genres.map((g, i) => (
+                <span key={`genre-${i}`} className={styles.genreTag}>
+                  {g}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {rawDesc && (
+          <p className={styles.detailsSynopsis}>
+            {displayDesc}
+            {isLongDesc && (
+              <button
+                type="button"
+                className={styles.synopsisToggle}
+                onClick={() => setSynopsisExpanded((prev) => !prev)}
+              >
+                {synopsisExpanded ? "Show less" : "Show more"}
+              </button>
+            )}
+          </p>
+        )}
+
+        {(directors.length > 0 || actors.length > 0) && (
+          <div className={styles.creditsList}>
+            {directors.length > 0 && (
+              <div className={styles.creditRow}>
+                <span className={styles.creditLabel}>Director</span>
+                <span className={styles.creditValue}>{directors.join(", ")}</span>
+              </div>
+            )}
+            {actors.length > 0 && (
+              <div className={styles.creditRow}>
+                <span className={styles.creditLabel}>Cast</span>
+                <span className={styles.creditValue}>
+                  {actors.slice(0, 6).map((a) => (typeof a === "object" ? a?.name : a)).join(", ")}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderEpisodesPanel = () => (
+    <div className={styles.panelCard}>
+      <div className={styles.panelHeaderRow}>
+        <div className={styles.panelTitleWithCount}>
+          <span className={styles.panelTitle}>Episodes</span>
+          {episodesLoading ? (
+            <div className={styles.skeletonBadge} />
+          ) : currentSeasonEpisodes.length > 0 ? (
+            <span className={styles.countBadge}>
+              {currentSeasonEpisodes.length} eps
+            </span>
+          ) : null}
+        </div>
+
+        {episodesLoading ? (
+          <div className={styles.skeletonSeasonSelect} />
+        ) : seasons.length > 0 ? (
+          <div className={styles.seasonSelectWrap}>
+            <select
+              className={styles.seasonSelect}
+              value={activeSeason}
+              onChange={(e) => {
+                const newSe = e.target.value;
+                setActiveSeason(newSe);
+                const targetSeason = seasons.find((s) => String(s.season) === String(newSe));
+                if (targetSeason?.episodes?.[0]) {
+                  goTo(targetSeason.episodes[0]);
+                }
+              }}
+            >
+              {seasons.map((s) => (
+                <option key={s.season} value={String(s.season)}>
+                  Season {String(s.season).padStart(2, "0")}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={13} className={styles.seasonChevron} />
+          </div>
+        ) : null}
+      </div>
+
+      {episodesLoading ? (
+        <div className={styles.episodeGrid}>
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={`ep-skel-${i}`} className={styles.skeletonEpisodeBtn} />
+          ))}
+        </div>
+      ) : currentSeasonEpisodes.length > 0 ? (
+        <div className={styles.episodeGrid}>
+          {currentSeasonEpisodes.map((item) => {
+            const isPlaying = String(item.se) === String(se) && String(item.ep) === String(ep);
+            return (
+              <button
+                key={`${item.se}-${item.ep}`}
+                type="button"
+                className={`${styles.episodeBtn} ${isPlaying ? styles.episodeBtnPlaying : ""}`}
+                onClick={() => goTo(item)}
+                title={`Season ${item.se} Episode ${item.ep}`}
+              >
+                <span className={styles.episodeNum}>
+                  {String(item.ep).padStart(2, "0")}
+                </span>
+                {isPlaying && (
+                  <span className={styles.equalizerIcon} aria-hidden="true">
+                    <span className={styles.eqBar1}></span>
+                    <span className={styles.eqBar2}></span>
+                    <span className={styles.eqBar3}></span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={styles.singleMovieInfo}>
+          <p>No episodes available</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderQualityPanel = () => (
+    <div className={styles.panelCard}>
+      <div className={styles.panelHeaderRow}>
+        <span className={styles.panelTitle}>Stream Quality</span>
+        <span className={styles.countBadge}>{streamMeta?.host || (activeServer === "2" ? "Server 2" : "Server 1")}</span>
+      </div>
+
+      <div className={styles.settingRow}>
+        <span className={styles.settingLabel}>Server</span>
+        <div className={styles.serverToggleRow}>
+          <button
+            type="button"
+            className={`${styles.serverToggleBtn} ${activeServer === "1" ? styles.serverToggleBtnActive : ""}`}
+            onClick={() => handleServerChange("1")}
+            disabled={isSwitching}
+          >
+            {isSwitching && activeServer === "1" && <Loader2 size={12} className={styles.spinnerIcon} />}
+            <span>Server 1</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.serverToggleBtn} ${activeServer === "2" ? styles.serverToggleBtnActive : ""}`}
+            onClick={() => handleServerChange("2")}
+            disabled={isSwitching}
+          >
+            {isSwitching && activeServer === "2" && <Loader2 size={12} className={styles.spinnerIcon} />}
+            <span>Server 2</span>
+          </button>
+        </div>
+      </div>
+
+      <div className={styles.settingRow}>
+        <span className={styles.settingLabel}>Quality</span>
+        {streamMeta?.sources?.length > 0 ? (
+          <div className={styles.streamSourcesGrid}>
+            {streamMeta.sources.map((s, idx) => {
+              const isSelected = selectedQuality === idx;
+              const size = formatBytes(s.size_bytes);
+              return (
+                <button
+                  key={s.id || s.url || idx}
+                  type="button"
+                  className={`${styles.streamSourceBtn} ${
+                    isSelected ? styles.streamSourceBtnActive : ""
+                  }`}
+                  onClick={() => setSelectedQuality(idx)}
+                  disabled={isSwitching}
+                >
+                  <span className={styles.sourceRes}>{s.resolution}</span>
+                  {size && <span className={styles.sourceSize}>{size}</span>}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={styles.streamSourcesGrid}>
+            <div className={styles.skeletonQualityBtn} />
+            <div className={styles.skeletonQualityBtn} />
+            <div className={styles.skeletonQualityBtn} />
+          </div>
+        )}
+      </div>
+
+      <div className={styles.settingRow}>
+        <div className={styles.settingLabelRow}>
+          <span className={styles.settingLabel}>Audio Track</span>
+          {isSwitching && (
+            <span className={styles.switchingBadge}>
+              <Loader2 size={11} className={styles.spinnerIcon} />
+              <span>Switching...</span>
+            </span>
+          )}
+        </div>
+        {combinedAudioOptions.length > 1 ? (
+          <div className={styles.selectWrapper}>
+            <select
+              className={`${styles.customSelect} ${isSwitching ? styles.customSelectLoading : ""}`}
+              value={activeAudioOptionId}
+              onChange={(e) => handleAudioOptionChange(e.target.value)}
+              disabled={isSwitching}
+            >
+              {combinedAudioOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            {isSwitching ? (
+              <span className={styles.selectSpinner}>
+                <Loader2 size={14} />
+              </span>
+            ) : (
+              <ChevronDown size={14} className={styles.selectChevron} />
+            )}
+          </div>
+        ) : !streamMeta ? (
+          <div className={styles.skeletonSelect} />
+        ) : (
+          <div className={styles.audioPill}>
+            <span className={styles.audioPillDot}></span>
+            <span>{currentLanguageTag}</span>
+            {isSwitching && <Loader2 size={12} className={styles.spinnerIcon} />}
+          </div>
+        )}
+      </div>
+
+      <div className={styles.formatRow}>
+        <div className={styles.formatInfo}>
+          <span className={styles.settingLabel}>Format</span>
+          <span className={styles.formatDesc}>
+            {activeServer === "2"
+              ? "Direct CDN Stream (MP4)"
+              : streamMeta?.sources?.[0]?.format
+                ? `Secure Native (${streamMeta.sources[0].format})`
+                : "High Efficiency Native"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderRecommendedPanel = () => (
+    <div className={styles.recommendedPanel}>
+      <div className={styles.panelHeaderRow}>
+        <div className={styles.panelTitleWithCount}>
+          <span className={styles.panelTitle}>Recommended</span>
+          {recommendations.length > 0 && (
+            <span className={styles.countBadge}>{recommendations.length}</span>
+          )}
+        </div>
+        <div className={styles.viewToggleGroup}>
+          <button
+            type="button"
+            className={`${styles.viewToggleBtn} ${recViewMode === "grid" ? styles.viewToggleBtnActive : ""}`}
+            onClick={() => setRecViewMode("grid")}
+            title="Grid View"
+            aria-label="Grid View"
+          >
+            <LayoutGrid size={13} />
+          </button>
+          <button
+            type="button"
+            className={`${styles.viewToggleBtn} ${recViewMode === "list" ? styles.viewToggleBtnActive : ""}`}
+            onClick={() => setRecViewMode("list")}
+            title="List View"
+            aria-label="List View"
+          >
+            <List size={13} />
+          </button>
+        </div>
+      </div>
+
+      {recsLoading ? (
+        recViewMode === "grid" ? (
+          <div className={styles.recommendedGrid}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={`rec-skel-${i}`} className={styles.skeletonGridCard} />
+            ))}
+          </div>
+        ) : (
+          <div className={styles.recommendedList}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={`rec-skel-${i}`} className={styles.skeletonRecCard} />
+            ))}
+          </div>
+        )
+      ) : recommendations.length > 0 ? (
+        recViewMode === "grid" ? (
+          <div className={styles.recommendedGrid}>
+            {recommendations.map((item, idx) => {
+              const recSlug = String(item.slug || "").replace(/^\/?detail\//, "").replace(/^\/+/, "");
+              const recTarget = {
+                subjectId: item.subject_id ? String(item.subject_id) : recSlug,
+                detailPath: recSlug,
+                se: "0",
+                ep: "0",
+                title: item.name || "",
+                poster: item.poster_url || "",
+              };
+              const href = `/play?${playQuery(recTarget)}`;
+              const recYear = item.year ? String(item.year).slice(0, 4) : null;
+              const recRating = item.rating ? Number(item.rating).toFixed(1) : null;
+              const genreSnippet = item.genre ? item.genre.split(/[,/]/)[0].trim() : null;
+
+              return (
+                <Link
+                  key={item.subject_id || item.slug || idx}
+                  href={href}
+                  className={styles.recGridCard}
+                >
+                  <div className={styles.recPosterWrap}>
+                    {item.poster_url ? (
+                      <img
+                        src={item.poster_url}
+                        alt={item.name}
+                        className={styles.recPoster}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className={styles.recPosterPlaceholder}>
+                        <Film size={22} />
+                      </div>
+                    )}
+                    {item.badge && <span className={styles.recPosterBadge}>{item.badge}</span>}
+                    {recRating && (
+                      <span className={styles.recPosterRating}>
+                        <Star size={10} fill="currentColor" />
+                        <span>{recRating}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className={styles.recGridInfo}>
+                    <h4 className={styles.recGridTitle} title={item.name}>{item.name}</h4>
+                    <div className={styles.recGridMeta}>
+                      {recYear && <span>{recYear}</span>}
+                      {genreSnippet && <span className={styles.recGridGenre}>{genreSnippet}</span>}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={styles.recommendedList}>
+            {recommendations.map((item, idx) => {
+              const recSlug = String(item.slug || "").replace(/^\/?detail\//, "").replace(/^\/+/, "");
+              const recTarget = {
+                subjectId: item.subject_id ? String(item.subject_id) : recSlug,
+                detailPath: recSlug,
+                se: "0",
+                ep: "0",
+                title: item.name || "",
+                poster: item.poster_url || "",
+              };
+              const href = `/play?${playQuery(recTarget)}`;
+              const recYear = item.year ? String(item.year).slice(0, 4) : null;
+              const recRating = item.rating ? Number(item.rating).toFixed(1) : null;
+              const genreSnippet = item.genre ? item.genre.split(/[,/]/)[0].trim() : null;
+
+              return (
+                <Link
+                  key={item.subject_id || item.slug || idx}
+                  href={href}
+                  className={styles.recCard}
+                >
+                  <div className={styles.recThumbWrap}>
+                    {item.poster_url ? (
+                      <img
+                        src={item.poster_url}
+                        alt={item.name}
+                        className={styles.recThumb}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className={styles.recThumbPlaceholder}>
+                        <Film size={18} />
+                      </div>
+                    )}
+                    {item.badge && <span className={styles.recThumbBadge}>{item.badge}</span>}
+                  </div>
+                  <div className={styles.recInfo}>
+                    <h4 className={styles.recTitle} title={item.name}>{item.name}</h4>
+                    <div className={styles.recMeta}>
+                      {recRating && (
+                        <span className={styles.recRating}>
+                          <Star size={11} fill="currentColor" />
+                          <span>{recRating}</span>
+                        </span>
+                      )}
+                      {recYear && <span className={styles.recYear}>{recYear}</span>}
+                      {genreSnippet && <span className={styles.recGenre}>{genreSnippet}</span>}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )
+      ) : (
+        <div className={styles.singleMovieInfo}>
+          <p>No similar titles found</p>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <main className={styles.main}>
-      {/* Top Header Bar */}
       <header className={styles.topHeader}>
         <div className={styles.titleArea}>
-          <Link href={backHref} className={styles.backBtn} title="Back to Details">
-            <ArrowLeft size={16} />
-          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push(backHref || "/");
+              }
+            }}
+            className={styles.backBtn}
+            title="Go Back"
+          >
+            <ChevronLeft size={16} />
+            <span>Back</span>
+          </button>
           <h1 className={styles.mediaTitle}>
-            {title || "Now Playing"}
-            {selectedAudioLang && selectedAudioLang !== "Original" && <span className={styles.langTag}> [{selectedAudioLang}]</span>}
-            {seasonRangeText && <span className={styles.seasonTag}> {seasonRangeText}</span>}
+            {title || "Watching"}
+            {currentLanguageTag && currentLanguageTag !== "Original" && (
+              <span className={styles.langTag}> [{currentLanguageTag}]</span>
+            )}
+            {isSeries && Number(se) > 0 && Number(ep) > 0 && (
+              <span className={styles.seasonTag}>
+                {" "}
+                · S{String(se).padStart(2, "0")} E{String(ep).padStart(2, "0")}
+              </span>
+            )}
           </h1>
         </div>
 
         <div className={styles.headerActions}>
-          {/* <Link href="/account" className={styles.goPremiumBtn}>
-            <Sparkles size={14} className={styles.goldSparkle} />
-            <span>Go Premium</span>
-          </Link> */}
-
-          {/* <Link href="/download" className={styles.downloadBtn}>
+          <Link href="/download-app" className={styles.downloadBtn} title="Download Native App">
             <Smartphone size={14} />
-            <span>Download App</span>
-          </Link> */}
+            <span>Get App</span>
+          </Link>
+
+          <Link href="/pricing" className={styles.goPremiumBtn} title="Upgrade to VIP">
+            <Sparkles size={14} />
+            <span>VIP Pass</span>
+          </Link>
+
+          <button
+            type="button"
+            className={`${styles.watchlistHeaderBtn} ${inWatchlist ? styles.watchlistHeaderBtnActive : ""}`}
+            disabled={watchlistSaving}
+            onClick={() => {
+              toggleWatchlistState({
+                slug: detailPath
+                  ? String(detailPath).replace(/^\/?detail\//, "").replace(/^\/+/, "")
+                  : subjectId,
+                detailPath,
+                title,
+                poster,
+                type: isSeries ? "tv" : "movie",
+              });
+            }}
+            title={inWatchlist ? "Remove from Watchlist" : "Save to Watchlist"}
+          >
+            <Bookmark
+              size={14}
+              fill={inWatchlist ? "currentColor" : "none"}
+              strokeWidth={inWatchlist ? 0 : 2}
+            />
+            <span>{watchlistSaving ? "Saving…" : inWatchlist ? "Saved" : "Save"}</span>
+          </button>
 
           {isSignedIn ? (
             <Link href="/profiles" className={styles.userBtn}>
@@ -483,7 +1124,6 @@ export default function PlayClient() {
         </div>
       </header>
 
-      {/* Main Grid: Player on Left, Sidebar on Right */}
       {!subjectId || !detailPath ? (
         <div className={styles.errorBox}>
           <p>Open a title from the catalog, then tap Play.</p>
@@ -493,43 +1133,53 @@ export default function PlayClient() {
         </div>
       ) : (
         <div className={styles.layoutGrid}>
-          {/* Left: Video Player and DMCA/Report footer */}
           <div className={styles.playerSection}>
-            <div className={styles.playerWrapper}>
-              <StreamPlayer
-                subjectId={subjectId}
-                detailPath={detailPath}
-                se={se}
-                ep={ep}
-                title={title}
-                poster={poster}
-                initialTime={initialTime}
-                prevEpisode={prevEpisode}
-                nextEpisode={nextEpisode}
-                onPrevEpisode={() => goTo(prevEpisode)}
-                onNextEpisode={() => goTo(nextEpisode)}
-                onStreamMeta={(meta) => setStreamMeta(meta)}
-                qualityIndex={selectedQuality}
-                onQualityChange={(q) => setSelectedQuality(q)}
-                audioLanguage={selectedAudioLang}
-                onAvailableAudioLanguages={(langs) => {
-                  const list = Array.isArray(langs) ? langs : [];
-                  setAvailableAudioLanguages(list);
-                  if (list.length > 0) {
-                    const active = list.find((l) => l.enabled) || list[0];
-                    if (active && (!selectedAudioLang || selectedAudioLang === "Original")) {
-                      setSelectedAudioLang(active.label || active.language);
+            <div className={styles.playerStickyWrapper}>
+              <div className={styles.playerWrapper}>
+                <StreamPlayer
+                  subjectId={subjectId}
+                  detailPath={detailPath}
+                  se={se}
+                  ep={ep}
+                  title={title}
+                  poster={poster}
+                  initialTime={initialTime}
+                  prevEpisode={prevEpisode}
+                  nextEpisode={nextEpisode}
+                  onPrevEpisode={() => goTo(prevEpisode)}
+                  onNextEpisode={() => goTo(nextEpisode)}
+                  server={activeServer}
+                  onStatusChange={(st) => {
+                    if (st === "loading") {
+                      startSwitching();
+                    } else if (st === "ready" || st === "error") {
+                      stopSwitching();
                     }
-                  }
-                }}
-              />
+                  }}
+                  onStreamMeta={(meta) => {
+                    setStreamMeta(meta);
+                    if (meta?.host === "Server 2") setActiveServer("2");
+                    else if (meta?.host === "Server 1" && activeServer !== "2") setActiveServer("1");
+                  }}
+                  qualityIndex={selectedQuality}
+                  onQualityChange={(q) => setSelectedQuality(q)}
+                  audioLanguage={selectedAudioLang}
+                  onAvailableAudioLanguages={(langs) => {
+                    const list = Array.isArray(langs) ? langs : [];
+                    setAvailableAudioLanguages(list);
+                    if (list.length > 0) {
+                      const active = list.find((l) => l.enabled) || list[0];
+                      if (active && (!selectedAudioLang || selectedAudioLang === "Original")) {
+                        setSelectedAudioLang(active.label || active.language);
+                      }
+                    }
+                  }}
+                />
+              </div>
             </div>
 
-            {/* Under-player bar */}
             <div className={styles.underPlayerBar}>
-              <span className={styles.infringeText}>
-                {" "}
-              </span>
+              <span className={styles.infringeText}> </span>
               <button
                 type="button"
                 className={styles.reportBtn}
@@ -539,165 +1189,68 @@ export default function PlayClient() {
                 <span>Report</span>
               </button>
             </div>
-          </div>
 
-          {/* Right: Sidebar Controls (Episodes & Stream Quality) */}
-          <aside className={styles.sidebar}>
-            {/* Episodes Card for TV series */}
-            {isSeries && (
-              <div className={styles.panelCard}>
-                <div className={styles.panelHeaderRow}>
-                  <div className={styles.panelTitleWithCount}>
-                    <span className={styles.panelTitle}>Episodes</span>
-                    {currentSeasonEpisodes.length > 0 && (
-                      <span className={styles.countBadge}>
-                        {currentSeasonEpisodes.length} eps
-                      </span>
-                    )}
-                  </div>
+            <div className={styles.desktopOnly}>
+              {renderDetailsBlock()}
+            </div>
 
-                  {seasons.length > 0 && (
-                    <div className={styles.seasonSelectWrap}>
-                      <select
-                        className={styles.seasonSelect}
-                        value={activeSeason}
-                        onChange={(e) => {
-                          const newSe = e.target.value;
-                          setActiveSeason(newSe);
-                          const targetSeason = seasons.find((s) => String(s.season) === String(newSe));
-                          if (targetSeason?.episodes?.[0]) {
-                            goTo(targetSeason.episodes[0]);
-                          }
-                        }}
-                      >
-                        {seasons.map((s) => (
-                          <option key={s.season} value={String(s.season)}>
-                            Season {String(s.season).padStart(2, "0")}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown size={13} className={styles.seasonChevron} />
-                    </div>
-                  )}
-                </div>
-
-                {/* Episode Grid */}
-                {currentSeasonEpisodes.length > 0 ? (
-                  <div className={styles.episodeGrid}>
-                    {currentSeasonEpisodes.map((item) => {
-                      const isPlaying = String(item.se) === String(se) && String(item.ep) === String(ep);
-                      return (
-                        <button
-                          key={`${item.se}-${item.ep}`}
-                          type="button"
-                          className={`${styles.episodeBtn} ${isPlaying ? styles.episodeBtnPlaying : ""}`}
-                          onClick={() => goTo(item)}
-                          title={`Season ${item.se} Episode ${item.ep}`}
-                        >
-                          {isPlaying ? (
-                            <span className={styles.equalizerIcon}>
-                              <span className={styles.eqBar1}></span>
-                              <span className={styles.eqBar2}></span>
-                              <span className={styles.eqBar3}></span>
-                            </span>
-                          ) : (
-                            String(item.ep).padStart(2, "0")
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className={styles.singleMovieInfo}>
-                    <p>Loading episodes...</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Stream Quality & Format Card */}
-            <div className={styles.panelCard}>
-              <div className={styles.panelHeaderRow}>
-                <span className={styles.panelTitle}>Stream Quality</span>
-              </div>
-
-              {/* Stream Qualities */}
-              {streamMeta?.sources?.length > 0 ? (
-                <div className={styles.streamSourcesList}>
-                  <div className={styles.streamSourcesGrid}>
-                    {streamMeta.sources.map((s, idx) => {
-                      const isSelected = selectedQuality === idx;
-                      const size = formatBytes(s.size_bytes);
-                      return (
-                        <button
-                          key={s.id || s.url || idx}
-                          type="button"
-                          className={`${styles.streamSourceBtn} ${
-                            isSelected ? styles.streamSourceBtnActive : ""
-                          }`}
-                          onClick={() => setSelectedQuality(idx)}
-                        >
-                          <span className={styles.sourceRes}>{s.resolution}</span>
-                          {size && <span className={styles.sourceSize}>{size}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className={styles.streamAutoStatus}>
-                  <span>Optimal Stream Active</span>
-                </div>
-              )}
-
-              {/* Audio / Language selector based on CDN tags & tracks */}
-              <div className={styles.settingRow}>
-                <span className={styles.settingLabel}>Audio Track</span>
-                {combinedAudioOptions.length > 1 ? (
-                  <div className={styles.selectWrapper}>
-                    <select
-                      className={styles.customSelect}
-                      value={selectedAudioLang}
-                      onChange={(e) => handleAudioSelect(e.target.value)}
-                    >
-                      {combinedAudioOptions.map((t) => (
-                        <option key={t.id} value={t.label}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className={styles.selectChevron} />
-                  </div>
-                ) : (
-                  <div className={styles.audioPill}>
-                    <span className={styles.audioPillDot}></span>
-                    <span>{currentLanguageTag}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Stream Format Row */}
-              <div className={styles.formatRow}>
-                <div className={styles.formatInfo}>
-                  <span className={styles.settingLabel}>Format</span>
-                  <span className={styles.formatDesc}>
-                    {formatMode === "dash" ? "High efficiency (DASH)" : "Standard (H.264)"}
-                  </span>
-                </div>
+            <div className={styles.mobileOnly}>
+              <div className={styles.mobileTabBar} role="tablist">
                 <button
                   type="button"
-                  className={styles.switchBtn}
-                  onClick={toggleFormat}
+                  className={`${styles.mobileTabBtn} ${mobileTab === "overview" ? styles.mobileTabBtnActive : ""}`}
+                  onClick={() => setMobileTab("overview")}
                 >
-                  Switch
+                  Overview
+                </button>
+                {isSeries && (
+                  <button
+                    type="button"
+                    className={`${styles.mobileTabBtn} ${mobileTab === "episodes" ? styles.mobileTabBtnActive : ""}`}
+                    onClick={() => setMobileTab("episodes")}
+                  >
+                    <span>Episodes</span>
+                    {currentSeasonEpisodes.length > 0 && (
+                      <span className={styles.mobileTabBadge}>{currentSeasonEpisodes.length}</span>
+                    )}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`${styles.mobileTabBtn} ${mobileTab === "quality" ? styles.mobileTabBtnActive : ""}`}
+                  onClick={() => setMobileTab("quality")}
+                >
+                  Servers & Quality
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.mobileTabBtn} ${mobileTab === "recommended" ? styles.mobileTabBtnActive : ""}`}
+                  onClick={() => setMobileTab("recommended")}
+                >
+                  <span>Recommended</span>
+                  {recommendations.length > 0 && (
+                    <span className={styles.mobileTabBadge}>{recommendations.length}</span>
+                  )}
                 </button>
               </div>
+
+              <div className={styles.mobileTabContent}>
+                {mobileTab === "overview" && renderDetailsBlock()}
+                {mobileTab === "episodes" && isSeries && renderEpisodesPanel()}
+                {mobileTab === "quality" && renderQualityPanel()}
+                {mobileTab === "recommended" && renderRecommendedPanel()}
+              </div>
             </div>
+          </div>
+
+          <aside className={`${styles.sidebar} ${styles.desktopOnly}`}>
+            {isSeries && renderEpisodesPanel()}
+            {renderQualityPanel()}
+            {renderRecommendedPanel()}
           </aside>
         </div>
       )}
 
-      {/* Report Modal */}
       {reportModalOpen && (
         <div
           className={styles.modalOverlay}
