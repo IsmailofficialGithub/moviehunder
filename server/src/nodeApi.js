@@ -31,6 +31,9 @@ import {
   handleGetDownloads,
   handlePutDownloads,
   handleSyncGuestHistory,
+  handleGetWatchlist,
+  handlePostWatchlist,
+  handleDeleteWatchlist,
 } from "./sync.js";
 import {
   handlePlaybackStart,
@@ -178,6 +181,15 @@ export async function handleNodeApi(request, opts = {}) {
   if (p === "/api/history/sync" && method === "POST") {
     return fromHandler(await handleSyncGuestHistory(request));
   }
+  if ((p === "/api/watchlist" || p.startsWith("/api/watchlist/")) && method === "GET") {
+    return fromHandler(await handleGetWatchlist(request));
+  }
+  if ((p === "/api/watchlist" || p.startsWith("/api/watchlist/")) && method === "POST") {
+    return fromHandler(await handlePostWatchlist(request));
+  }
+  if ((p === "/api/watchlist" || p.startsWith("/api/watchlist/")) && method === "DELETE") {
+    return fromHandler(await handleDeleteWatchlist(request, p));
+  }
 
   // ── Anti-Sharing ───────────────────────────────────────
   if (p === "/api/playback/start" && method === "POST") {
@@ -258,6 +270,7 @@ export function isNodeApiPath(pathname) {
     p.startsWith("/api/history/sync") ||
     p.startsWith("/api/playback") ||
     p.startsWith("/api/household") ||
-    p.startsWith("/api/profiles")
+    p.startsWith("/api/profiles") ||
+    p.startsWith("/api/watchlist")
   );
 }

@@ -672,4 +672,188 @@ export async function handlePutDownloads(request) {
   return { status: 200, body: { ok: true, upserted } };
 }
 
+export async function handleGetWatchlist(request) {
+  const auth = await requireUser(request);
+  if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
+  if (!dbConfigured()) {
+    return { status: 503, body: { error: "Database not configured" } };
+  }
+  const url = new URL(request.url);
+  const targetProfileId = url.searchParams.get("profileId") || url.searchParams.get("profile_id");
+  const sort = url.searchParams.get("sort") || "date";
+  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") || 100)));
+  const prisma = getPrisma();
+
+  const resolved = await resolveAuthProfileId(prisma, auth.user.id, targetProfileId);
+  if (resolved.error) return { status: resolved.status, body: { error: resolved.error } };
+
+  let orderBy = { addedAt: "desc" };
+  if (sort === "az") orderBy = { title: "asc" };
+  else if (sort === "year") orderBy = { year: "desc" };
+  else if (sort === "rating") orderBy = { rating: "desc" };
+
+  const rows = await prisma.watchlist.findMany({
+    where: { profileId: resolved.profileId, userId: auth.user.id },
+    orderBy,
+    take: limit,
+  });
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      items: rows.map((r) => ({
+        id: r.subjectId,
+        subjectId: r.subjectId,
+        slug: r.subjectId,
+        name: r.title || "Untitled",
+        title: r.title || "Untitled",
+        poster: r.poster,
+        poster_url: r.poster,
+        detailPath: r.detailPath,
+        type: r.type,
+        year: r.year,
+        rating: r.rating,
+        badge: r.badge,
+        addedAt: r.addedAt ? r.addedAt.toISOString() : new Date().toISOString(),
+      })),
+    },
+  };
+}
+
+export async function handlePostWatchlist(request) {
+  const auth = await requireUser(request);
+  if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
+  if (!dbConfigured()) {
+    return { status: 503, body: { error: "Database not configured" } };
+  }
+  const body = await request.json().catch(() => ({}));
+  const subjectId = String(body.subjectId || body.id || body.slug || "").trim();
+  if (!subjectId) {
+    return { status: 400, body: { error: "subjectId is required" } };
+  }
+  const targetProfileId = body.profileId || body.profile_id;
+  const prisma = getPrisma();
+
+  const resolved = await resolveAuthProfileId(prisma, auth.user.id, targetProfileId);
+  if (resolved.error) return { status: resolved.status, body: { error: resolved.error } };
+
+  const row = await prisma.watchlist.upsert({
+    where: {
+      profileId_subjectId: {
+        profileId: resolved.profileId,
+        subjectId,
+      },
+    },
+    create: {
+      userId: auth.user.id,
+      profileId: resolved.profileId,
+      subjectId,
+      type: body.type === "tv" ? "tv" : "movie",
+      title: body.title || body.name || null,
+      poster: body.poster || body.poster_url || null,
+      detailPath: body.detailPath || null,
+      year: body.year ? String(body.year) : null,
+      rating: body.rating ? String(body.rating) : null,
+      badge: body.badge ? String(body.badge) : null,
+      addedAt: new Date(),
+    },
+    update: {
+      title: body.title || body.name || undefined,
+      poster: body.poster || body.poster_url || undefined,
+      detailPath: body.detailPath || undefined,
+      year: body.year ? String(body.year) : undefined,
+      rating: body.rating ? String(body.rating) : undefined,
+      badge: body.badge ? String(body.badge) : undefined,
+    },
+  });
+
+  return { status: 200, body: { ok: true, item: row } };
+}
+
+export async function handleDeleteWatchlist(request, pathname = "") {
+  const auth = await requireUser(request);
+  if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
+  if (!dbConfigured()) {
+    return { status: 503, body: { error: "Database not configured" } };
+  }
+  const url = new URL(request.url);
+  const targetProfileId = url.searchParams.get("profileId") || url.searchParams.get("profile_id");
+  let subjectId = url.searchParams.get("subjectId") || url.searchParams.get("id");
+
+  // Also support /api/watchlist/:subjectId format
+  if (!subjectId && pathname) {
+    const parts = pathname.replace(/^\/api\/watchlist\/?/, "").split("/");
+    if (parts[0]) subjectId = decodeURIComponent(parts[0]);
+  }
+
+  const prisma = getPrisma();
+  const resolved = await resolveAuthProfileId(prisma, auth.user.id, targetProfileId);
+  if (resolved.error) return { status: resolved.status, body: { error: resolved.error } };
+
+  // Check if bulk deletion body was sent
+  let body = {};
+  if (request.method === "DELETE" && !subjectId) {
+    body = await request.json().catch(() => ({}));
+  }
+
+  if (Array.isArray(body.subjectIds) && body.subjectIds.length > 0) {
+    const res = await prisma.watchlist.deleteMany({
+      where: {
+        profileId: resolved.profileId,
+        userId: auth.user.id,
+        subjectId: { in: body.subjectIds.map(String) },
+      },
+    });
+    return { status: 200, body: { ok: true, deletedCount: res.count } };
+  }
+
+  if (!subjectId) {
+    return { status: 400, body: { error: "subjectId is required" } };
+  }
+
+  await prisma.watchlist.deleteMany({
+    where: {
+      profileId: resolved.profileId,
+      userId: auth.user.id,
+      subjectId: String(subjectId),
+    },
+  });
+
+  return { status: 200, body: { ok: true, deleted: subjectId } };
+}
+
+async function resolveAuthProfileId(prisma, userId, targetProfileId) {
+  if (targetProfileId && targetProfileId !== "1") {
+    const profile = await prisma.profile.findFirst({
+      where: { id: targetProfileId, userId },
+      select: { id: true },
+    });
+    if (!profile) return { error: "Profile access forbidden", status: 403 };
+    return { profileId: profile.id };
+  }
+  let primary = await prisma.profile.findFirst({
+    where: { userId, isPrimary: true },
+    select: { id: true },
+  });
+  if (!primary) {
+    primary = await prisma.profile.findFirst({
+      where: { userId },
+      select: { id: true },
+    });
+  }
+  if (!primary) {
+    primary = await prisma.profile.create({
+      data: {
+        userId,
+        name: "Profile 1",
+        isPrimary: true,
+      },
+      select: { id: true },
+    });
+  }
+  return { profileId: primary.id };
+}
+
 export { asIso };
+

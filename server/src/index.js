@@ -96,7 +96,7 @@ function mapSubject(s) {
   const item = {
     name,
     poster_url: s.cover?.url || s.thumbnail || s.image?.url || null,
-    url: s.detailPath ? `${base}/detail/${s.detailPath}` : null,
+    url: s.detailPath ? `/title/${s.detailPath}` : null,
     slug: s.detailPath || null,
     badge: s.corner || null,
     blurhash: s.cover?.blurHash || null,
@@ -123,7 +123,7 @@ function sectionsFromOperatingList(ops = []) {
         .map((i) => ({
           name: i.title,
           poster_url: i.image?.url || i.subject?.cover?.url || null,
-          url: i.detailPath ? `${cfg().BASE_URL}/detail/${i.detailPath}` : null,
+          url: i.detailPath ? `/title/${i.detailPath}` : null,
           badge: i.subject?.corner || null,
           slug: i.detailPath || null,
           subject_id: i.subjectId || i.subject?.subjectId || null,
@@ -215,7 +215,7 @@ function moviesFromNuxt(nuxt) {
     movies.push({
       name: v.title,
       poster_url: v.cover?.url || null,
-      url: `${cfg().BASE_URL}/detail/${v.detailPath}`,
+      url: `/title/${v.detailPath}`,
       slug: v.detailPath,
       badge: v.corner || null,
       blurhash: v.cover?.blurHash || null,
@@ -361,15 +361,18 @@ async function handleRequest(request, env) {
       if (m) return await handleRankingSectionByName(decodeURIComponent(m[1]));
 
       // ── Search ────────────────────────────────────────────
-      if (p === "/search/suggest") return await handleSearchSuggest(url.searchParams);
-      if (p === "/search") return await handleSearch(url.searchParams);
+      if (p === "/search/suggest" || p === "/api/search/suggest") return await handleSearchSuggest(url.searchParams);
+      if (p === "/search" || p === "/api/search") return await handleSearch(url.searchParams);
+
+      // ── Recommendations ──────────────────────────────────
+      if (p === "/recommendations" || p === "/api/recommendations") return await handleRecommendations(url.searchParams);
 
       // ── Detail ────────────────────────────────────────────
-      m = p.match(/^\/detail\/(.+)$/);
+      m = p.match(/^\/(?:api\/)?detail\/(.+)$/);
       if (m) return await handleDetail(decodeURIComponent(m[1]));
 
       // ── Episodes ──────────────────────────────────────────
-      m = p.match(/^\/episodes\/(.+)$/);
+      m = p.match(/^\/(?:api\/)?episodes\/(.+)$/);
       if (m) return await handleEpisodes(decodeURIComponent(m[1]));
 
       // ── Streaming ─────────────────────────────────────────
@@ -741,6 +744,56 @@ async function handleCategorySectionByName(category, name) {
   return json({ results: matched });
 }
 
+// GET /recommendations?type=movie|series|anime&exclude=slug&limit=18
+async function handleRecommendations(params) {
+  const rawType = String(params.get("type") || "").toLowerCase().trim();
+  const excludeSlug = String(params.get("exclude") || "").trim().toLowerCase();
+  const limit = Math.min(Math.max(parseInt(params.get("limit") || "16", 10), 1), 36);
+
+  let categoryKey = "movie";
+  if (rawType === "anime" || rawType === "animation") {
+    categoryKey = "animated-series";
+  } else if (rawType === "series" || rawType === "tv" || rawType === "tv-series") {
+    categoryKey = "tv-series";
+  }
+
+  const sections = await fetchCategoryData(categoryKey).catch(() => []);
+  const allMovies = sections.flatMap((s) => s.movies || []);
+
+  const seen = new Set();
+  const recommendations = [];
+
+  for (const m of allMovies) {
+    if (!m || !m.slug) continue;
+    const cleanSlug = String(m.slug).replace(/^\/?detail\//, "").replace(/^\/+/, "").trim().toLowerCase();
+    if (excludeSlug && (cleanSlug === excludeSlug || cleanSlug.includes(excludeSlug) || excludeSlug.includes(cleanSlug))) {
+      continue;
+    }
+    if (seen.has(cleanSlug)) continue;
+    seen.add(cleanSlug);
+
+    recommendations.push({
+      name: m.name || m.title || "",
+      poster_url: m.poster_url || m.poster || m.cover || "",
+      slug: m.slug,
+      badge: m.badge || null,
+      year: m.year || null,
+      rating: m.rating || m.imdb_rating || null,
+      subject_id: m.subject_id || m.id || null,
+      subject_type: m.subject_type || (categoryKey === "movie" ? 1 : 2),
+      genre: m.genre || null,
+    });
+
+    if (recommendations.length >= limit) break;
+  }
+
+  return json({
+    type: categoryKey,
+    count: recommendations.length,
+    recommendations,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════
 // GET /ranking
 // ══════════════════════════════════════════════════════════════════
@@ -800,7 +853,7 @@ async function fetchRankingData() {
 async function handleRanking() {
   const sections = await fetchRankingData();
   return json({
-    source: `${cfg().H5_API}${cfg().H5_BFF_PATH}/subject/rank-list`,
+    source: "Server 1",
     total_sections: sections.length,
     poster_map_size: 0,
     sections,
@@ -1295,7 +1348,7 @@ async function handleDetail(slug) {
 
   return json({
     slug,
-    source: pageUrl,
+    source: "Server 1",
     metadata: {
       id: movieDict.subjectId,
       title: movieDict.title,
@@ -1599,10 +1652,10 @@ async function handleStreamApi(subjectId, params) {
       detail_path: detailPath,
       season: parseInt(resolvedSe ?? se, 10),
       episode: parseInt(resolvedEp ?? ep, 10),
-      stream_domain: streamDomain,
+      stream_domain: "Server 1",
       count: formatted.length,
       sources: formatted,
-      client_play: clientPlayUrls(subjectId, detailPath, resolvedSe ?? se, resolvedEp ?? ep),
+      client_play: [],
       subtitles: [],
     };
     const response = json(payload);
@@ -1626,7 +1679,7 @@ async function handleStreamApi(subjectId, params) {
       {
         error: err.message || "Stream failed",
         code: status === 429 ? "RATE_LIMITED" : "STREAM_ERROR",
-        client_play: clientPlayUrls(subjectId, detailPath, se, ep),
+        client_play: [],
         retry_after_ms: status === 429 ? 2500 : 1000,
       },
       status

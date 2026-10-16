@@ -24,6 +24,7 @@ model User {
   playlists      Playlist[]
   trackLikes     TrackLike[]
   downloadItems  DownloadItem[]
+  watchlists     Watchlist[]
   
   account        Account?
   accountMember  AccountMember?
@@ -181,6 +182,28 @@ model DownloadItem {
   @@map("download_items")
 }
 
+model Watchlist {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  profileId   String   @map("profile_id")
+  subjectId   String   @map("subject_id")
+  type        String   @default("movie")
+  title       String?
+  poster      String?
+  detailPath  String?  @map("detail_path")
+  year        String?
+  rating      String?
+  badge       String?
+  addedAt     DateTime @default(now()) @map("added_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, subjectId])
+  @@index([profileId, addedAt(sort: Desc)])
+  @@map("watchlists")
+}
+
 enum PlanTier {
   STANDARD_ADS
   STANDARD
@@ -229,6 +252,7 @@ model Profile {
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   watchProgress WatchProgress[]
+  watchlists    Watchlist[]
 
   @@index([userId])
   @@map("profiles")
