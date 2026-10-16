@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "../../components/AuthProvider";
 import { googleStartUrl } from "../../lib/auth";
 import authStyles from "./auth.module.css";
 
-export default function LoginPage() {
+function LoginForm() {
   const { login, isSignedIn } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams?.get("redirect") || "/profiles";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,8 +19,8 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
-    if (isSignedIn) router.replace("/profiles");
-  }, [isSignedIn, router]);
+    if (isSignedIn) router.replace(redirect);
+  }, [isSignedIn, router, redirect]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -26,13 +28,18 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await login({ email, password });
-      router.push("/profiles");
+      router.push(redirect);
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {
       setBusy(false);
     }
   }
+
+  const signupHref =
+    redirect && redirect !== "/profiles"
+      ? `/signup?redirect=${encodeURIComponent(redirect)}`
+      : "/signup";
 
   return (
     <div className={authStyles.authWrap}>
@@ -106,9 +113,17 @@ export default function LoginPage() {
         </a>
 
         <p className={authStyles.footer}>
-          No account? <Link href="/signup">Create one</Link>
+          No account? <Link href={signupHref}>Create one</Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className={authStyles.authWrap} />}>
+      <LoginForm />
+    </Suspense>
   );
 }

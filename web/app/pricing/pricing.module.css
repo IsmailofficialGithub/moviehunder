@@ -1,0 +1,532 @@
+.pageWrap {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.hero {
+  text-align: center;
+  max-width: 680px;
+  margin-bottom: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 9999px;
+  background: rgba(189, 132, 219, 0.12);
+  border: 1px solid rgba(189, 132, 219, 0.3);
+  color: #bd84db;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 14px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #9a9aa3;
+  margin: 0;
+}
+
+.billingToggleWrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 40px;
+  background: #141418;
+  border: 1px solid #23232b;
+  padding: 4px;
+  border-radius: 9999px;
+}
+
+.toggleBtn {
+  padding: 8px 18px;
+  border-radius: 9999px;
+  background: transparent;
+  border: none;
+  color: #8e8e99;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toggleBtnActive {
+  background: #272732;
+  color: #ffffff;
+}
+
+.saveBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: rgba(189, 132, 219, 0.2);
+  color: #bd84db;
+  border: 1px solid rgba(189, 132, 219, 0.35);
+}
+
+.pricingGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  width: 100%;
+  align-items: stretch;
+  margin-bottom: 64px;
+}
+
+.planCard {
+  background: #141418;
+  border: 1px solid #23232b;
+  border-radius: 16px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-sizing: border-box;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.planCard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(189, 132, 219, 0.4);
+}
+
+.planCardFeatured {
+  background: linear-gradient(180deg, #181520 0%, #141418 100%);
+  border: 2px solid #bd84db;
+  box-shadow: 0 12px 36px rgba(189, 132, 219, 0.18);
+}
+
+.featuredRibbon {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #bd84db;
+  color: #0c0c0e;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.planHead {
+  margin-bottom: 20px;
+}
+
+.planName {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 6px;
+}
+
+.planDesc {
+  font-size: 13.5px;
+  color: #8e8e99;
+  margin: 0;
+  line-height: 1.45;
+  min-height: 40px;
+}
+
+.priceWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.priceAmount {
+  font-size: 38px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.pricePeriod {
+  font-size: 14px;
+  color: #8e8e99;
+}
+
+.featureList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: #d1d1d8;
+  line-height: 1.4;
+}
+
+.featureItemDisabled {
+  color: #555562;
+  text-decoration: line-through;
+}
+
+.checkIcon {
+  color: #bd84db;
+  flex-shrink: 0;
+}
+
+.planBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.planBtnFeatured {
+  background: #bd84db;
+  color: #0c0c0e;
+  box-shadow: 0 4px 16px rgba(189, 132, 219, 0.3);
+}
+
+.planBtnFeatured:hover {
+  background: #d4a9ec;
+  transform: translateY(-1px);
+}
+
+.planBtnSecondary {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ededed;
+}
+
+.planBtnSecondary:hover {
+.planBtnCurrent {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+  cursor: default;
+}
+
+.planBtnCurrent:hover {
+  background: rgba(34, 197, 94, 0.12);
+  transform: none;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.modalCard {
+  background: #141418;
+  border: 1px solid #282836;
+  border-radius: 16px;
+  max-width: 460px;
+  width: 100%;
+  padding: 28px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  position: relative;
+  box-sizing: border-box;
+}
+
+.modalCloseBtn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  display: flex;
+  padding: 4px;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.modalCloseBtn:hover {
+  color: #ffffff;
+}
+
+.modalTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 4px;
+}
+
+.modalSubtitle {
+  font-size: 13.5px;
+  color: #8e8e99;
+  margin: 0 0 20px;
+}
+
+.summaryBox {
+  background: #1a1a22;
+  border: 1px solid #2b2b38;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summaryPlanName {
+  font-weight: 700;
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.summaryBilling {
+  font-size: 12.5px;
+  color: #8e8e99;
+  margin-top: 2px;
+}
+
+.summaryPrice {
+  font-size: 22px;
+  font-weight: 800;
+  color: #bd84db;
+  text-align: right;
+}
+
+.paymentMethodsGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.paymentMethodLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.paymentOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: #181820;
+  border: 1px solid #262632;
+  border-radius: 8px;
+  color: #ededed;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.paymentOptionActive {
+  background: rgba(189, 132, 219, 0.1);
+  border-color: #bd84db;
+  color: #ffffff;
+}
+
+.radioCircle {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #555562;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radioCircleActive {
+  border-color: #bd84db;
+}
+
+.radioDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #bd84db;
+}
+
+.confirmBtn {
+  width: 100%;
+  padding: 14px;
+  background: #bd84db;
+  color: #0c0c0e;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 18px rgba(189, 132, 219, 0.25);
+}
+
+.confirmBtn:hover {
+  background: #d4a9ec;
+  transform: translateY(-1px);
+}
+
+.confirmBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.successCard {
+  text-align: center;
+  padding: 12px 0 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.successIconWrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.successTitle {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px;
+}
+
+.successDesc {
+  font-size: 14px;
+  color: #9a9aa3;
+  line-height: 1.5;
+  margin: 0 0 24px;
+}
+
+.faqSection {
+  max-width: 800px;
+  width: 100%;
+  margin-top: 40px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 50px;
+}
+
+.faqTitle {
+  font-size: 26px;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+  margin: 0 0 32px;
+}
+
+.faqGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.faqCard {
+  background: #141418;
+  border: 1px solid #23232b;
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+
+.faqQuestion {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px;
+}
+
+.faqAnswer {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #9a9aa3;
+  margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .pricingGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .pageWrap {
+    padding: 24px 16px 60px;
+  }
+
+  .pricingGrid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .faqGrid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}

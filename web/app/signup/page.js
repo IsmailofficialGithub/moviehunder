@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "../../components/AuthProvider";
 import { googleStartUrl } from "../../lib/auth";
 import authStyles from "../login/auth.module.css";
 
-export default function SignupPage() {
+function SignupForm() {
   const { signup, isSignedIn } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams?.get("redirect") || "/profiles";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -18,8 +20,8 @@ export default function SignupPage() {
   const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
-    if (isSignedIn) router.replace("/profiles");
-  }, [isSignedIn, router]);
+    if (isSignedIn) router.replace(redirect);
+  }, [isSignedIn, router, redirect]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -31,13 +33,18 @@ export default function SignupPage() {
         password,
         display_name: displayName || undefined,
       });
-      router.push("/profiles");
+      router.push(redirect);
     } catch (err) {
       setError(err.message || "Sign up failed");
     } finally {
       setBusy(false);
     }
   }
+
+  const loginHref =
+    redirect && redirect !== "/profiles"
+      ? `/login?redirect=${encodeURIComponent(redirect)}`
+      : "/login";
 
   return (
     <div className={authStyles.authWrap}>
@@ -123,9 +130,17 @@ export default function SignupPage() {
         </a>
 
         <p className={authStyles.footer}>
-          Already have an account? <Link href="/login">Sign in</Link>
+          Already have an account? <Link href={loginHref}>Sign in</Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className={authStyles.authWrap} />}>
+      <SignupForm />
+    </Suspense>
   );
 }
