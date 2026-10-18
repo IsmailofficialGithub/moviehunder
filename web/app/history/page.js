@@ -219,19 +219,20 @@ export default function HistoryPage() {
           const allRemote = data.items || [];
           applyRemoteWatch(allRemote, activePid);
 
+          const isPrimaryProfile = active?.isPrimary || activePid === "1";
           const remoteItems = allRemote.filter((item) => {
             if (item.profileId) {
-              return String(item.profileId) === activePid || activePid === "1";
+              return String(item.profileId) === activePid || (isPrimaryProfile && String(item.profileId) === "1");
             }
             const itemPid = item.key?.startsWith("p:") ? item.key.split(":")[1] : "1";
-            return String(itemPid) === activePid || activePid === "1";
+            return String(itemPid) === activePid || (isPrimaryProfile && itemPid === "1");
           });
 
           const localItems = listLocalWatch(activePid);
           const remoteMap = new Map();
 
           for (const item of remoteItems) {
-            if (Number(item.position) <= 2) continue;
+            if (item.position != null && Number(item.position) < 0) continue;
             const localMatch = localItems.find(
               (l) =>
                 l.subjectId === item.subjectId &&

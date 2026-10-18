@@ -208,19 +208,23 @@ export function listLocalWatch(profileId) {
         continue;
       }
       const rest = key.slice(WATCH_PREFIX.length);
-      let itemPid = "1";
-      let actualRest = rest;
-      if (rest.startsWith("p") && rest.includes("_")) {
-        const firstUnderscore = rest.indexOf("_");
-        const prefixCandidate = rest.slice(0, firstUnderscore);
-        if (/^p[\w-]+$/.test(prefixCandidate)) {
-          itemPid = prefixCandidate.slice(1);
-          actualRest = rest.slice(firstUnderscore + 1);
+      const pPrefix = targetPid === "1" ? "" : `p${targetPid}_`;
+      let actualRest = null;
+
+      if (targetPid === "1") {
+        if (!rest.startsWith("p")) {
+          actualRest = rest;
+        } else if (rest.startsWith("p1_")) {
+          actualRest = rest.slice(3);
+        }
+      } else {
+        if (rest.startsWith(pPrefix)) {
+          actualRest = rest.slice(pPrefix.length);
         }
       }
-      if (String(itemPid) !== targetPid) {
-        continue;
-      }
+
+      if (!actualRest) continue;
+
       const parts = actualRest.split("_");
       if (parts.length < 3) continue;
       const rawEp = parts.pop();
@@ -229,7 +233,7 @@ export function listLocalWatch(profileId) {
       const se = (!rawSe || rawSe === "undefined" || rawSe === "null") ? "0" : rawSe;
       const subjectId = parts.join("_");
       const position = Number(localStorage.getItem(key)) || 0;
-      if (position < 2) continue;
+      if (position < 0) continue;
       const progressKey = targetPid === "1" ? `t:${subjectId}:s${se}:e${ep}` : `p:${targetPid}:t:${subjectId}:s${se}:e${ep}`;
 
       let title = null;
@@ -238,7 +242,6 @@ export function listLocalWatch(profileId) {
       let duration = 0;
       let metaTime = 0;
 
-      const pPrefix = targetPid === "1" ? "" : `p${targetPid}_`;
       const timeKey = `history_time_${pPrefix}${subjectId}_${se}_${ep}`;
       const specificTime = Number(localStorage.getItem(timeKey)) || 0;
 
@@ -293,7 +296,7 @@ export function applyRemoteWatch(items, targetProfileId) {
     profileMap.get(pId).push(item);
 
     // Only write browser local storage keys for the active profile
-    if (String(pId) === currentProfileId || currentProfileId === "1") {
+    if (String(pId) === currentProfileId || currentProfileId === "1" || pId === "1") {
       const subjectId = item.subjectId;
       if (!subjectId) continue;
       const se = item.se ?? "0";

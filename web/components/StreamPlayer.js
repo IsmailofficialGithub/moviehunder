@@ -665,14 +665,8 @@ export default function StreamPlayer({
       );
 
       try {
-        if (isFs) {
-          if (screen.orientation?.lock) {
-            screen.orientation.lock("landscape").catch(() => {});
-          }
-        } else {
-          if (screen.orientation?.unlock) {
-            screen.orientation.unlock();
-          }
+        if (!isFs && screen.orientation?.unlock) {
+          screen.orientation.unlock();
         }
       } catch {
         // ignore
@@ -887,13 +881,6 @@ export default function StreamPlayer({
 
   const handleFullscreenClick = useCallback((e) => {
     const v = videoRef.current || (activeSlot === "A" ? videoRefA.current : videoRefB.current);
-
-    // Try standard orientation lock to landscape
-    try {
-      if (screen.orientation?.lock) {
-        screen.orientation.lock("landscape").catch(() => {});
-      }
-    } catch {}
 
     // On iOS (iPhone/iPod) WebKit where element fullscreen is restricted or doesn't rotate,
     // trigger native video fullscreen directly

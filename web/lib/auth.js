@@ -197,9 +197,14 @@ export async function syncGet(path) {
 }
 
 export async function syncPut(path, items, extra = {}) {
+  const body = Array.isArray(items)
+    ? { items, ...extra }
+    : items && typeof items === "object"
+    ? { ...items, ...extra }
+    : { ...extra };
   return authFetch(path, {
     method: "PUT",
-    body: { items, ...extra },
+    body,
   });
 }
 

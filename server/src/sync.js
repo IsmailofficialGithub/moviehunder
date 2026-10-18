@@ -40,7 +40,7 @@ export async function handleGetWatchProgress(request) {
     if (targetProfileId !== "1") {
       profile = await prisma.profile.findFirst({
         where: { id: targetProfileId, userId: auth.user.id },
-        select: { id: true },
+        select: { id: true, isPrimary: true },
       });
       if (!profile) {
         return { status: 403, body: { error: "Profile access forbidden" } };
@@ -50,15 +50,19 @@ export async function handleGetWatchProgress(request) {
       profile =
         (await prisma.profile.findFirst({
           where: { userId: auth.user.id, isPrimary: true },
-          select: { id: true },
+          select: { id: true, isPrimary: true },
         })) ||
         (await prisma.profile.findFirst({
           where: { userId: auth.user.id },
-          select: { id: true },
+          select: { id: true, isPrimary: true },
         }));
     }
     if (profile) {
-      whereClause.profileId = profile.id;
+      if (profile.isPrimary || targetProfileId === "1") {
+        whereClause.OR = [{ profileId: profile.id }, { profileId: null }];
+      } else {
+        whereClause.profileId = profile.id;
+      }
     }
   }
 
@@ -79,13 +83,18 @@ export async function handlePutWatchProgress(request) {
     return { status: 503, body: { error: "Database not configured" } };
   }
   const body = await request.json().catch(() => ({}));
-  const items = Array.isArray(body.items)
-    ? body.items
-    : body.item
-    ? [body.item]
-    : (body.key || body.progressKey)
-    ? [body]
-    : [];
+  let items = [];
+  if (Array.isArray(body.items)) {
+    items = body.items;
+  } else if (body.items && typeof body.items === "object" && body.items.item) {
+    items = [body.items.item];
+  } else if (body.items && typeof body.items === "object" && (body.items.key || body.items.progressKey)) {
+    items = [body.items];
+  } else if (body.item) {
+    items = [body.item];
+  } else if (body.key || body.progressKey) {
+    items = [body];
+  }
   const url = new URL(request.url);
   const queryProfileId = url.searchParams.get("profileId") || url.searchParams.get("profile_id");
   const prisma = getPrisma();

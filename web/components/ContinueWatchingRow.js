@@ -171,9 +171,10 @@ export default function ContinueWatchingRow() {
             const combined = [...(remote || []), ...local];
             const filtered = combined.filter((i) => {
               if ((Number(i.position) || 0) <= 2) return false;
-              if (activePid === "1") return true;
+              const isPrimaryProfile = active?.isPrimary || activePid === "1";
+              if (isPrimaryProfile && (!i.profileId || String(i.profileId) === "1")) return true;
               const itemPid = i.profileId || (i.key?.startsWith("p:") ? i.key.split(":")[1] : "1");
-              return String(itemPid) === activePid || activePid === "1";
+              return String(itemPid) === activePid || (isPrimaryProfile && String(itemPid) === "1");
             });
             setItems(deduplicateShows(filtered));
           })

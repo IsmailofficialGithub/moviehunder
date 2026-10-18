@@ -33,7 +33,11 @@ function SignupForm() {
         password,
         display_name: displayName || undefined,
       });
-      router.push(redirect);
+      if (redirect && redirect !== "/profiles") {
+        router.push(redirect);
+      } else {
+        router.push("/profiles");
+      }
     } catch (err) {
       setError(err.message || "Sign up failed");
     } finally {
