@@ -1458,6 +1458,22 @@
   align-items: center;
   position: relative;
   height: 44px;
+  flex-shrink: 0 !important;
+}
+
+.volumeGroup media-mute-button,
+.bottomBar media-mute-button {
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  flex-shrink: 0 !important;
+  --media-control-height: 36px !important;
+  --media-button-icon-width: 22px !important;
+  --media-button-icon-height: 22px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer;
 }
 
 .volumeGroup media-volume-range,
@@ -1774,6 +1790,156 @@
 
   .title {
     font-size: 0.98rem;
+  }
+
+  /* Compact controls on mobile / iPhone screens to prevent button crushing */
+  .bottomBar {
+    gap: 3px !important;
+  }
+
+  .bottomIconBtn {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    padding: 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .bottomIconBtn svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .bottomBar media-play-button {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    flex-shrink: 0 !important;
+    --media-button-icon-width: 20px !important;
+    --media-button-icon-height: 20px !important;
+  }
+
+  .volumeGroup {
+    flex-shrink: 0 !important;
+    height: 32px !important;
+  }
+
+  .volumeGroup media-mute-button,
+  .bottomBar media-mute-button {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+    --media-control-height: 32px !important;
+    --media-button-icon-width: 20px !important;
+    --media-button-icon-height: 20px !important;
+  }
+
+  .bottomBar media-fullscreen-button {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+    --media-button-icon-width: 18px !important;
+    --media-button-icon-height: 18px !important;
+  }
+
+  .bottomBar media-playback-rate-button {
+    min-width: 28px !important;
+    flex-shrink: 0 !important;
+    --media-font-size: 13px !important;
+    padding: 0 4px !important;
+  }
+
+  .bottomBar media-time-display {
+    --media-font-size: 11px !important;
+    padding: 0 4px !important;
+    flex-shrink: 1 !important;
+  }
+
+  /* Compact settings panel for iPhone Pro & small mobile screens */
+  .settingsPanel {
+    width: min(92vw, 320px) !important;
+    max-height: min(78vh, 420px) !important;
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    border-radius: 14px !important;
+  }
+
+  .settingsHead h2 {
+    font-size: 0.95rem !important;
+  }
+
+  .settingsField {
+    gap: 4px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .settingsField select,
+  .settingsField .select {
+    height: 36px !important;
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+    border-radius: 8px !important;
+  }
+
+  .displayGrid {
+    gap: 6px !important;
+  }
+
+  .displayChip {
+    padding: 6px 10px !important;
+    min-height: 42px !important;
+    border-radius: 8px !important;
+  }
+
+  .displayChip strong {
+    font-size: 12px !important;
+  }
+
+  .displayChip span {
+    font-size: 10px !important;
+  }
+
+  .settingsAction {
+    min-height: 40px !important;
+    padding: 8px 12px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+  }
+
+  .subPanel {
+    width: min(94vw, 390px) !important;
+    max-height: min(80vh, 460px) !important;
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    border-radius: 14px !important;
+  }
+}
+
+@media (max-height: 480px) {
+  .settingsPanel {
+    width: min(92vw, 360px) !important;
+    max-height: 86vh !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  .displayGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+  }
+
+  .displayChip {
+    min-height: 36px !important;
+    padding: 4px 6px !important;
+  }
+
+  .subPanel {
+    width: min(94vw, 440px) !important;
+    max-height: 88vh !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
   }
 }
 

@@ -252,6 +252,22 @@ test("StreamPlayer supports iPhone inline playback, mediapaused play button, and
       cssSrc.includes("pointer-events: auto !important"),
     "StreamPlayer CSS must ensure play button is interactive and visible when paused"
   );
+
+  // Sound button (media-mute-button) must have flex-shrink: 0 and explicit dimensions so it never shrinks
+  assert.ok(
+    cssSrc.includes(".volumeGroup") && cssSrc.includes("flex-shrink: 0 !important"),
+    "volumeGroup must have flex-shrink: 0 !important so sound button is never crushed on narrow screens"
+  );
+  assert.ok(
+    cssSrc.includes("media-mute-button") && cssSrc.includes("--media-button-icon-width"),
+    "media-mute-button must have explicit icon dimensions and width"
+  );
+
+  // Settings panel must have compact mobile constraints
+  assert.ok(
+    cssSrc.includes(".settingsPanel") && cssSrc.includes("min(92vw, 320px)"),
+    "settingsPanel must have compact sizing on mobile screens"
+  );
 });
 
 
