@@ -1653,19 +1653,21 @@
     object-position: center center;
   }
 
+  .controller[mediafullscreen],
   .controller:fullscreen,
   .controller:-webkit-full-screen {
     border-radius: 0;
-    width: 100%;
-    height: 100%;
-    max-height: none;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
   }
 
+  .controller[mediafullscreen] video,
   .controller:fullscreen video,
   .controller:-webkit-full-screen video {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
   }
 
   .error {

@@ -651,14 +651,28 @@ export default function StreamPlayer({
     setMounted(true);
   }, []);
 
-  // Do NOT lock orientation to landscape so user can freely view vertically (portrait) on iPhone/mobile
+  // On fullscreen enter, lock orientation to landscape so video plays in widescreen; unlock on exit
   useEffect(() => {
     if (!mounted) return;
 
     const onFullscreen = () => {
+      const v = videoRef.current || (activeSlot === "A" ? videoRefA.current : videoRefB.current);
+      const isFs = Boolean(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        v?.webkitDisplayingFullscreen ||
+        controllerRef.current?.hasAttribute("mediafullscreen")
+      );
+
       try {
-        if (screen.orientation?.unlock) {
-          screen.orientation.unlock();
+        if (isFs) {
+          if (screen.orientation?.lock) {
+            screen.orientation.lock("landscape").catch(() => {});
+          }
+        } else {
+          if (screen.orientation?.unlock) {
+            screen.orientation.unlock();
+          }
         }
       } catch {
         // ignore
@@ -667,16 +681,28 @@ export default function StreamPlayer({
 
     document.addEventListener("fullscreenchange", onFullscreen);
     document.addEventListener("webkitfullscreenchange", onFullscreen);
+
+    const vidA = videoRefA.current;
+    const vidB = videoRefB.current;
+    vidA?.addEventListener("webkitbeginfullscreen", onFullscreen);
+    vidA?.addEventListener("webkitendfullscreen", onFullscreen);
+    vidB?.addEventListener("webkitbeginfullscreen", onFullscreen);
+    vidB?.addEventListener("webkitendfullscreen", onFullscreen);
+
     return () => {
       document.removeEventListener("fullscreenchange", onFullscreen);
       document.removeEventListener("webkitfullscreenchange", onFullscreen);
+      vidA?.removeEventListener("webkitbeginfullscreen", onFullscreen);
+      vidA?.removeEventListener("webkitendfullscreen", onFullscreen);
+      vidB?.removeEventListener("webkitbeginfullscreen", onFullscreen);
+      vidB?.removeEventListener("webkitendfullscreen", onFullscreen);
       try {
         screen.orientation?.unlock?.();
       } catch {
         // ignore
       }
     };
-  }, [mounted]);
+  }, [mounted, activeSlot]);
 
   const displayTitle = useMemo(() => {
     const base = cleanSearchTitle(title, detailPath) || title || detailPath || "Player";
@@ -859,13 +885,33 @@ export default function StreamPlayer({
     return () => window.removeEventListener("keydown", onKey);
   }, [subPanelOpen, settingsOpen]);
 
-  const togglePlayPause = useCallback(() => {
+  const handleFullscreenClick = useCallback((e) => {
     const v = videoRef.current || (activeSlot === "A" ? videoRefA.current : videoRefB.current);
-    if (!v) return;
-    if (v.paused) {
-      v.play().catch(() => {});
-    } else {
-      v.pause();
+
+    // Try standard orientation lock to landscape
+    try {
+      if (screen.orientation?.lock) {
+        screen.orientation.lock("landscape").catch(() => {});
+      }
+    } catch {}
+
+    // On iOS (iPhone/iPod) WebKit where element fullscreen is restricted or doesn't rotate,
+    // trigger native video fullscreen directly
+    const isIOS =
+      typeof navigator !== "undefined" &&
+      (/iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1 && window.screen.width < 768));
+
+    if (isIOS && v?.webkitEnterFullscreen) {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      try {
+        if (v.webkitDisplayingFullscreen) {
+          v.webkitExitFullscreen?.();
+        } else {
+          v.webkitEnterFullscreen();
+        }
+      } catch {}
     }
   }, [activeSlot]);
 
@@ -2690,7 +2736,7 @@ export default function StreamPlayer({
                       <SkipBack size={32} fill="currentColor" strokeWidth={2} />
                     </button>
                   ) : null}
-                  <MediaPlayButton onClick={togglePlayPause} />
+                  <MediaPlayButton />
                   {nextEpisode && onNextEpisode ? (
                     <button
                       type="button"
@@ -2723,7 +2769,7 @@ export default function StreamPlayer({
                     <SkipBack size={20} fill="currentColor" strokeWidth={2} />
                   </button>
                 ) : null}
-                <MediaPlayButton onClick={togglePlayPause} />
+                <MediaPlayButton />
                 {nextEpisode && onNextEpisode ? (
                   <button
                     type="button"
@@ -2771,7 +2817,7 @@ export default function StreamPlayer({
                   <Settings size={20} strokeWidth={2} />
                 </button>
                 <MediaPlaybackRateButton rates={[0.5, 0.75, 1, 1.25, 1.5, 2]} />
-                <MediaFullscreenButton />
+                <MediaFullscreenButton onClick={handleFullscreenClick} />
               </MediaControlBar>
             </div>
           </MediaController>
