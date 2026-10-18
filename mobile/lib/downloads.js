@@ -3,7 +3,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, Platform } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
-import { getEpisodes } from "./api";
+import { getEpisodes, getDetail } from "./api";
 import { getCachedStreams, prefetchStreams } from "./streamCache";
 import { downloadMediaUrl } from "./stream";
 import { toUserMessage } from "./userFacingError";
@@ -16,8 +16,19 @@ import {
 
 const STORE_KEY = "flick.downloads.v1";
 const SETTINGS_STORE_KEY = "flick.downloads.settings.v1";
-const ROOT = `${FileSystem.documentDirectory || ""}flick-dl/`;
-const THUMBS_ROOT = `${FileSystem.documentDirectory || ""}flick-dl/thumbs/`;
+
+export function getDlRoot() {
+  const doc = FileSystem.documentDirectory || "";
+  return `${doc}${doc.endsWith("/") ? "" : "/"}flick-dl/`;
+}
+
+export function getThumbsRoot() {
+  const doc = FileSystem.documentDirectory || "";
+  return `${doc}${doc.endsWith("/") ? "" : "/"}flick-dl/thumbs/`;
+}
+
+const ROOT = getDlRoot();
+const THUMBS_ROOT = getThumbsRoot();
 const PROGRESS_THROTTLE_MS = 400;
 
 let downloadSettings = {
@@ -149,13 +160,15 @@ async function ensureRoot() {
   if (!FileSystem.documentDirectory) {
     throw new Error("Storage unavailable on this device");
   }
-  const info = await FileSystem.getInfoAsync(ROOT).catch(() => ({}));
+  const root = getDlRoot();
+  const thumbsRoot = getThumbsRoot();
+  const info = await FileSystem.getInfoAsync(root).catch(() => ({}));
   if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(ROOT, { intermediates: true });
+    await FileSystem.makeDirectoryAsync(root, { intermediates: true });
   }
-  const thumbInfo = await FileSystem.getInfoAsync(THUMBS_ROOT).catch(() => ({}));
+  const thumbInfo = await FileSystem.getInfoAsync(thumbsRoot).catch(() => ({}));
   if (!thumbInfo.exists) {
-    await FileSystem.makeDirectoryAsync(THUMBS_ROOT, { intermediates: true });
+    await FileSystem.makeDirectoryAsync(thumbsRoot, { intermediates: true });
   }
 }
 
@@ -206,6 +219,12 @@ export async function hydrateDownloads() {
             if (row.posterLocalUri && FileSystem.documentDirectory) {
               const dlThumb = String(row.posterLocalUri).match(/flick-dl\/thumbs\/[^?#]+/);
               if (dlThumb) row.posterLocalUri = `${FileSystem.documentDirectory}${dlThumb[0]}`;
+            } else if (!row.posterLocalUri && FileSystem.documentDirectory) {
+              const expectedThumb = `${getThumbsRoot()}${posterFileNameFor(row)}`;
+              const info = await FileSystem.getInfoAsync(expectedThumb).catch(() => null);
+              if (info?.exists && (info.size == null || info.size > 200)) {
+                row.posterLocalUri = expectedThumb;
+              }
             }
             items.set(row.id, row);
 
@@ -225,7 +244,7 @@ export async function hydrateDownloads() {
         if (!row.subtitleUri && row.status !== "failed" && !row.pending) {
           downloadSubtitleForDownload(row).catch(() => {});
         }
-        if (!row.posterLocalUri && (row.poster || row.thumbnail) && !row.pending) {
+        if (!row.posterLocalUri && !row.pending) {
           downloadPosterForDownload(row).catch(() => {});
         }
       }
@@ -489,29 +508,57 @@ export function posterFileNameFor(item) {
 
 // Download remote movie poster / video thumbnail locally so offline playback displays it
 export async function downloadPosterForDownload(item) {
-  const rawUrl = item?.poster || item?.thumbnail;
-  if (!rawUrl || typeof rawUrl !== "string" || !rawUrl.startsWith("http")) return null;
+  if (!item) return null;
+  let rawUrl = item.poster || item.thumbnail || item.poster_url || item.image || item.cover;
+  if (typeof rawUrl === "string" && rawUrl.startsWith("//")) {
+    rawUrl = `https:${rawUrl}`;
+  }
+
+  // If item doesn't have a poster URL yet, try to fetch it if online
+  if (!rawUrl && item.detailPath) {
+    try {
+      const detailData = await getDetail(item.detailPath).catch(() => null);
+      const m = detailData?.metadata || detailData?.detail;
+      const found = m?.poster || m?.poster_url || m?.cover || m?.thumbnail || m?.image;
+      if (found && typeof found === "string") {
+        rawUrl = found.startsWith("//") ? `https:${found}` : found;
+        if (item.id && items.has(item.id)) {
+          patch(item.id, { poster: rawUrl });
+        }
+      }
+    } catch {
+      // offline or failed
+    }
+  }
+
   try {
     await ensureRoot();
     const fileName = posterFileNameFor(item);
-    const localUri = `${THUMBS_ROOT}${fileName}`;
+    const localUri = `${getThumbsRoot()}${fileName}`;
 
     // 1. If already saved and exists on disk with valid size, update item record and return
-    const info = await FileSystem.getInfoAsync(localUri).catch(() => ({}));
-    if (info.exists && (info.size == null || info.size > 200)) {
+    const info = await FileSystem.getInfoAsync(localUri).catch(() => null);
+    if (info?.exists && (info.size == null || info.size > 200)) {
       if (item.id && items.get(item.id)?.posterLocalUri !== localUri) {
         patch(item.id, { posterLocalUri: localUri });
       }
       return localUri;
     }
 
+    if (!rawUrl || typeof rawUrl !== "string" || (!rawUrl.startsWith("http://") && !rawUrl.startsWith("https://"))) {
+      return null;
+    }
+
     // 2. Download remote image file locally
     const dlResult = await FileSystem.downloadAsync(rawUrl, localUri).catch(() => null);
     if (dlResult?.uri) {
-      if (item.id) {
-        patch(item.id, { posterLocalUri: dlResult.uri });
+      const dlInfo = await FileSystem.getInfoAsync(dlResult.uri).catch(() => null);
+      if (dlInfo?.exists && (dlInfo.size == null || dlInfo.size > 200)) {
+        if (item.id) {
+          patch(item.id, { posterLocalUri: dlResult.uri });
+        }
+        return dlResult.uri;
       }
-      return dlResult.uri;
     }
   } catch {
     // Ignore background poster download error
@@ -522,9 +569,8 @@ export async function downloadPosterForDownload(item) {
 // Resolve real on-disk poster URI (handles rebased documentDirectory paths across app builds)
 export async function resolveDownloadPosterUri(item) {
   if (!item) return "";
-  const docRoot = FileSystem.documentDirectory || "";
   const fileName = posterFileNameFor(item);
-  const expectedLocal = `${docRoot}flick-dl/thumbs/${fileName}`;
+  const expectedLocal = `${getThumbsRoot()}${fileName}`;
 
   if (item.posterLocalUri) {
     const info = await FileSystem.getInfoAsync(item.posterLocalUri).catch(() => null);
@@ -1189,19 +1235,23 @@ export async function enqueueSeason({
     const ep = String(row.ep ?? row.episode);
     if (!ep || ep === "undefined") continue;
     if (episodeExistsIncludingVault({ subjectId, detailPath, se, ep })) continue;
-    toQueue.push({ se, ep });
+    toQueue.push({
+      se,
+      ep,
+      poster: row.thumbnail || row.image || row.poster || poster,
+    });
   }
 
   // Resolve streams one-by-one so we don’t hammer the API; UI shows pending rows as each starts.
   void (async () => {
-    for (const { se, ep } of toQueue) {
+    for (const { se, ep, poster: epPoster } of toQueue) {
       if (episodeExistsIncludingVault({ subjectId, detailPath, se, ep })) continue;
       try {
         await enqueueBestEffort({
           subjectId,
           detailPath,
           title,
-          poster,
+          poster: epPoster || poster,
           se,
           ep,
           kind: "series",

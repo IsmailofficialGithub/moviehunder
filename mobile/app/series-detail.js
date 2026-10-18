@@ -124,10 +124,13 @@ export default function SeriesDetailScreen() {
   const pack = useMemo(() => {
     if (!episodes.length) return null;
     const first = episodes[0];
+    const localPoster =
+      episodes.find((e) => e.posterLocalUri)?.posterLocalUri ||
+      first.posterLocalUri;
     return {
       title: first.title,
-      poster: first.posterLocalUri || first.poster,
-      posterLocalUri: first.posterLocalUri,
+      poster: localPoster || first.poster,
+      posterLocalUri: localPoster,
       subjectId,
       detailPath,
       episodes,
@@ -448,7 +451,7 @@ export default function SeriesDetailScreen() {
   if (!pack && !episodes.length) return null;
 
   const title = richMeta?.title || pack?.title || "Series";
-  const poster = pack?.posterLocalUri || richMeta?.poster || pack?.poster || "";
+  const poster = pack?.posterLocalUri || richMeta?.poster || richMeta?.poster_url || pack?.poster || "";
   const description = richMeta?.description || richMeta?.overview || "";
   const rating = richMeta?.imdb_rating || richMeta?.rating || null;
   const releaseYear = richMeta?.release_date ? String(richMeta.release_date).slice(0, 4) : "";
@@ -852,7 +855,8 @@ export default function SeriesDetailScreen() {
                 epItem.overview ||
                 description ||
                 `Episode ${epNum} of ${title}.`;
-              const thumbUri = epItem.posterLocalUri || epItem.thumbnail || epItem.image || epItem.poster || poster;
+              const localEpPoster = epItem.posterLocalUri || pack?.posterLocalUri;
+              const thumbUri = localEpPoster || epItem.thumbnail || epItem.image || epItem.poster || poster;
 
               return (
                 <View key={epItem.id || `${epItem.se}-${epItem.ep}-${idx}`} style={styles.episodeRow}>
@@ -1088,7 +1092,7 @@ export default function SeriesDetailScreen() {
         subjectId={subjectId ? String(subjectId) : ""}
         detailPath={detailPath}
         title={pack?.title || richMeta?.title || "Series"}
-        poster={pack?.poster || richMeta?.poster || null}
+        poster={pack?.posterLocalUri || pack?.poster || richMeta?.poster || richMeta?.poster_url || null}
         se={dlSheet?.se || "0"}
         ep={dlSheet?.ep || "0"}
         kind="series"

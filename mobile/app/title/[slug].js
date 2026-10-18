@@ -457,7 +457,7 @@ export default function TitleScreen() {
     return validServerRelated;
   }, [fallbackRelated, relevantServerRelated, validServerRelated]);
 
-  const openDownload = (se = "0", ep = "0") => {
+  const openDownload = (se = "0", ep = "0", epPoster = null) => {
     if (!subjectId) {
       Alert.alert("Unavailable", "Download isn’t available for this title.");
       return;
@@ -467,6 +467,7 @@ export default function TitleScreen() {
       se: String(se ?? 0),
       ep: String(ep ?? 0),
       season: null,
+      poster: epPoster,
     });
   };
 
@@ -804,7 +805,7 @@ export default function TitleScreen() {
 
                         <Pressable
                           style={styles.episodeDlBtn}
-                          onPress={() => openDownload(ep.se, ep.ep)}
+                          onPress={() => openDownload(ep.se, ep.ep, ep.thumbnail || ep.image || ep.poster)}
                           hitSlop={8}
                           accessibilityLabel={`Download ${epTitle}`}
                         >
@@ -1101,7 +1102,7 @@ export default function TitleScreen() {
         subjectId={subjectId ? String(subjectId) : ""}
         detailPath={slug}
         title={meta.title || slug}
-        poster={meta.poster || null}
+        poster={dlSheet?.poster || meta.poster || meta.poster_url || meta.cover || null}
         se={dlSheet?.se || "0"}
         ep={dlSheet?.ep || "0"}
         kind={isSeries ? "series" : "movie"}

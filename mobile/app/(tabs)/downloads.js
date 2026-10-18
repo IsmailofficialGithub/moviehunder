@@ -573,10 +573,12 @@ function SeriesPack({
         ? "chevron-down"
         : "cloud-download-outline";
 
-  const thumbUri =
+  const localThumb =
     pack.posterLocalUri ||
+    pack.episodes.find((e) => e.posterLocalUri)?.posterLocalUri;
+  const thumbUri =
+    localThumb ||
     pack.poster ||
-    pack.episodes.find((e) => e.posterLocalUri || e.poster || e.thumbnail)?.posterLocalUri ||
     pack.episodes.find((e) => e.poster || e.thumbnail)?.poster ||
     pack.episodes.find((e) => e.poster || e.thumbnail)?.thumbnail ||
     "";
@@ -677,20 +679,7 @@ function SeriesPack({
             >
               <Ionicons name="play-circle" size={26} color={colors.accentLight} />
             </Pressable>
-          ) : (
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation();
-                onDownloadSeason?.(1);
-              }}
-              style={styles.packQuickBtn}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={`Download more episodes of ${pack.title}`}
-            >
-              <Ionicons name="download-outline" size={20} color={colors.accentLight} />
-            </Pressable>
-          )}
+          ) : null}
 
           <Ionicons
             name={vaultMode && expanded ? "chevron-down" : "chevron-forward"}
@@ -1028,11 +1017,15 @@ export default function DownloadsScreen() {
         });
       }
       const pack = map.get(key);
-      if (!pack.poster && d.poster) pack.poster = d.poster;
+      if (!pack.poster && (d.poster || d.poster_url)) pack.poster = d.poster || d.poster_url;
       if (!pack.posterLocalUri && d.posterLocalUri) pack.posterLocalUri = d.posterLocalUri;
       pack.episodes.push(d);
     }
     for (const pack of map.values()) {
+      if (!pack.posterLocalUri) {
+        const epWithLocal = pack.episodes.find((e) => e.posterLocalUri);
+        if (epWithLocal) pack.posterLocalUri = epWithLocal.posterLocalUri;
+      }
       pack.episodes.sort((a, b) => {
         const se = Number(a.se) - Number(b.se);
         if (se !== 0) return se;
