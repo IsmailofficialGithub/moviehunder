@@ -502,10 +502,17 @@ export default function StreamPlayer({
     if (e.pointerType === "mouse" && e.button !== 0) return;
 
     // Ignore interactive controls, buttons, sliders, dialogs
+    const path = typeof e.composedPath === "function" ? e.composedPath() : [];
     const isInteractive = Boolean(
       e.target?.closest?.(
-        `button, a, input, select, textarea, media-play-button, media-time-range, media-volume-range, media-playback-rate-button, media-fullscreen-button, media-mute-button, media-seek-backward-button, media-seek-forward-button, [role="button"], .${styles.controlsWrapper}, .${styles.centerNavBtn}, .${styles.settingsPanel}, .${styles.subPanel}, .${styles.retry}`
-      )
+        `button, a, input, select, textarea, media-play-button, media-time-range, media-volume-range, media-playback-rate-button, media-fullscreen-button, media-mute-button, media-seek-backward-button, media-seek-forward-button, [role="button"], .${styles.controlsWrapper}, .${styles.centerNavBtn}, .${styles.centerOverlay}, .${styles.settingsPanel}, .${styles.subPanel}, .${styles.retry}`
+      ) ||
+        path.some(
+          (el) =>
+            el.matches?.(
+              `button, a, input, select, textarea, media-play-button, media-time-range, media-volume-range, media-playback-rate-button, media-fullscreen-button, media-mute-button, media-seek-backward-button, media-seek-forward-button, [role="button"], .${styles.controlsWrapper}, .${styles.centerNavBtn}, .${styles.centerOverlay}, .${styles.settingsPanel}, .${styles.subPanel}, .${styles.retry}`
+            )
+        )
     );
     if (isInteractive) return;
 
@@ -555,7 +562,7 @@ export default function StreamPlayer({
       if (videoRef.current.paused) {
         videoRef.current.play().catch(() => {});
       }
-    }, 240);
+    }, 450);
 
     const onWindowPointerMove = (moveEvt) => {
       if (pointerDownPosRef.current && !isHolding2xRef.current) {
@@ -587,12 +594,19 @@ export default function StreamPlayer({
   }, [endHoldSpeed]);
 
   const handleClickCapture = useCallback((e) => {
-    // If click is inside settings or subtitles modal, never suppress or block!
+    // If click is on interactive controls, settings, or modals, never suppress!
+    const path = typeof e.composedPath === "function" ? e.composedPath() : [];
     if (
       e.target?.closest?.(
-        `.${styles.settingsModal}, .${styles.subModal}, .${styles.settingsPanel}, .${styles.subPanel}`
+        `.${styles.settingsModal}, .${styles.subModal}, .${styles.settingsPanel}, .${styles.subPanel}, media-play-button, button, .${styles.centerOverlay}, .${styles.controlsWrapper}`
+      ) ||
+      path.some((el) =>
+        el.matches?.(
+          `button, media-play-button, media-fullscreen-button, .${styles.settingsModal}, .${styles.subModal}, .${styles.settingsPanel}, .${styles.subPanel}, .${styles.centerOverlay}, .${styles.controlsWrapper}`
+        )
       )
     ) {
+      suppressClickRef.current = false;
       return;
     }
     if (suppressClickRef.current) {
@@ -637,23 +651,17 @@ export default function StreamPlayer({
     setMounted(true);
   }, []);
 
-  // Mobile expand → prefer landscape while fullscreen
+  // Do NOT lock orientation to landscape so user can freely view vertically (portrait) on iPhone/mobile
   useEffect(() => {
     if (!mounted) return;
 
-    const onFullscreen = async () => {
-      const fsEl =
-        document.fullscreenElement ||
-        document.webkitFullscreenElement ||
-        null;
+    const onFullscreen = () => {
       try {
-        if (fsEl && screen.orientation?.lock) {
-          await screen.orientation.lock("landscape");
-        } else if (!fsEl && screen.orientation?.unlock) {
+        if (screen.orientation?.unlock) {
           screen.orientation.unlock();
         }
       } catch {
-        // lock not allowed on some browsers until gesture / desktop
+        // ignore
       }
     };
 
@@ -851,8 +859,7 @@ export default function StreamPlayer({
     return () => window.removeEventListener("keydown", onKey);
   }, [subPanelOpen, settingsOpen]);
 
-  const togglePlayPause = useCallback((e) => {
-    e?.stopPropagation?.();
+  const togglePlayPause = useCallback(() => {
     const v = videoRef.current || (activeSlot === "A" ? videoRefA.current : videoRefB.current);
     if (!v) return;
     if (v.paused) {
@@ -2589,6 +2596,7 @@ export default function StreamPlayer({
               ref={videoRefA}
               slot={activeSlot === "A" ? "media" : undefined}
               playsInline
+              webkit-playsinline="true"
               preload="metadata"
               crossOrigin="anonymous"
               suppressHydrationWarning
@@ -2607,6 +2615,7 @@ export default function StreamPlayer({
               ref={videoRefB}
               slot={activeSlot === "B" ? "media" : undefined}
               playsInline
+              webkit-playsinline="true"
               preload="metadata"
               crossOrigin="anonymous"
               suppressHydrationWarning

@@ -230,5 +230,29 @@ test("DetailClient handles multi-season series selection and season-specific epi
   );
 });
 
+test("StreamPlayer supports iPhone inline playback, mediapaused play button, and unlocked vertical view", () => {
+  const playerPath = path.join(__dirname, "../components/StreamPlayer.js");
+  const playerSrc = fs.readFileSync(playerPath, "utf8");
+
+  assert.ok(
+    playerSrc.includes('webkit-playsinline="true"'),
+    "StreamPlayer video elements must include webkit-playsinline for iOS Safari"
+  );
+
+  assert.ok(
+    !playerSrc.includes('orientation.lock("landscape")'),
+    "StreamPlayer must not forcibly lock orientation to landscape so vertical view works on iPhones"
+  );
+
+  const cssPath = path.join(__dirname, "../components/StreamPlayer.module.css");
+  const cssSrc = fs.readFileSync(cssPath, "utf8");
+
+  assert.ok(
+    cssSrc.includes(".controller[mediapaused] .centerOverlay > media-play-button") &&
+      cssSrc.includes("pointer-events: auto !important"),
+    "StreamPlayer CSS must ensure play button is interactive and visible when paused"
+  );
+});
+
 
 

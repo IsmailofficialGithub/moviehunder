@@ -1318,14 +1318,25 @@
   z-index: 10;
 }
 
-.controller[mediabuffering] .bufferingLoader {
+/* Only show buffering loader and hide play button if actively playing and buffering, NEVER when paused */
+.controller[mediabuffering]:not([mediapaused]) .bufferingLoader {
   display: block;
 }
 
-.controller[mediabuffering] .centerNavBtn,
-.controller[mediabuffering] .centerOverlay > media-play-button {
+.controller[mediabuffering]:not([mediapaused]) .centerNavBtn,
+.controller[mediabuffering]:not([mediapaused]) .centerOverlay > media-play-button {
   opacity: 0 !important;
   pointer-events: none;
+}
+
+/* Ensure play button is always visible & interactive whenever paused (e.g. initial load on iPhone) */
+.controller[mediapaused] .centerOverlay > media-play-button {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.controller[mediapaused] .bufferingLoader {
+  display: none !important;
 }
 
 .bottomBar media-play-button {
