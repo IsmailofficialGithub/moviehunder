@@ -41,15 +41,20 @@ export default function AuthScreen() {
     }
   }, [user, router]);
 
-  const rawAccess = params.access_token ? String(params.access_token) : "";
-  const rawRefreshToken = params.refresh_token ? String(params.refresh_token) : "";
-  const rawVerify = params.verify ? String(params.verify) : "";
-  const authKey = `${rawAccess}:${rawRefreshToken}:${rawVerify}`;
+  const cleanParam = (val) => {
+    if (!val) return "";
+    const s = String(val).trim();
+    return s === "undefined" || s === "null" ? "" : s;
+  };
+
+  const rawAccess = cleanParam(params.access_token);
+  const rawRefreshToken = cleanParam(params.refresh_token);
+  const rawVerify = cleanParam(params.verify);
 
   useEffect(() => {
     if (!rawAccess && !rawRefreshToken && !rawVerify) return;
-    if (handledAuthRef.current === authKey) return;
-    handledAuthRef.current = authKey;
+    if (handledAuthRef.current) return;
+    handledAuthRef.current = true;
 
     (async () => {
       try {
@@ -71,7 +76,7 @@ export default function AuthScreen() {
         setError(e.message || "Authentication callback failed");
       }
     })();
-  }, [rawAccess, rawRefreshToken, rawVerify, authKey, refresh, router]);
+  }, [rawAccess, rawRefreshToken, rawVerify, refresh, router]);
 
   async function onSubmit() {
     setError("");

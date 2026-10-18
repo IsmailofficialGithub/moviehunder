@@ -53,24 +53,34 @@ export default function AccountScreen() {
     return unsub;
   }, []);
 
-  const rawAccess = params.access_token ? String(params.access_token) : "";
-  const rawRefreshToken = params.refresh_token ? String(params.refresh_token) : "";
-  const rawVerify = params.verify ? String(params.verify) : "";
-  const authKey = `${rawAccess}:${rawRefreshToken}:${rawVerify}`;
+  const cleanParam = (val) => {
+    if (!val) return "";
+    const s = String(val).trim();
+    return s === "undefined" || s === "null" ? "" : s;
+  };
+
+  const rawAccess = cleanParam(params.access_token);
+  const rawRefreshToken = cleanParam(params.refresh_token);
+  const rawVerify = cleanParam(params.verify);
+
+  useEffect(() => {
+    if (user && authModalOpen) {
+      setAuthModalOpen(false);
+    }
+  }, [user, authModalOpen]);
 
   useEffect(() => {
     if (!rawAccess && !rawRefreshToken && !rawVerify) return;
-    if (handledAuthRef.current === authKey) return;
-    handledAuthRef.current = authKey;
+    if (handledAuthRef.current) return;
+    handledAuthRef.current = true;
 
+    let isMounted = true;
     (async () => {
       try {
         if (rawVerify) {
           await verifyEmail(rawVerify);
-          setMsg("Email verified successfully.");
-          try {
-            router.setParams({ verify: undefined });
-          } catch {}
+          if (isMounted) setMsg("Email verified successfully.");
+          router.replace("/account");
           return;
         }
         if (rawAccess && rawRefreshToken) {
@@ -80,19 +90,21 @@ export default function AccountScreen() {
           });
           await refresh();
           runFullSync().catch(() => {});
-          setMsg("Signed in successfully.");
-          try {
-            router.setParams({
-              access_token: undefined,
-              refresh_token: undefined,
-            });
-          } catch {}
+          if (isMounted) {
+            setMsg("Signed in successfully.");
+            setAuthModalOpen(false);
+          }
+          router.replace("/account");
         }
       } catch (e) {
-        setError(e.message || "Callback failed");
+        if (isMounted) setError(e.message || "Callback failed");
       }
     })();
-  }, [rawAccess, rawRefreshToken, rawVerify, authKey, refresh, router]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [rawAccess, rawRefreshToken, rawVerify, refresh, router]);
 
   async function triggerManualSync() {
     setSyncBusy(true);
