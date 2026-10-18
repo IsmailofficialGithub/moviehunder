@@ -1,5 +1,5 @@
 {
-  "latest_version": "0.0.10",
+  "latest_version": "0.0.11",
   "min_supported_version": "0.0.1",
   "update_type": "soft",
   "env": {
@@ -7,11 +7,11 @@
     "play_relay": "",
     "app_client_key": ""
   },
-  "release_notes": "MovieHunter v0.0.10",
+  "release_notes": "MovieHunter v0.0.11",
   "release_metadata": {},
   "android": {
-    "version_code": 10,
-    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.10/moviehunter-0.0.10.apk",
+    "version_code": 11,
+    "apk_url": "https://github.com/IsmailofficialGithub/moviehunder/releases/download/v0.0.11/moviehunter-0.0.11.apk",
     "force": false
   }
 }
