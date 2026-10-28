@@ -45,11 +45,8 @@ function pickPreviewSource(sources) {
     sources.find((s) => s.height === 720) ||
     sources[sources.length - 1]; // lowest resolution available
   const chosen = preferred || sources[0];
-  if (!chosen) return null;
-  return {
-    ...chosen,
-    url: chosen.direct_url || chosen.url,
-  };
+  // Use url, not direct_url: the relay rejects ?ticket= (400 JSON → ERR_BLOCKED_BY_ORB)
+  return chosen || null;
 }
 
 // Equal-power sinusoidal audio cross-fader (prevents abrupt voice/audio cuts between scenes)
