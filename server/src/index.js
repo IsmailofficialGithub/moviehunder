@@ -984,7 +984,46 @@ function baseTitleKey(name) {
     .trim();
 }
 
+// Upstream search pages stopped server-rendering results; the H5 search API needs a guest token,
+// which any H5 response hands out in its x-user header.
+let h5GuestToken = null;
+
+async function getH5GuestToken(force = false) {
+  if (h5GuestToken && !force) return h5GuestToken;
+  const resp = await fetch(`${cfg().H5_API}${cfg().H5_BFF_PATH}/home`, {
+    headers: cfg().apiHeaders(),
+  });
+  const token = JSON.parse(resp.headers.get("x-user") || "{}").token;
+  if (!token) throw new Error("No H5 guest token");
+  h5GuestToken = token;
+  return token;
+}
+
+async function searchMoviesH5(q, retry = true) {
+  const resp = await fetch(`${cfg().H5_API}${cfg().H5_BFF_PATH}/subject/search`, {
+    method: "POST",
+    headers: {
+      ...cfg().apiHeaders(),
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${await getH5GuestToken(!retry)}`,
+    },
+    body: JSON.stringify({ keyword: q, page: 1, perPage: 24, subjectType: 0 }),
+  });
+  const body = await resp.json();
+  if (body?.code !== 0) {
+    if (retry) return searchMoviesH5(q, false); // token expired → fetch a fresh one once
+    throw new Error(body?.message || `H5 search returned ${resp.status}`);
+  }
+  return (body.data?.items || []).map(mapSubject).filter(Boolean);
+}
+
 async function searchMoviesPages(q) {
+  try {
+    const movies = await searchMoviesH5(q);
+    if (movies.length) return movies;
+  } catch {
+    /* fall back to page scraping */
+  }
   const pages = [
     `${cfg().MIRROR_URL}/web/searchResult?keyword=${encodeURIComponent(q)}`,
     `${cfg().BASE_URL}/web/searchResult?keyword=${encodeURIComponent(q)}`,
