@@ -9,6 +9,7 @@ export const PLAN_TIERS = {
 export const PLAN_LIMITS = {
   STANDARD_ADS: {
     tier: "STANDARD_ADS",
+    partyMaxMembers: 10,
     label: "Standard with ads",
     maxProfiles: 1,
     maxConcurrentStreams: 1,
@@ -17,6 +18,7 @@ export const PLAN_LIMITS = {
   },
   STANDARD: {
     tier: "STANDARD",
+    partyMaxMembers: 25,
     label: "Standard",
     maxProfiles: 3,
     maxConcurrentStreams: 2,
@@ -25,6 +27,7 @@ export const PLAN_LIMITS = {
   },
   PREMIUM: {
     tier: "PREMIUM",
+    partyMaxMembers: 50,
     label: "Premium",
     maxProfiles: 5,
     maxConcurrentStreams: 4,
