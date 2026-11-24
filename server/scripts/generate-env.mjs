@@ -75,6 +75,14 @@ export function validateAndGenerateEnv(rawContent, targetDir = ".") {
     PIN_RESET_RATE_LIMIT_ENABLED: process.env.PIN_RESET_RATE_LIMIT_ENABLED,
     PIN_RESET_WINDOW_HOURS: process.env.PIN_RESET_WINDOW_HOURS,
     PIN_RESET_MAX_ATTEMPTS: process.env.PIN_RESET_MAX_ATTEMPTS,
+    // Watch party realtime + voice (GitHub vars)
+    PARTY_PORT: process.env.PARTY_PORT,
+    PARTY_VOICE: process.env.PARTY_VOICE,
+    PARTY_RTC_PORT: process.env.PARTY_RTC_PORT,
+    PARTY_RTC_WORKERS: process.env.PARTY_RTC_WORKERS,
+    PARTY_RTC_LISTEN_IP: process.env.PARTY_RTC_LISTEN_IP,
+    PARTY_RTC_ANNOUNCED_IP: process.env.PARTY_RTC_ANNOUNCED_IP,
+    PARTY_VOICE_MAX_SPEAKERS: process.env.PARTY_VOICE_MAX_SPEAKERS,
   };
 
   const updatedLines = [...lines];
