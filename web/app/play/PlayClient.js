@@ -22,6 +22,7 @@ import {
   List,
 } from "lucide-react";
 import StreamPlayer from "../../components/StreamPlayer";
+import CreatePartyButton from "../../components/party/CreatePartyButton";
 import { getDetail, getEpisodes, getRecommendations, searchTitles } from "../../lib/api";
 import { useAuth } from "../../components/AuthProvider";
 import { addHistoryItem } from "../../lib/guestHistory";
@@ -135,7 +136,18 @@ function extractLanguageTag(titleText, slugText, badgeText) {
   return null;
 }
 
-export default function PlayClient() {
+/**
+ * @param {{ party?: {
+ *   content: { subjectId: string, detailPath: string, se: string, ep: string, title?: string, poster?: string },
+ *   role: "HOST"|"COHOST"|"VIEWER",
+ *   canControl: boolean,
+ *   onNavigate: (target: object) => void,   // controller changes title/episode for the room
+ *   onActiveVideo: (video: HTMLVideoElement|null) => void,
+ *   overlay?: import("react").ReactNode,
+ *   panel?: import("react").ReactNode,
+ * } | null }} props
+ */
+export default function PlayClient({ party = null } = {}) {
   const router = useRouter();
   const params = useSearchParams();
   const { user, isSignedIn } = useAuth();
@@ -151,13 +163,15 @@ export default function PlayClient() {
   }, [user]);
 
 
-  let subjectId = params.get("subjectId") || params.get("id") || "";
-  let detailPath = params.get("detail_path") || "";
-  const se = params.get("se") || "0";
-  const ep = params.get("ep") || "0";
-  let title = params.get("title") || "";
-  let poster = params.get("poster") || "";
-  const initialTime = Number(params.get("t") || params.get("start") || params.get("position") || 0);
+  // In a watch party the room decides what plays (and where), not the URL.
+  const pc = party?.content;
+  let subjectId = pc ? String(pc.subjectId || "") : params.get("subjectId") || params.get("id") || "";
+  let detailPath = pc ? String(pc.detailPath || "") : params.get("detail_path") || "";
+  const se = pc ? String(pc.se || "0") : params.get("se") || "0";
+  const ep = pc ? String(pc.ep || "0") : params.get("ep") || "0";
+  let title = pc ? pc.title || "" : params.get("title") || "";
+  let poster = pc ? pc.poster || "" : params.get("poster") || "";
+  const initialTime = pc ? 0 : Number(params.get("t") || params.get("start") || params.get("position") || 0);
   const requestedLang = params.get("lang") || "";
   const s1HasNativeHindi = /\[\s*hindi\s*\]|\(\s*hindi\s*\)|-hindi-|\bhindi\b/i.test(`${title} ${detailPath}`);
   const initialServer =
@@ -451,8 +465,16 @@ export default function PlayClient() {
     };
   }, [flatEpisodeList, se, ep, isSeries]);
 
+  // Party: only host/co-host may move the room; viewers stay on the room's title.
+  const partyNavigate = (target) => {
+    if (!party || !target) return false;
+    if (party.canControl) party.onNavigate(target);
+    return true;
+  };
+
   const goTo = (target) => {
     if (!target) return;
+    if (partyNavigate({ subjectId, detailPath, title, poster, se: target.se, ep: target.ep })) return;
     router.push(
       `/play?${playQuery({
         subjectId,
@@ -551,6 +573,15 @@ export default function PlayClient() {
       const targetSlug = opt.dub.slug;
       const targetSub = opt.dub.subjectId;
       if ((targetSlug && targetSlug !== detailPath) || (targetSub && targetSub !== subjectId)) {
+        const dubTarget = {
+          subjectId: targetSub || subjectId,
+          detailPath: targetSlug || detailPath,
+          se,
+          ep,
+          title: opt.dub.title || title,
+          poster: opt.dub.poster || poster,
+        };
+        if (partyNavigate(dubTarget)) return;
         router.push(
           `/play?${playQuery({
             subjectId: targetSub || subjectId,
@@ -934,6 +965,12 @@ export default function PlayClient() {
                   key={item.subject_id || item.slug || idx}
                   href={href}
                   className={styles.recGridCard}
+                  onClick={(e) => {
+                    if (party?.canControl) {
+                      e.preventDefault();
+                      partyNavigate(recTarget);
+                    }
+                  }}
                 >
                   <div className={styles.recPosterWrap}>
                     {item.poster_url ? (
@@ -989,6 +1026,12 @@ export default function PlayClient() {
                   key={item.subject_id || item.slug || idx}
                   href={href}
                   className={styles.recCard}
+                  onClick={(e) => {
+                    if (party?.canControl) {
+                      e.preventDefault();
+                      partyNavigate(recTarget);
+                    }
+                  }}
                 >
                   <div className={styles.recThumbWrap}>
                     {item.poster_url ? (
@@ -1149,6 +1192,8 @@ export default function PlayClient() {
                   onPrevEpisode={() => goTo(prevEpisode)}
                   onNextEpisode={() => goTo(nextEpisode)}
                   server={activeServer}
+                  partyMode={party ? party.role : null}
+                  onActiveVideo={party?.onActiveVideo || null}
                   onStatusChange={(st) => {
                     if (st === "loading") {
                       startSwitching();
@@ -1175,11 +1220,18 @@ export default function PlayClient() {
                     }
                   }}
                 />
+                {party?.overlay}
               </div>
             </div>
 
+            {party?.panel}
+
             <div className={styles.underPlayerBar}>
-              <span className={styles.infringeText}> </span>
+              {party ? (
+                <span className={styles.infringeText}> </span>
+              ) : (
+                <CreatePartyButton content={{ subjectId, detailPath, se, ep, title, poster }} />
+              )}
               <button
                 type="button"
                 className={styles.reportBtn}
