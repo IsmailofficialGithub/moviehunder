@@ -29,6 +29,8 @@ model User {
   account        Account?
   accountMember  AccountMember?
   profiles       Profile[]
+  hostedParties  PartyRoom[]
+  partyMembers   PartyMember[]
 
   @@map("users")
 }
@@ -291,4 +293,72 @@ model PinResetRequest {
 
   @@index([profileId, sentAt])
   @@map("pin_reset_requests")
+}
+
+enum PartyVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum PartyRole {
+  HOST
+  COHOST
+  VIEWER
+}
+
+model PartyRoom {
+  id           String          @id @default(cuid())
+  code         String          @unique
+  visibility   PartyVisibility @default(PRIVATE)
+  passwordHash String?         @map("password_hash")
+  inviteToken  String          @unique @map("invite_token")
+  hostUserId   String          @map("host_user_id")
+  name         String?
+  subjectId    String          @map("subject_id")
+  detailPath   String          @map("detail_path")
+  se           String          @default("0")
+  ep           String          @default("0")
+  title        String?
+  poster       String?
+  maxMembers   Int             @default(25) @map("max_members")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  endedAt      DateTime?       @map("ended_at")
+
+  host    User          @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+  members PartyMember[]
+  events  PartyEvent[]
+
+  @@index([visibility, endedAt, createdAt(sort: Desc)])
+  @@map("party_rooms")
+}
+
+model PartyMember {
+  id       String    @id @default(cuid())
+  roomId   String    @map("room_id")
+  userId   String    @map("user_id")
+  role     PartyRole @default(VIEWER)
+  banned   Boolean   @default(false)
+  joinedAt DateTime  @default(now()) @map("joined_at")
+  leftAt   DateTime? @map("left_at")
+
+  room PartyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId, joinedAt(sort: Desc)])
+  @@map("party_members")
+}
+
+model PartyEvent {
+  id        String   @id @default(cuid())
+  roomId    String   @map("room_id")
+  userId    String?  @map("user_id")
+  type      String
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  room PartyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@map("party_events")
 }
