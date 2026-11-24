@@ -689,8 +689,37 @@
   .avatarStack {
     display: none;
   }
+  /* Phones: one compact action row (icons only, code button takes the rest). */
+  .panel {
+    margin-top: 8px;
+    border-radius: 12px;
+  }
+  .panelHeader {
+    gap: 8px;
+  }
+  .roomTitle {
+    width: 100%;
+    min-width: 0;
+  }
+  .headerActions {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .headerActions .btn {
+    padding: 7px 10px;
+    font-size: 12px;
+    justify-content: center;
+  }
+  .headerActions .codeBtn {
+    flex: 1;
+    min-width: 0;
+  }
+  .btnLabel {
+    display: none;
+  }
   .chatList {
-    height: 240px;
+    height: clamp(180px, 38dvh, 300px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
