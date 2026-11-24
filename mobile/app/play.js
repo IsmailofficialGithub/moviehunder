@@ -138,7 +138,19 @@ function formatTime(sec) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-export default function PlayScreen() {
+/**
+ * @param {{ party?: {
+ *   content: { subjectId: string, detailPath: string, se: string, ep: string, title?: string, poster?: string },
+ *   role: string, canControl: boolean,
+ *   onNavigate: (target: object) => void,
+ *   onPlayer: (player: any) => void,
+ *   onLocalSeek: () => void,
+ *   overlay?: import("react").ReactNode,
+ * } | null }} props  Watch party mode (rendered from app/party/[code].js). Omitted for normal playback.
+ */
+export default function PlayScreen({ party = null } = {}) {
+  const partyRef = useRef(party);
+  partyRef.current = party;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
@@ -153,16 +165,18 @@ export default function PlayScreen() {
   }, []);
   const params = useLocalSearchParams();
 
-  const subjectId = String(params.subjectId || "");
-  const detailPath = String(params.detail_path || params.slug || params.subjectId || "");
-  const se = String(params.se ?? "0");
-  const ep = String(params.ep ?? "0");
-  const title = String(params.title || "Now playing");
-  const poster = String(params.poster || "");
+  // In a watch party the room decides what plays, not the route params.
+  const pc = party?.content;
+  const subjectId = String(pc ? pc.subjectId : params.subjectId || "");
+  const detailPath = String(pc ? pc.detailPath : params.detail_path || params.slug || params.subjectId || "");
+  const se = String(pc ? pc.se ?? "0" : params.se ?? "0");
+  const ep = String(pc ? pc.ep ?? "0" : params.ep ?? "0");
+  const title = String((pc ? pc.title : params.title) || "Now playing");
+  const poster = String((pc ? pc.poster : params.poster) || "");
   const kind = String(params.kind || (Number(se) > 0 || Number(ep) > 0 ? "series" : "movie"));
   const durationHint = Number(params.duration) || 0;
-  const wantsAutoplay = params.autoplay !== "0";
-  const downloadIdRaw = String(params.downloadId || "");
+  const wantsAutoplay = party ? false : params.autoplay !== "0";
+  const downloadIdRaw = party ? "" : String(params.downloadId || "");
   let downloadId = "";
   try {
     downloadId = downloadIdRaw ? decodeURIComponent(downloadIdRaw) : "";
@@ -308,6 +322,14 @@ export default function PlayScreen() {
   const { isPlaying } = useEvent(player, "playingChange", {
     isPlaying: player.playing,
   });
+
+  // Watch party: hand the player to the sync hook.
+  const partyOnPlayer = party?.onPlayer;
+  useEffect(() => {
+    if (!partyOnPlayer) return undefined;
+    partyOnPlayer(player);
+    return () => partyOnPlayer(null);
+  }, [player, partyOnPlayer]);
 
   useEffect(() => {
     try {
@@ -496,6 +518,14 @@ export default function PlayScreen() {
   const navigateTo = useCallback(
     (target) => {
       if (!target) return;
+      const pty = partyRef.current;
+      if (pty) {
+        // Host/co-host move the whole room; viewers can't change the episode.
+        if (pty.canControl && !target.isDownload) {
+          pty.onNavigate({ subjectId, detailPath, title: pc?.title || title, poster, se: target.se, ep: target.ep });
+        }
+        return;
+      }
       try {
         player.pause();
       } catch {
@@ -758,7 +788,8 @@ export default function PlayScreen() {
     setResumeOffer(null);
     resumeAtRef.current = 0;
     (async () => {
-      if (!progressKey) {
+      // Party playback position comes from the room, so never offer a local resume.
+      if (!progressKey || partyRef.current) {
         if (!cancelled) setResumeReady(true);
         return;
       }
@@ -1515,7 +1546,8 @@ export default function PlayScreen() {
   }, [playbackRate, player, flashChipHint, showControls]);
 
   const beginHoldSpeed = useCallback(() => {
-    if (locked || holdSpeedRef.current.active) return;
+    // Hold-for-2x would desync a watch party.
+    if (locked || holdSpeedRef.current.active || partyRef.current) return;
     let wasPlaying = false;
     try {
       wasPlaying = Boolean(player.playing);
@@ -1659,6 +1691,7 @@ export default function PlayScreen() {
       );
       player.currentTime = next;
       setCurrentTime(next);
+      partyRef.current?.onLocalSeek?.();
       if (!player.playing) player.play();
       const hintSide = side || (delta > 0 ? "right" : "left");
       setSeekHint({
@@ -1724,6 +1757,7 @@ export default function PlayScreen() {
       try {
         player.currentTime = t;
         setCurrentTime(t);
+        partyRef.current?.onLocalSeek?.();
       } catch {
         // ignore
       }
@@ -2453,6 +2487,7 @@ export default function PlayScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      {party?.overlay}
     </View>
   );
 }
