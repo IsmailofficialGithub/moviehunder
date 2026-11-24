@@ -17,6 +17,13 @@ const LOOP_MS = 1000;
 const HOST_REPORT_MS = 1000;
 const ECHO_WINDOW_MS = 700;
 const SETTLE_MS = 1500; // ignore the player's own autoplay/resume right after a source loads
+// Joining / catching up: jump *ahead* of the live point by roughly how long this viewer needs to
+// load, so playback resumes in sync instead of landing behind and seeking again (buffer loop).
+const LEAD_DEFAULT_S = 2;
+const LEAD_MIN_S = 1;
+const LEAD_MAX_S = 8;
+const SEEK_PENDING_MAX_MS = 15_000; // a seek still loading after this is considered stuck
+const HOLD_MAX_S = 15; // landed ahead of the room by up to this: pause until the room catches up
 const MAX_CHAT = 200;
 const REACTION_TTL_MS = 4000;
 
@@ -59,6 +66,13 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
   const echoUntilRef = useRef({ play: 0, pause: 0, seek: 0, rate: 0 });
   // Target of the last seek *we* made: a slow network can deliver its "seeked" long after the echo window.
   const ourSeekRef = useRef(null);
+  // Sync seek still loading { t, at } — never stack another seek on top of it.
+  const pendingSeekRef = useRef(null);
+  // Learned per viewer: how long a seek takes to become playable (seconds), plus margin.
+  const seekLeadRef = useRef(LEAD_DEFAULT_S);
+  // Landed ahead of the room: stay paused until this time (ms), then resume in sync.
+  const holdUntilRef = useRef(0);
+  const holdTimerRef = useRef(null);
   const armedAtRef = useRef(Infinity);
   const lastReportRef = useRef(0);
   const ticketRef = useRef(initialTicket);
@@ -180,20 +194,82 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
     if (!video || !client || !state || video.readyState < 1) return;
     if (detachedRef.current && !force) return;
     if (force && detachedRef.current && youRef.current?.role === ROLES.VIEWER) return;
+    if (Date.now() < holdUntilRef.current) {
+      // Waiting for the room to catch up with us; only a pause / big host jump ends the hold early.
+      const live = expectedPosition(state, client.serverNow());
+      if (state.playing && Math.abs(live - video.currentTime) < HOLD_MAX_S) return;
+      endHold();
+    }
 
     const now = client.serverNow();
     const c = correction(state, video.currentTime, now);
     if (c.kind !== "none" || state.playing === video.paused) dbg("apply", { force, kind: c.kind, target: c.target?.toFixed(1), local: video.currentTime.toFixed(1), roomPlaying: state.playing, videoPaused: video.paused });
     const wantRate = c.kind === "nudge" ? c.rate : state.rate || 1;
+
+    // Ahead of a playing room (e.g. landed past the live point after a fast load): the data is
+    // already buffered, so pause and resume exactly when the room reaches us — no re-download.
+    // Host is never held or led — its own pauses/seeks would become room commands.
+    const follower = youRef.current?.role !== ROLES.HOST;
+    if (follower && state.playing && c.drift < -DRIFT.IGNORE && -c.drift <= HOLD_MAX_S && (c.kind === "seek" || video.paused)) {
+      startHold(video, -c.drift);
+      return;
+    }
+
     // Only open the echo window when we actually touch the player, so real user clicks still count.
     if (c.kind === "seek") {
-      const t = Math.max(0, c.target);
-      ourSeekRef.current = { t, at: Date.now() };
-      withEcho("seek", () => (video.currentTime = t));
+      const pend = pendingSeekRef.current;
+      const stillLoading = pend && Date.now() - pend.at < SEEK_PENDING_MAX_MS;
+      // A sync seek is still loading: don't stack another one (that is the endless-buffering loop),
+      // unless the room jumped somewhere else entirely (host seek / episode).
+      if (!stillLoading || Math.abs(c.target - pend.t) > seekLeadRef.current + 8) {
+        const t = Math.max(0, state.playing && follower ? c.target + seekLeadRef.current : c.target);
+        const at = Date.now();
+        ourSeekRef.current = { t, at };
+        pendingSeekRef.current = { t, at };
+        withEcho("seek", () => (video.currentTime = t));
+      }
     }
     if (state.playing && video.paused) withEcho("play", () => safePlay(video));
     if (!state.playing && !video.paused) withEcho("pause", () => video.pause());
     if (Math.abs(video.playbackRate - wantRate) > 0.001) withEcho("rate", () => (video.playbackRate = wantRate));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function startHold(video, seconds) {
+    clearTimeout(holdTimerRef.current);
+    holdUntilRef.current = Date.now() + seconds * 1000;
+    if (!video.paused) withEcho("pause", () => video.pause());
+    holdTimerRef.current = setTimeout(() => {
+      holdUntilRef.current = 0;
+      const v = videoRef.current;
+      if (v && stateRef.current?.playing && v.paused) withEcho("play", () => safePlay(v));
+    }, seconds * 1000);
+  }
+
+  function endHold() {
+    clearTimeout(holdTimerRef.current);
+    holdUntilRef.current = 0;
+  }
+
+  /** A sync seek became playable: learn this viewer's load time for the next jump. */
+  function seekLoaded() {
+    const pend = pendingSeekRef.current;
+    if (!pend) return;
+    pendingSeekRef.current = null;
+    const took = (Date.now() - pend.at) / 1000;
+    const next = 0.6 * seekLeadRef.current + 0.4 * (took + 0.5);
+    seekLeadRef.current = Math.min(LEAD_MAX_S, Math.max(LEAD_MIN_S, next));
+  }
+
+  /** Where a follower should start loading a fresh source: the live point plus its load lead. */
+  const getStartPosition = useCallback(() => {
+    const st = stateRef.current;
+    const c = clientRef.current;
+    if (!st || !c || youRef.current?.role === ROLES.HOST) return 0;
+    const live = expectedPosition(st, c.serverNow());
+    const t = st.playing ? live + seekLeadRef.current : live;
+    if (t > 1) pendingSeekRef.current = { t, at: Date.now() };
+    return t > 1 ? t : 0;
   }, []);
 
   // ── Observing the local player ──────────────────────────
@@ -232,6 +308,7 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
       };
       const onReset = () => {
         armedAtRef.current = Infinity;
+        endHold();
       };
 
       const detach = (value) => {
@@ -262,6 +339,7 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
         const ours = ourSeekRef.current;
         if (ours && Math.abs(video.currentTime - ours.t) < 1 && Date.now() - ours.at < 15_000) {
           ourSeekRef.current = null; // our own correction finished loading — not a user scrub
+          if (video.readyState >= 3) seekLoaded();
           return;
         }
         if (isEcho("seek") || !isArmed()) return;
@@ -292,7 +370,11 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
         bufferingRef.current = true;
         client()?.setMyStatus({ buffering: true, detached: detachedRef.current });
       };
+      const onCanPlay = () => {
+        if (pendingSeekRef.current && Math.abs(video.currentTime - pendingSeekRef.current.t) < 2) seekLoaded();
+      };
       const onPlaying = () => {
+        onCanPlay();
         if (!bufferingRef.current) return;
         bufferingRef.current = false;
         client()?.setMyStatus({ buffering: false, detached: detachedRef.current });
@@ -309,6 +391,7 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
         ["seeked", onSeeked],
         ["ratechange", onRate],
         ["waiting", onWaiting],
+        ["canplay", onCanPlay],
         ["playing", onPlaying],
       ];
       evts.forEach(([n, fn]) => video.addEventListener(n, fn));
@@ -367,6 +450,7 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
 
     return () => {
       clearInterval(loop);
+      clearTimeout(holdTimerRef.current);
       cleanup?.();
     };
   }, [enabled, applyRoomState]);
@@ -423,6 +507,7 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
     behindBy,
     needsGesture,
     onActiveVideo,
+    getStartPosition,
     actions,
     voiceAvailable,
     getClient: () => clientRef.current,

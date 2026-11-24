@@ -12,6 +12,12 @@ const LOOP_MS = 1000;
 const HOST_REPORT_MS = 1000;
 const ECHO_WINDOW_MS = 900;
 const SETTLE_MS = 2000; // play.js runs a muted preload/autoplay right after a source loads
+// Catching up: jump ahead of the live point by this viewer's measured load time, and never stack
+// a new seek on one that is still loading (that caused endless buffering for new joiners).
+const LEAD_DEFAULT_S = 2.5;
+const LEAD_MIN_S = 1;
+const LEAD_MAX_S = 8;
+const SEEK_PENDING_MAX_MS = 15_000;
 const MAX_CHAT = 200;
 const REACTION_TTL_MS = 4000;
 
@@ -33,6 +39,8 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
   const stateRef = useRef(null);
   const youRef = useRef(null);
   const playerRef = useRef(null);
+  const pendingSeekRef = useRef(null); // sync seek still loading { t, at }
+  const seekLeadRef = useRef(LEAD_DEFAULT_S); // learned load time (s) for jumping ahead
   const detachedRef = useRef(false);
   const bufferingRef = useRef(false);
   const readyRef = useRef(false);
@@ -79,7 +87,16 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
     }
     const c = correction(state, current, client.serverNow());
     const wantRate = c.kind === "nudge" ? c.rate : state.rate || 1;
-    if (c.kind === "seek") withEcho("seek", () => (player.currentTime = Math.max(0, c.target)));
+    if (c.kind === "seek") {
+      const follower = youRef.current?.role !== ROLES.HOST;
+      const pend = pendingSeekRef.current;
+      const stillLoading = pend && Date.now() - pend.at < SEEK_PENDING_MAX_MS;
+      if (!stillLoading || Math.abs(c.target - pend.t) > seekLeadRef.current + 8) {
+        const t = Math.max(0, state.playing && follower ? c.target + seekLeadRef.current : c.target);
+        pendingSeekRef.current = { t, at: Date.now() };
+        withEcho("seek", () => (player.currentTime = t));
+      }
+    }
     if (state.playing && !playing) withEcho("play", () => player.play());
     if (!state.playing && playing) withEcho("pause", () => player.pause());
     if (Math.abs(rate - wantRate) > 0.001) withEcho("rate", () => (player.playbackRate = wantRate));
@@ -219,6 +236,14 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
       sub("sourceLoad", onReady);
       sub("statusChange", ({ status: st }) => {
         if (st === "readyToPlay") {
+          const pend = pendingSeekRef.current;
+          if (pend) {
+            // Our sync seek became playable: learn how long this device needs.
+            pendingSeekRef.current = null;
+            const took = (Date.now() - pend.at) / 1000;
+            const next = 0.6 * seekLeadRef.current + 0.4 * (took + 0.5);
+            seekLeadRef.current = Math.min(LEAD_MAX_S, Math.max(LEAD_MIN_S, next));
+          }
           if (!readyRef.current) onReady();
           if (bufferingRef.current) {
             bufferingRef.current = false;

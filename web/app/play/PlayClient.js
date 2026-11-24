@@ -1201,6 +1201,7 @@ export default function PlayClient({ party = null } = {}) {
                   server={activeServer}
                   partyMode={party ? party.role : null}
                   onActiveVideo={party?.onActiveVideo || null}
+                  partyStartPosition={party?.getStartPosition || null}
                   onStatusChange={(st) => {
                     if (st === "loading") {
                       startSwitching();
