@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PartyVoice } from "./voice";
+import { processMic } from "./micProcessor";
 
 const DUCK_TO = 0.3; // movie volume multiplier while someone else is talking
 
@@ -45,6 +46,7 @@ function playTrack(_userId, track) {
 
 export function usePartyVoice(party) {
   const [state, setState] = useState({ joined: false, micOn: false, micLive: false, speakers: [], mics: {}, forceMuted: false, error: null });
+  const [selfSpeaking, setSelfSpeaking] = useState(false);
   const [pushToTalk, setPushToTalk] = useState(false);
   const voiceRef = useRef(null);
   const myId = party.you?.userId;
@@ -54,7 +56,9 @@ export function usePartyVoice(party) {
     if (!ready || voiceRef.current) return;
     const client = party.getClient();
     if (!client) return;
-    const v = new PartyVoice({ client, createDevice, getUserMedia, playTrack, onChange: setState });
+    // Mic goes through the cleaner (filters + compressor + VAD gate) before it is sent.
+    const cleanMic = async () => processMic(await getUserMedia(), { onSpeaking: setSelfSpeaking });
+    const v = new PartyVoice({ client, createDevice, getUserMedia: cleanMic, playTrack, onChange: setState });
     voiceRef.current = v;
     // Desktop: listen-only by default (no mic prompt until the user asks). Phones: wait for a tap.
     if (autoListenAllowed()) v.join().catch(() => {});
@@ -94,7 +98,8 @@ export function usePartyVoice(party) {
 
   // Ducking: lower the movie while someone else is speaking, restore after.
   const duckRef = useRef(null); // { original, ducked }
-  const othersTalking = state.speakers.some((id) => id !== myId);
+  // Also duck while *you* talk, so less movie sound leaks from your speakers into your mic.
+  const othersTalking = state.speakers.some((id) => id !== myId) || selfSpeaking;
   useEffect(() => {
     const video = party.getVideo();
     if (!video) return;

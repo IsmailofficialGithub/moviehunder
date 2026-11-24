@@ -228,14 +228,19 @@ function decodeBytes(bytes) {
 export async function downloadSubdl(fileId) {
   if (!fileId) throw new Error("file_id is required");
   const downloadUrl = resolveDownloadUrl(fileId);
+  // Keyed downloads count against SubDL's free quota (50/day → 429 "api_download_limit_exceeded").
+  // The public file URL works without the key, so try that first and only fall back to the key.
+  const publicUrl = new URL(downloadUrl);
+  publicUrl.searchParams.delete("api_key");
 
-  const res = await fetch(downloadUrl, {
-    headers: { Accept: "*/*" },
-    cache: "no-store",
-    redirect: "follow",
-  });
-  if (!res.ok) {
-    throw new Error(`SubDL download failed (${res.status})`);
+  let res = null;
+  for (const url of [publicUrl.toString(), downloadUrl]) {
+    res = await fetch(url, { headers: { Accept: "*/*" }, cache: "no-store", redirect: "follow" }).catch(() => null);
+    if (res?.ok) break;
+    if (url === downloadUrl) break;
+  }
+  if (!res?.ok) {
+    throw new Error(`SubDL download failed (${res?.status ?? "network"})`);
   }
   const buf = await res.arrayBuffer();
   return extractSubtitleText(buf, new URL(downloadUrl).pathname.split("/").pop());

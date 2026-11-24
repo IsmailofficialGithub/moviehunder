@@ -33,6 +33,7 @@ export class PartyVoice {
     this.producer = null;
     this.stream = null;
     this.consumers = new Map(); // producerId → { consumer, stop, userId }
+    this.consuming = new Set(); // producerIds being set up — avoids double playback (doubled voice)
     this.state = { joined: false, joining: false, micOn: false, micLive: false, forceMuted: false, speakers: [], mics: {}, error: null };
     this.wantMic = false;
     this.offs = [
@@ -122,12 +123,18 @@ export class PartyVoice {
   }
 
   async consume(producerId) {
-    if (!this.recvTransport || this.consumers.has(producerId)) return;
-    const params = await this.request("rtc.consume", { producerId, rtpCapabilities: this.device.rtpCapabilities });
-    const consumer = await this.recvTransport.consume(params);
-    const stop = this.playTrack(params.userId, consumer.track);
-    this.consumers.set(producerId, { consumer, stop, userId: params.userId });
-    await this.request("rtc.consumer_ready", { consumerId: consumer.id });
+    if (!this.recvTransport || this.consumers.has(producerId) || this.consuming.has(producerId)) return;
+    this.consuming.add(producerId);
+    try {
+      const params = await this.request("rtc.consume", { producerId, rtpCapabilities: this.device.rtpCapabilities });
+      const consumer = await this.recvTransport.consume(params);
+      this.consumers.get(producerId)?.stop?.(); // never two players for one voice
+      const stop = this.playTrack(params.userId, consumer.track);
+      this.consumers.set(producerId, { consumer, stop, userId: params.userId });
+      await this.request("rtc.consumer_ready", { consumerId: consumer.id });
+    } finally {
+      this.consuming.delete(producerId);
+    }
   }
 
   dropConsumer(producerId) {
@@ -187,6 +194,7 @@ export class PartyVoice {
   }
 
   teardown() {
+    this.consuming.clear();
     for (const id of [...this.consumers.keys()]) this.dropConsumer(id);
     this.producer?.close();
     this.producer = null;
