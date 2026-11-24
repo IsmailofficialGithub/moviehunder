@@ -1235,9 +1235,9 @@
   --media-button-icon-width: 26px;
   --media-button-icon-height: 26px;
   --media-font-size: 14px;
-  --media-range-track-height: 4px;
-  --media-range-thumb-height: 14px;
-  --media-range-thumb-width: 14px;
+  --media-range-track-height: 3px;
+  --media-range-thumb-height: 12px;
+  --media-range-thumb-width: 12px;
   --media-tooltip-display: none;
 }
 
@@ -1428,10 +1428,10 @@
   --media-control-hover-background: transparent !important;
   --media-time-range-hover-background: transparent !important;
   --media-range-track-background: rgba(255, 255, 255, 0.25);
-  --media-range-track-height: 4px;
+  --media-range-track-height: 3px;
   --media-range-thumb-background: #ffffff;
-  --media-range-thumb-height: 14px;
-  --media-range-thumb-width: 14px;
+  --media-range-thumb-height: 12px;
+  --media-range-thumb-width: 12px;
   --media-range-thumb-border: none;
   --media-range-thumb-box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
   background: transparent !important;
@@ -1483,7 +1483,7 @@
   pointer-events: none;
   overflow: hidden;
   transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
-  --media-range-track-height: 4px;
+  --media-range-track-height: 3px;
   --media-control-height: 28px;
   height: 28px;
   vertical-align: middle;
@@ -1633,9 +1633,9 @@
     --media-button-icon-width: 30px;
     --media-button-icon-height: 30px;
     --media-font-size: 15px;
-    --media-range-track-height: 6px;
-    --media-range-thumb-height: 18px;
-    --media-range-thumb-width: 18px;
+    --media-range-track-height: 3px;
+    --media-range-thumb-height: 13px;
+    --media-range-thumb-width: 13px;
   }
 
   .centerOverlay {

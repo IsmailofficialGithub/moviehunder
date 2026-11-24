@@ -71,8 +71,8 @@ export default function PartyPanel({ party, voice, inviteToken, onLeave }) {
             {copied === "code" ? <Check size={14} /> : <Copy size={14} />}
           </button>
           {inviteToken && (
-            <button type="button" className={styles.btn} onClick={share}>
-              {copied === "link" ? <Check size={14} /> : <Share2 size={14} />} Invite link
+            <button type="button" className={styles.btn} onClick={share} title="Invite link" aria-label="Invite link">
+              {copied === "link" ? <Check size={14} /> : <Share2 size={14} />} <span className={styles.btnLabel}>Invite link</span>
             </button>
           )}
           {isHost && (
@@ -81,8 +81,10 @@ export default function PartyPanel({ party, voice, inviteToken, onLeave }) {
               className={`${styles.btn} ${showSettings ? styles.btnPrimary : ""}`}
               onClick={() => setShowSettings((v) => !v)}
               aria-expanded={showSettings}
+              title="Room settings"
+              aria-label="Room settings"
             >
-              <Settings size={14} /> Settings
+              <Settings size={14} /> <span className={styles.btnLabel}>Settings</span>
             </button>
           )}
           {isHost ? (
@@ -90,12 +92,14 @@ export default function PartyPanel({ party, voice, inviteToken, onLeave }) {
               type="button"
               className={`${styles.btn} ${styles.btnDanger}`}
               onClick={() => window.confirm("End the party for everyone?") && actions.end()}
+              title="End party"
+              aria-label="End party"
             >
-              <Power size={14} /> End party
+              <Power size={14} /> <span className={styles.btnLabel}>End party</span>
             </button>
           ) : (
-            <button type="button" className={styles.btn} onClick={onLeave}>
-              <LogOut size={14} /> Leave
+            <button type="button" className={styles.btn} onClick={onLeave} title="Leave party" aria-label="Leave party">
+              <LogOut size={14} /> <span className={styles.btnLabel}>Leave</span>
             </button>
           )}
         </div>
