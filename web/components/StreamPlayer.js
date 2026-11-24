@@ -228,6 +228,9 @@ export default function StreamPlayer({
   const controllerRef = useRef(null);
   const partyModeRef = useRef(partyMode);
   partyModeRef.current = partyMode;
+  // Watch party: only the room creator drives playback. Everyone else is locked to the live
+  // position — no play/pause, seeking, skipping or speed changes (usePartyRoom also snaps back).
+  const partyLocked = Boolean(partyMode) && partyMode !== "HOST";
   const canvasRef = useRef(null);
   const hlsRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -456,6 +459,7 @@ export default function StreamPlayer({
 
   const triggerSeek = useCallback((side) => {
     if (!videoRef.current) return;
+    if (partyModeRef.current && partyModeRef.current !== "HOST") return;
     const delta = side === "left" ? -10 : 10;
     const current = videoRef.current.currentTime || 0;
     const duration = videoRef.current.duration || Infinity;
@@ -617,7 +621,8 @@ export default function StreamPlayer({
       suppressClickRef.current = false;
       return;
     }
-    if (suppressClickRef.current) {
+    if (suppressClickRef.current || (partyModeRef.current && partyModeRef.current !== "HOST")) {
+      // Party viewers: clicking the video must not pause it.
       e.preventDefault();
       e.stopPropagation();
       suppressClickRef.current = false;
@@ -969,6 +974,7 @@ export default function StreamPlayer({
       clearTimeout(spaceHoldTimer);
       const video = videoRef.current;
       if (!video) return;
+      if (partyModeRef.current && partyModeRef.current !== "HOST") return;
 
       if (isHolding2xRef.current) {
         isHolding2xRef.current = false;
@@ -2634,6 +2640,7 @@ export default function StreamPlayer({
             ref={controllerRef}
             className={styles.controller}
             hotkeys="nospace"
+            nohotkeys={partyLocked ? "" : undefined}
             autohide="5"
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
@@ -2739,7 +2746,7 @@ export default function StreamPlayer({
                       <SkipBack size={32} fill="currentColor" strokeWidth={2} />
                     </button>
                   ) : null}
-                  <MediaPlayButton />
+                  {!partyLocked && <MediaPlayButton />}
                   {nextEpisode && onNextEpisode ? (
                     <button
                       type="button"
@@ -2757,7 +2764,7 @@ export default function StreamPlayer({
             <MediaErrorDialog />
             <div className={styles.controlsWrapper}>
               <MediaControlBar className={styles.timelineBar}>
-                <MediaTimeRange />
+                <MediaTimeRange className={partyLocked ? styles.timeRangeLocked : undefined} />
               </MediaControlBar>
               <MediaControlBar className={styles.bottomBar}>
                 {prevEpisode && onPrevEpisode ? (
@@ -2772,7 +2779,7 @@ export default function StreamPlayer({
                     <SkipBack size={20} fill="currentColor" strokeWidth={2} />
                   </button>
                 ) : null}
-                <MediaPlayButton />
+                {!partyLocked && <MediaPlayButton />}
                 {nextEpisode && onNextEpisode ? (
                   <button
                     type="button"
@@ -2819,7 +2826,7 @@ export default function StreamPlayer({
                 >
                   <Settings size={20} strokeWidth={2} />
                 </button>
-                <MediaPlaybackRateButton rates={[0.5, 0.75, 1, 1.25, 1.5, 2]} />
+                {!partyLocked && <MediaPlaybackRateButton rates={[0.5, 0.75, 1, 1.25, 1.5, 2]} />}
                 <MediaFullscreenButton onClick={handleFullscreenClick} />
               </MediaControlBar>
             </div>

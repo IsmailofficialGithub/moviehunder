@@ -2498,3 +2498,7 @@
   }
 }
 
+/* Watch party viewers: progress is visible but can't be dragged. */
+.timeRangeLocked {
+  pointer-events: none;
+}

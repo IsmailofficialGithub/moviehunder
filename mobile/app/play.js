@@ -151,6 +151,8 @@ function formatTime(sec) {
 export default function PlayScreen({ party = null } = {}) {
   const partyRef = useRef(party);
   partyRef.current = party;
+  // Watch party: only the room creator drives playback; everyone else stays locked to live.
+  const isPartyFollower = () => Boolean(partyRef.current) && !partyRef.current.canControl;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
@@ -651,6 +653,7 @@ export default function PlayScreen({ party = null } = {}) {
 
   const togglePlayPause = useCallback(() => {
     if (resumeOfferRef.current) return;
+    if (isPartyFollower()) return;
     try {
       if (player.playing) {
         player.pause();
@@ -1538,6 +1541,10 @@ export default function PlayScreen({ party = null } = {}) {
       (s) => Math.abs(s - playbackRate) < 0.01
     );
     if (idx < 0) idx = PLAYBACK_SPEEDS.indexOf(1);
+    if (isPartyFollower()) {
+      flashChipHint("Host controls playback");
+      return;
+    }
     const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length];
     try {
       player.playbackRate = next;
@@ -1689,6 +1696,7 @@ export default function PlayScreen({ party = null } = {}) {
   const canPanVideo = displayActive.pan && !locked;
 
   const seekBy = (delta, side) => {
+    if (isPartyFollower()) return;
     try {
       const next = Math.max(
         0,
@@ -1758,6 +1766,7 @@ export default function PlayScreen({ party = null } = {}) {
         dur = duration || 0;
       }
       if (!(dur > 0)) return;
+      if (isPartyFollower()) return;
       const t = ratio * dur;
       try {
         player.currentTime = t;
@@ -2124,7 +2133,7 @@ export default function PlayScreen({ party = null } = {}) {
                       <View style={styles.navSkipPlaceholder} />
                     )}
 
-                    <Pressable style={styles.bigPlay} onPress={togglePlayPause}>
+                    <Pressable style={[styles.bigPlay, party && !party.canControl && { opacity: 0 }]} disabled={Boolean(party && !party.canControl)} onPress={togglePlayPause}>
                       {waitingToPlay && !isPlaying ? (
                         <ActivityIndicator color="#fff" size="large" />
                       ) : (

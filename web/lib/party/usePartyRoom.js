@@ -4,9 +4,8 @@
 //
 // Sync rules (see server/party/syncMath.js):
 //   • HOST's player is the truth: it reports its position, and its play/pause/seek/rate become room commands.
-//   • COHOST follows the room like a viewer, but its own play/pause/seek also become commands.
-//   • VIEWER follows the room. Pausing or scrubbing locally "detaches" them (everyone else keeps going);
-//     "Jump to live" (or catching back up within a few seconds) re-attaches.
+//   • Everyone else (co-hosts included) is locked to the live room: a local pause, seek or speed
+//     change is snapped straight back, so all viewers always watch the same moment as the host.
 //   • Each client picks its own quality — sync is by position, not by stream.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -254,8 +253,8 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
           client()?.command(playing ? "play" : "pause", { position: video.currentTime });
           return;
         }
-        if (!playing) detach(true);
-        else if (detachedRef.current) maybeRejoin();
+        // Followers can't pause/resume on their own — put them straight back on the live room.
+        applyRoomState(stateRef.current, { force: true });
       };
 
       let seekTimer = null;
@@ -272,15 +271,8 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
           seekTimer = setTimeout(() => client()?.command("seek", { position: video.currentTime }), 250);
           return;
         }
-        const st = stateRef.current;
-        const c = client();
-        if (!st || !c) return;
-        const live = expectedPosition(st, c.serverNow());
-        if (Math.abs(live - video.currentTime) <= DRIFT.HARD_SEEK) {
-          if (detachedRef.current) detach(false);
-        } else {
-          detach(true);
-        }
+        // Followers can't scrub — snap back to the live position.
+        applyRoomState(stateRef.current, { force: true });
       };
 
       const onRate = () => {
@@ -290,7 +282,10 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
           const r = video.playbackRate;
           // Ignore our own drift nudges (±5 %) — only real speed changes become commands.
           if (st && Math.abs(r - (st.rate || 1)) > DRIFT.NUDGE_RATE + 0.01) client()?.command("rate", { rate: r });
+          return;
         }
+        // Followers can't change speed (our own ±5 % drift nudges are echoes and skipped above).
+        applyRoomState(stateRef.current, { force: true });
       };
 
       const onWaiting = () => {
