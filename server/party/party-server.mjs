@@ -133,7 +133,15 @@ wss.on("connection", (ws) => {
           }
           return hub.join(sock, ticket);
         })();
-        joined = Boolean(await joining);
+        try {
+          joined = Boolean(await joining);
+        } catch (err) {
+          // Don't leave the client waiting for the hello timeout — let it reconnect right away.
+          console.error("[party] join failed:", err?.message || err);
+          clearTimeout(helloTimer);
+          sock.close(4500, "JOIN_ERROR");
+          return;
+        }
         clearTimeout(helloTimer);
         return;
       }

@@ -11,6 +11,7 @@ import { apiClientHeaders, getPartyWsUrl, withAppKeyQuery } from "../config";
 const PING_SAMPLES = 5;
 const RESYNC_CLOCK_MS = 30_000;
 const MAX_BACKOFF_MS = 15_000;
+const JOIN_TIMEOUT_MS = 8000;
 const FATAL = new Set(["ROOM_NOT_FOUND", "BANNED", "NOT_A_MEMBER", "ROOM_FULL", "KICKED"]);
 
 export class PartyClient {
@@ -70,6 +71,17 @@ export class PartyClient {
     // React Native has no Origin: pass the app key (header + query, the server accepts either).
     const ws = new WebSocket(withAppKeyQuery(this.url), undefined, { headers: apiClientHeaders() });
     this.ws = ws;
+    // Never hang on "Joining…": a socket that isn't "joined" in time is dropped and retried.
+    clearTimeout(this.joinWatchdog);
+    this.joinWatchdog = setTimeout(() => {
+      if (this.ws === ws && this.status !== "open") {
+        try {
+          ws.close(4000, "JOIN_TIMEOUT");
+        } catch {
+          /* ignore */
+        }
+      }
+    }, JOIN_TIMEOUT_MS);
 
     ws.onopen = () => {
       this.send({ t: "hello", ticket: this.ticket });
@@ -115,6 +127,7 @@ export class PartyClient {
         return;
       }
       case "joined":
+        clearTimeout(this.joinWatchdog);
         this.attempt = 0;
         this.setStatus("open");
         this.startClockResync();
@@ -184,6 +197,7 @@ export class PartyClient {
   }
 
   close() {
+    clearTimeout(this.joinWatchdog);
     this.closedByUser = true;
     clearTimeout(this.reconnectTimer);
     this.clearTimers();

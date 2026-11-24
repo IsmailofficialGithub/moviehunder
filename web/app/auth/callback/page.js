@@ -38,7 +38,10 @@ function CallbackInner() {
           await refresh();
           runFullSync().catch(() => {});
           if (!cancelled) setMessage("Signed in. Redirecting…");
-          setTimeout(() => router.replace("/profiles"), 600);
+          // Back to where sign-in started (e.g. a party invite link), else the profile picker.
+          const back = params.get("redirect") || "";
+          const dest = back.startsWith("/") && !back.startsWith("//") && !back.startsWith("/\\") ? back : "/profiles";
+          setTimeout(() => router.replace(dest), 600);
           return;
         }
 
