@@ -33,8 +33,10 @@ export function expectedPosition(state, now) {
   return state.position + elapsed * (state.rate || 1);
 }
 
+// Only the room creator (host) drives playback; co-hosts help moderate (kick/mute) but
+// follow the room like everyone else, so all viewers stay on the live position.
 export function canControl(role) {
-  return role === ROLES.HOST || role === ROLES.COHOST;
+  return role === ROLES.HOST;
 }
 
 /**

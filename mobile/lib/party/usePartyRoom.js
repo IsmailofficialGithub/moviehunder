@@ -241,11 +241,16 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
           clientRef.current?.command(isPlaying ? "play" : "pause", { position: player.currentTime || 0 });
           return;
         }
-        if (!isPlaying) setDetachedBoth(true);
-        else if (detachedRef.current) maybeRejoin();
+        // Followers can't pause/resume on their own — put them straight back on the live room.
+        applyRoomState(stateRef.current, { force: true });
       });
       sub("playbackRateChange", ({ playbackRate }) => {
-        if (isEcho("rate") || !isArmed() || !canControl(youRef.current?.role)) return;
+        if (isEcho("rate") || !isArmed()) return;
+        if (!canControl(youRef.current?.role)) {
+          // Followers can't change speed — snap back (our drift nudges are echoes, skipped above).
+          applyRoomState(stateRef.current, { force: true });
+          return;
+        }
         const st = stateRef.current;
         if (st && Math.abs(playbackRate - (st.rate || 1)) > DRIFT.NUDGE_RATE + 0.01) {
           clientRef.current?.command("rate", { rate: playbackRate });
@@ -272,15 +277,8 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
       clientRef.current?.command("seek", { position: pos });
       return;
     }
-    const st = stateRef.current;
-    const c = clientRef.current;
-    if (!st || !c) return;
-    const live = expectedPosition(st, c.serverNow());
-    if (Math.abs(live - pos) <= DRIFT.HARD_SEEK) {
-      if (detachedRef.current) setDetachedBoth(false);
-    } else {
-      setDetachedBoth(true);
-    }
+    // Followers can't scrub — snap back to the live position.
+    applyRoomState(stateRef.current, { force: true });
   };
 
   // ── Sync loop ───────────────────────────────────────────

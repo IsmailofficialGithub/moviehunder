@@ -22,11 +22,11 @@ test("expectedPosition extrapolates only while playing", () => {
   assert.equal(expectedPosition(playing, 0), 10);
 });
 
-test("viewers cannot control playback; host and co-host can", () => {
+test("only the host controls playback; viewers and co-hosts follow", () => {
   const s = initialState(0);
   assert.deepEqual(applyCommand(s, { action: "play" }, ROLES.VIEWER, 0), { ok: false, error: "FORBIDDEN" });
   assert.equal(applyCommand(s, { action: "play" }, ROLES.HOST, 0).ok, true);
-  assert.equal(applyCommand(s, { action: "play" }, ROLES.COHOST, 0).ok, true);
+  assert.deepEqual(applyCommand(s, { action: "play" }, ROLES.COHOST, 0), { ok: false, error: "FORBIDDEN" });
 });
 
 test("play/pause re-anchor at the live position", () => {
