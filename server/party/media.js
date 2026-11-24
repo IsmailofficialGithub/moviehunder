@@ -174,7 +174,8 @@ export class PartyMedia {
       case "rtc.producers":
         return reply({
           producers: [...room.producers.values()]
-            .filter((p) => p.peer !== peer)
+            // Never send a user their own voice (same account on another tab/device = echo).
+            .filter((p) => p.peer !== peer && p.peer.userId !== peer.userId)
             .map((p) => ({ producerId: p.producer.id, userId: p.peer.userId, paused: p.producer.paused })),
           speakers: [...room.active].map((id) => room.producers.get(id)?.peer.userId).filter(Boolean),
         });
@@ -224,7 +225,11 @@ export class PartyMedia {
           room.broadcast({ t: "rtc_producer_closed", producerId: producer.id, userId: peer.userId });
           this.refreshActive(room);
         });
-        this.broadcastExcept(room, peer, { t: "rtc_producer", producerId: producer.id, userId: peer.userId });
+        for (const p of room.peers.values()) {
+          if (p !== peer && p.userId !== peer.userId) {
+            p.socket.send({ t: "rtc_producer", producerId: producer.id, userId: peer.userId });
+          }
+        }
         room.broadcast({ t: "rtc_mic", userId: peer.userId, on: true });
         return reply({ id: producer.id });
       }
@@ -233,6 +238,7 @@ export class PartyMedia {
         const transport = [...peer.transports.values()].find((t) => t.appData.direction === "recv");
         const entry = room.producers.get(String(msg.producerId));
         if (!transport || !entry) return fail("CANNOT_CONSUME");
+        if (entry.peer.userId === peer.userId) return fail("CANNOT_CONSUME"); // own voice → echo
         if (!room.router.canConsume({ producerId: entry.producer.id, rtpCapabilities: msg.rtpCapabilities })) {
           return fail("INCOMPATIBLE");
         }
