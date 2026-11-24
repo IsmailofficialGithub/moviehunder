@@ -218,6 +218,8 @@ export default function StreamPlayer({
   partyMode = null,
   // Watch party: receives the currently active <video> (changes on quality slot swaps).
   onActiveVideo = null,
+  // Watch party: () => seconds where a follower should start loading (live point + load lead).
+  partyStartPosition = null,
 }) {
   const videoRefA = useRef(null);
   const videoRefB = useRef(null);
@@ -228,6 +230,8 @@ export default function StreamPlayer({
   const controllerRef = useRef(null);
   const partyModeRef = useRef(partyMode);
   partyModeRef.current = partyMode;
+  const partyStartRef = useRef(partyStartPosition);
+  partyStartRef.current = partyStartPosition;
   // Watch party: only the room creator drives playback. Everyone else is locked to the live
   // position — no play/pause, seeking, skipping or speed changes (usePartyRoom also snaps back).
   const partyLocked = Boolean(partyMode) && partyMode !== "HOST";
@@ -1277,6 +1281,13 @@ export default function StreamPlayer({
     videoRetryCount.current = 0;
     clearTimeout(videoRetryTimer.current);
 
+    // Watch party follower: start loading right at the live point, not at 0:00 (then seek).
+    if (resume === 0 && partyModeRef.current && typeof partyStartRef.current === "function") {
+      try {
+        resume = Number(partyStartRef.current()) || 0;
+      } catch {}
+    }
+
     // Watch party: the room decides the position, so never resume from local history.
     if (resume === 0 && !partyModeRef.current) {
       try {
@@ -1387,6 +1398,8 @@ export default function StreamPlayer({
           enableWorker: true,
           lowLatencyMode: false,
           backBufferLength: 60,
+          // Fetch the first fragments at the resume point instead of 0:00 (party joins, resumes).
+          startPosition: resume > 0 ? resume : -1,
         });
         hlsRef.current = hls;
         hls.loadSource(appliedSrc);
