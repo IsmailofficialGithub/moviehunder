@@ -8,6 +8,7 @@ const ERRORS = {
   MUTED_BY_HOST: "The host muted you.",
   VOICE_UNAVAILABLE: "Voice isn't available on this server right now.",
   VOICE_CONNECTION_FAILED: "Voice couldn't connect (a firewall may be blocking it).",
+  MIC_LOST: "Your microphone was disconnected — tap Join voice to pick it up again.",
 };
 
 /** Mic controls: join with mic, mute/unmute, push-to-talk, leave mic. */

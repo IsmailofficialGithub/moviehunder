@@ -5,7 +5,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PartyVoice } from "./voice";
-import { processMic } from "./micProcessor";
+import { watchSpeech } from "./micProcessor";
+import { logVoiceStats, voiceDebugEnabled } from "./voiceStats";
 
 const DUCK_TO = 0.3; // movie volume multiplier while someone else is talking
 
@@ -26,19 +27,40 @@ async function createDevice() {
   return Device.factory();
 }
 
-function getUserMedia() {
-  return navigator.mediaDevices.getUserMedia({
+// Browser-native processing only (AEC + NS + AGC). No extra DSP on the send path — see micProcessor.js.
+async function getUserMedia() {
+  const stream = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
     video: false,
   });
+  if (voiceDebugEnabled()) {
+    // Applied settings can differ from what was requested (device / browser support).
+    console.info("[voice] mic settings", stream.getAudioTracks()[0]?.getSettings?.());
+  }
+  return stream;
 }
 
+// Remote voices: one <audio> per voice. If autoplay is blocked (voice connected before any tap),
+// retry on the next user gesture instead of staying silent.
+const blockedAudio = new Set();
+let gestureHooked = false;
+function retryBlockedAudio() {
+  for (const el of blockedAudio) el.play().then(() => blockedAudio.delete(el)).catch(() => {});
+}
 function playTrack(_userId, track) {
   const el = new Audio();
   el.autoplay = true;
   el.srcObject = new MediaStream([track]);
-  el.play().catch(() => {});
+  el.play().catch((err) => {
+    if (err?.name !== "NotAllowedError") return;
+    blockedAudio.add(el);
+    if (!gestureHooked && typeof window !== "undefined") {
+      gestureHooked = true;
+      for (const ev of ["pointerdown", "keydown", "touchend"]) window.addEventListener(ev, retryBlockedAudio, { capture: true });
+    }
+  });
   return () => {
+    blockedAudio.delete(el);
     el.pause();
     el.srcObject = null;
   };
@@ -56,9 +78,27 @@ export function usePartyVoice(party) {
     if (!ready || voiceRef.current) return;
     const client = party.getClient();
     if (!client) return;
-    // Mic goes through the cleaner (filters + compressor + VAD gate) before it is sent.
-    const cleanMic = async () => processMic(await getUserMedia(), { onSpeaking: setSelfSpeaking });
-    const v = new PartyVoice({ client, createDevice, getUserMedia: cleanMic, playTrack, onChange: setState });
+    // The mic is sent untouched (browser AEC/NS/AGC only). Speech detection runs beside it, only to
+    // duck the movie while you talk. A lost/unplugged mic turns voice off cleanly.
+    const micWithWatch = async () => {
+      const stream = await getUserMedia();
+      const track = stream.getAudioTracks()[0];
+      const stopWatch = watchSpeech(stream, setSelfSpeaking);
+      if (track) {
+        const stop = track.stop.bind(track);
+        track.stop = () => {
+          stopWatch();
+          stop();
+        };
+        track.addEventListener("ended", () => {
+          stopWatch();
+          voiceRef.current?.stopMic().catch(() => {});
+          setState((s) => ({ ...s, error: "MIC_LOST" }));
+        });
+      }
+      return stream;
+    };
+    const v = new PartyVoice({ client, createDevice, getUserMedia: micWithWatch, playTrack, onChange: setState });
     voiceRef.current = v;
     // Desktop: listen-only by default (no mic prompt until the user asks). Phones: wait for a tap.
     if (autoListenAllowed()) v.join().catch(() => {});
@@ -98,12 +138,14 @@ export function usePartyVoice(party) {
 
   // Ducking: lower the movie while someone else is speaking, restore after.
   const duckRef = useRef(null); // { original, ducked }
-  // Echo guard: while someone else talks, the mic gate needs a louder (closer) voice to open, so
-  // their voice coming out of your speakers isn't sent back to them.
   const remoteTalking = state.speakers.some((id) => id !== myId);
+
+  // Opt-in diagnostics: localStorage.partyVoiceDebug = "1" logs WebRTC stats every 5 s.
   useEffect(() => {
-    voiceRef.current?.stream?.setRemoteActive?.(remoteTalking);
-  }, [remoteTalking, state.micLive]);
+    if (!state.joined || !voiceDebugEnabled()) return undefined;
+    const iv = setInterval(() => logVoiceStats(voiceRef.current).catch(() => {}), 5000);
+    return () => clearInterval(iv);
+  }, [state.joined]);
 
   // Also duck while *you* talk, so less movie sound leaks from your speakers into your mic.
   const othersTalking = remoteTalking || selfSpeaking;
