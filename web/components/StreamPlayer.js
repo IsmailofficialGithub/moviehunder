@@ -214,6 +214,10 @@ export default function StreamPlayer({
   onAvailableAudioLanguages = null,
   server = "1",
   onStatusChange = null,
+  // Watch party: role of this viewer ("HOST" | "COHOST" | "VIEWER") or null outside a party.
+  partyMode = null,
+  // Watch party: receives the currently active <video> (changes on quality slot swaps).
+  onActiveVideo = null,
 }) {
   const videoRefA = useRef(null);
   const videoRefB = useRef(null);
@@ -222,6 +226,8 @@ export default function StreamPlayer({
   const videoRef = useRef(null);
   videoRef.current = (activeSlot === "A" ? videoRefA.current : videoRefB.current) || videoRefA.current || videoRefB.current;
   const controllerRef = useRef(null);
+  const partyModeRef = useRef(partyMode);
+  partyModeRef.current = partyMode;
   const canvasRef = useRef(null);
   const hlsRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -554,7 +560,8 @@ export default function StreamPlayer({
     }
 
     holdTimerRef.current = setTimeout(() => {
-      if (!videoRef.current) return;
+      // Hold-for-2x would desync a watch party, so it is off there.
+      if (!videoRef.current || partyModeRef.current) return;
       isHolding2xRef.current = true;
       suppressClickRef.current = true;
       setHold2xActive(true);
@@ -853,6 +860,12 @@ export default function StreamPlayer({
   }, [mounted, displayTitle, onPrevEpisode, onNextEpisode, activeSlot]);
 
   useEffect(() => {
+    if (!mounted || typeof onActiveVideo !== "function") return;
+    const active = activeSlot === "A" ? videoRefA.current : videoRefB.current;
+    onActiveVideo(active || videoRefA.current || null);
+  }, [mounted, activeSlot, onActiveVideo]);
+
+  useEffect(() => {
     return () => {
       clearMediaSession();
       [videoRefA.current, videoRefB.current].forEach((v) => {
@@ -932,6 +945,7 @@ export default function StreamPlayer({
       if (!video) return;
 
       clearTimeout(spaceHoldTimer);
+      if (partyModeRef.current) return;
       spaceHoldTimer = setTimeout(() => {
         prevRateRef.current = video.playbackRate === 2 ? 1 : (video.playbackRate || 1);
         isHolding2xRef.current = true;
@@ -1256,7 +1270,8 @@ export default function StreamPlayer({
     videoRetryCount.current = 0;
     clearTimeout(videoRetryTimer.current);
 
-    if (resume === 0) {
+    // Watch party: the room decides the position, so never resume from local history.
+    if (resume === 0 && !partyModeRef.current) {
       try {
         const seStr = String(se || "0");
         const epStr = String(ep || "0");
@@ -1375,7 +1390,7 @@ export default function StreamPlayer({
             if (resume > 0) video.currentTime = resume;
           } catch {}
           syncAudioTracks();
-          if (wasPlaying || isNewEp) {
+          if (wasPlaying || (isNewEp && !partyModeRef.current)) {
             video.play().catch(() => {});
           }
         });
@@ -1424,7 +1439,7 @@ export default function StreamPlayer({
         video.audioTracks.addEventListener?.("removetrack", syncAudioTracks);
         video.audioTracks.addEventListener?.("change", syncAudioTracks);
       }
-      if (wasPlaying || isNewEp) {
+      if (wasPlaying || (isNewEp && !partyModeRef.current)) {
         video.play().catch(() => {});
       }
     };
