@@ -2737,7 +2737,8 @@ export default function StreamPlayer({
               ref={cueElRef}
               className={`${styles.cueOverlay} ${subSettings.bgColor === "transparent" ? styles.cueOutline : ""}`}
               style={{
-                fontSize: `${subSettings.fontSize || 18}px`,
+                // Size follows the player width (CSS); the user's size setting scales it (18 = 1×).
+                "--sub-scale": (Number(subSettings.fontSize) || 18) / 18,
                 color: subSettings.textColor || "#ffffff",
                 backgroundColor: subSettings.bgColor || "rgba(0, 0, 0, 0.75)",
                 transform: subSettings.elevation
