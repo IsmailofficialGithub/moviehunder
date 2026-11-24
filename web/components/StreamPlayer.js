@@ -834,12 +834,16 @@ export default function StreamPlayer({
         onPlay: () => {
           video.play().catch(() => {});
         },
+        // Party followers: lock-screen / notification / headset controls must not pause or seek
+        // (a no-op handler blocks the OS default; the room sync keeps them on the live point).
         onPause: () => {
+          if (partyModeRef.current && partyModeRef.current !== "HOST") return;
           video.pause();
         },
-        onPrevious: onPrevEpisode || null,
-        onNext: onNextEpisode || null,
+        onPrevious: partyModeRef.current && partyModeRef.current !== "HOST" ? null : onPrevEpisode || null,
+        onNext: partyModeRef.current && partyModeRef.current !== "HOST" ? null : onNextEpisode || null,
         onSeekTo: (details) => {
+          if (partyModeRef.current && partyModeRef.current !== "HOST") return;
           if (details?.seekTime == null) return;
           video.currentTime = details.seekTime;
         },
