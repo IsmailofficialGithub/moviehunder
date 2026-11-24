@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
+    "@config-plugins/react-native-webrtc": "^15.0.2",
     "@expo/metro-runtime": "~57.0.14",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -29,11 +30,13 @@
     "expo-status-bar": "~57.0.1",
     "expo-updates": "~57.0.19",
     "expo-video": "~57.0.3",
+    "mediasoup-client": "^3.26.0",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "~4.26.0"
+    "react-native-screens": "~4.26.0",
+    "react-native-webrtc": "^155.0.1"
   },
   "scripts": {
     "start": "expo start",
