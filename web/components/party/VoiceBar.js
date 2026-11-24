@@ -19,7 +19,7 @@ export default function VoiceBar({ voice }) {
     <div className={styles.voiceBar}>
       {!micLive ? (
         <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={voice.startMic} disabled={forceMuted}>
-          <Mic size={14} /> {joined ? "Join voice" : "Connecting voice…"}
+          <Mic size={14} /> {joined || voice.deferred ? "Join voice" : "Connecting voice…"}
         </button>
       ) : (
         <>

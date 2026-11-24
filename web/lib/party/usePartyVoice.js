@@ -7,6 +7,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PartyVoice } from "./voice";
 
 const DUCK_TO = 0.3; // movie volume multiplier while someone else is talking
+
+// Phones (iPhone especially): an open WebRTC audio session can silence or re-route the movie's
+// sound, so on touch devices voice only connects when the user taps "Join voice".
+function autoListenAllowed() {
+  if (typeof window === "undefined") return false;
+  try {
+    return !window.matchMedia("(pointer: coarse)").matches;
+  } catch {
+    return true;
+  }
+}
 const PTT_KEY = "v";
 
 async function createDevice() {
@@ -45,7 +56,8 @@ export function usePartyVoice(party) {
     if (!client) return;
     const v = new PartyVoice({ client, createDevice, getUserMedia, playTrack, onChange: setState });
     voiceRef.current = v;
-    v.join().catch(() => {}); // listen-only by default; no mic prompt until the user asks
+    // Desktop: listen-only by default (no mic prompt until the user asks). Phones: wait for a tap.
+    if (autoListenAllowed()) v.join().catch(() => {});
   }, [ready, party]);
 
   useEffect(
@@ -111,6 +123,7 @@ export function usePartyVoice(party) {
   return {
     available: ready,
     ...state,
+    deferred: !state.joined && !autoListenAllowed(),
     pushToTalk,
     setPushToTalk,
     startMic,
