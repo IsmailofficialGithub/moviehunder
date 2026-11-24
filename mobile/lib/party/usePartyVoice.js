@@ -37,7 +37,11 @@ async function getUserMedia() {
       throw Object.assign(new Error("MIC_BLOCKED"), { code: "MIC_BLOCKED" });
     }
   }
-  return webrtc.mediaDevices.getUserMedia({ audio: true, video: false });
+  // Same as web: the platform's own echo cancellation / noise suppression / auto gain, mono.
+  return webrtc.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+    video: false,
+  });
 }
 
 // Remote audio tracks play automatically in react-native-webrtc; stopping = disabling the track.

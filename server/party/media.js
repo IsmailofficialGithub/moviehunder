@@ -3,8 +3,10 @@
 // • One mediasoup Worker per CPU core, each with a WebRtcServer on a single UDP+TCP port
 //   (PARTY_RTC_PORT + workerIndex) — so the firewall needs only N ports, not a range.
 // • One Router per room (round-robin over workers), Opus only.
-// • Every listener gets a consumer per mic, created paused. Only the top N active speakers
-//   (AudioLevelObserver) are resumed, so bandwidth/CPU stay flat as rooms grow.
+// • Every listener gets a consumer per mic. While a room has no more mics than MAX_SPEAKERS,
+//   every mic is forwarded all the time — gating on the level observer (300 ms ticks) clipped
+//   the first syllables of every sentence. Only bigger rooms forward just the top N speakers.
+// • "Who is talking" (for UI / movie ducking) is tracked separately with a short hold.
 // • Peers are keyed by socket (a user with two tabs has two peers).
 
 import os from "node:os";
@@ -19,7 +21,8 @@ const OPUS = {
 
 export const VOICE_DEFAULTS = Object.freeze({
   MAX_SPEAKERS: 6,
-  SPEAKER_HOLD_MS: 2500, // keep a speaker forwarded briefly after they go quiet (no choppy cut-offs)
+  SPEAKER_HOLD_MS: 2500, // big rooms: keep a speaker forwarded briefly after they go quiet
+  TALKING_HOLD_MS: 900, // "is talking" indicator / ducking hold
   LEVEL_THRESHOLD_DB: -65,
   LEVEL_INTERVAL_MS: 300,
 });
@@ -34,6 +37,20 @@ export function selectActiveSpeakers(stats, now, max = VOICE_DEFAULTS.MAX_SPEAKE
     .filter(([, s]) => now - s.lastActiveAt <= holdMs)
     .sort((a, b) => b[1].lastActiveAt - a[1].lastActiveAt || b[1].level - a[1].level);
   return new Set(recent.slice(0, max).map(([id]) => id));
+}
+
+/**
+ * Producers to forward. Small rooms (≤ max mics): all of them, always — no onset clipping.
+ * Bigger rooms: the most recent `max` speakers. Pure — unit tested.
+ */
+export function forwardSet(producerIds, stats, now, max = VOICE_DEFAULTS.MAX_SPEAKERS) {
+  const ids = [...producerIds];
+  if (ids.length <= max) return new Set(ids);
+  return selectActiveSpeakers(stats, now, max);
+}
+
+function talkingUsers(room) {
+  return [...new Set([...room.talking].map((id) => room.producers.get(id)?.peer.userId).filter(Boolean))];
 }
 
 export class PartyMedia {
@@ -112,7 +129,8 @@ export class PartyMedia {
       peers: new Map(), // socket → peer
       producers: new Map(), // producerId → { producer, peer }
       stats: new Map(), // producerId → { level, lastActiveAt }
-      active: new Set(),
+      active: new Set(), // producers being forwarded
+      talking: new Set(), // producers talking right now (UI / ducking)
       timer: null,
     };
     levelObserver.on("volumes", (volumes) => {
@@ -127,17 +145,24 @@ export class PartyMedia {
     return room;
   }
 
-  /** Recompute forwarded speakers; pause/resume consumers and tell clients who is talking. */
+  /** Recompute forwarded producers + who is talking; pause/resume consumers, tell clients. */
   refreshActive(room) {
-    const next = selectActiveSpeakers(room.stats, Date.now(), this.maxSpeakers);
-    const changed = next.size !== room.active.size || [...next].some((id) => !room.active.has(id));
-    if (!changed) return;
-    room.active = next;
-    for (const peer of room.peers.values()) {
-      for (const c of peer.consumers.values()) this.applyConsumerState(room, c);
+    const now = Date.now();
+    const sameSet = (a, b) => a.size === b.size && [...a].every((id) => b.has(id));
+
+    const forward = forwardSet(room.producers.keys(), room.stats, now, this.maxSpeakers);
+    if (!sameSet(forward, room.active)) {
+      room.active = forward;
+      for (const peer of room.peers.values()) {
+        for (const c of peer.consumers.values()) this.applyConsumerState(room, c);
+      }
     }
-    const speakers = [...next].map((id) => room.producers.get(id)?.peer.userId).filter(Boolean);
-    room.broadcast({ t: "rtc_speakers", userIds: [...new Set(speakers)] });
+
+    const talking = selectActiveSpeakers(room.stats, now, this.maxSpeakers, VOICE_DEFAULTS.TALKING_HOLD_MS);
+    if (!sameSet(talking, room.talking)) {
+      room.talking = talking;
+      room.broadcast({ t: "rtc_speakers", userIds: talkingUsers(room) });
+    }
   }
 
   applyConsumerState(room, consumer) {
@@ -177,7 +202,7 @@ export class PartyMedia {
             // Never send a user their own voice (same account on another tab/device = echo).
             .filter((p) => p.peer !== peer && p.peer.userId !== peer.userId)
             .map((p) => ({ producerId: p.producer.id, userId: p.peer.userId, paused: p.producer.paused })),
-          speakers: [...room.active].map((id) => room.producers.get(id)?.peer.userId).filter(Boolean),
+          speakers: talkingUsers(room),
         });
 
       case "rtc.transport": {
@@ -231,6 +256,7 @@ export class PartyMedia {
           }
         }
         room.broadcast({ t: "rtc_mic", userId: peer.userId, on: true });
+        this.refreshActive(room); // small rooms: forward the new mic immediately
         return reply({ id: producer.id });
       }
 

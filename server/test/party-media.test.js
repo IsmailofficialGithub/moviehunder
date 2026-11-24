@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as mediasoup from "mediasoup";
-import { PartyMedia, selectActiveSpeakers } from "../party/media.js";
+import { PartyMedia, forwardSet, selectActiveSpeakers } from "../party/media.js";
 
 test("selectActiveSpeakers keeps the most recent N speakers within the hold window", () => {
   const now = 10_000;
@@ -14,6 +14,18 @@ test("selectActiveSpeakers keeps the most recent N speakers within the hold wind
   assert.deepEqual([...selectActiveSpeakers(stats, now, 6, 2500)].sort(), ["a", "b", "d"]);
   assert.deepEqual([...selectActiveSpeakers(stats, now, 2, 2500)], ["b", "a"]);
   assert.equal(selectActiveSpeakers(new Map(), now).size, 0);
+});
+
+test("forwardSet forwards every mic in small rooms, even silent ones (no onset clipping)", () => {
+  const now = 10_000;
+  // Nobody has spoken yet: small room still forwards all mics.
+  assert.deepEqual([...forwardSet(["a", "b", "c"], new Map(), now, 6)].sort(), ["a", "b", "c"]);
+  // Bigger room than max: only the recent speakers.
+  const stats = new Map([
+    ["a", { level: -20, lastActiveAt: now - 100 }],
+    ["b", { level: -30, lastActiveAt: now - 50 }],
+  ]);
+  assert.deepEqual([...forwardSet(["a", "b", "c", "d"], stats, now, 3)].sort(), ["a", "b"]);
 });
 
 function fakeSocket(userId) {
