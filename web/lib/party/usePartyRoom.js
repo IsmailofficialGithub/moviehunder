@@ -463,6 +463,8 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
     clientRef.current?.setMyStatus({ detached: false, buffering: bufferingRef.current });
     applyRoomState(stateRef.current, { force: true });
     const video = videoRef.current;
+    // User tap: the only moment phones allow sound, so make sure the movie isn't left muted.
+    if (video && video.muted) video.muted = false;
     if (video && stateRef.current?.playing && video.paused) safePlay(video);
   }, [applyRoomState]);
 

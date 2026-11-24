@@ -1685,3 +1685,25 @@ button.downloadBtn {
     border-radius: 10px;
   }
 }
+
+/* Phones: one slim header row — icon-only Save and profile, smaller back button. */
+@media (max-width: 600px) {
+  .topHeader {
+    margin-bottom: 6px;
+    min-height: 34px;
+    padding-top: 4px;
+    gap: 6px;
+  }
+  .watchlistHeaderBtn span,
+  .profileName {
+    display: none;
+  }
+  .watchlistHeaderBtn,
+  .userBtn {
+    padding: 5px 7px;
+    gap: 0;
+  }
+  .backBtn {
+    padding: 4px 7px;
+  }
+}

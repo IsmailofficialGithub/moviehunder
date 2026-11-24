@@ -719,7 +719,41 @@
     display: none;
   }
   .chatList {
-    height: clamp(180px, 38dvh, 300px);
+    height: clamp(140px, 30dvh, 240px);
+    padding: 10px 12px;
+  }
+  .panelHeader {
+    padding: 8px 10px;
+  }
+  .roomTitle h2 {
+    font-size: 14px;
+  }
+  .headerActions .btn {
+    padding: 5px 9px;
+  }
+  .voiceBar {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+  .voiceBar .btn {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+  .tab {
+    padding: 7px;
+    font-size: 12px;
+  }
+  .emptyChat {
+    gap: 2px;
+    font-size: 12px;
+  }
+  .emptyChat p {
+    margin: 2px 0 0;
+    font-size: 13px;
+  }
+  .emptyChat svg {
+    width: 18px;
+    height: 18px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

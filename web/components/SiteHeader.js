@@ -341,7 +341,8 @@ export default function SiteHeader() {
     }
   };
 
-  const isPlayPage = pathname.startsWith("/play");
+  // Party rooms are a player page too: compact header, no nav chips / search row.
+  const isPlayPage = pathname.startsWith("/play") || /^\/party\/[^/]+/.test(pathname);
   const filteredHistory = filterSearchHistory(history, q);
 
 
