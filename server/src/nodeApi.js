@@ -52,6 +52,14 @@ import {
   handleForgotPin,
   handleResetPin,
 } from "./profiles.js";
+import {
+  handleCreateParty,
+  handleGetParty,
+  handleJoinParty,
+  handlePublicParties,
+  handlePartyHistory,
+  handleEndParty,
+} from "./party.js";
 
 async function readJson(request) {
   try {
@@ -208,6 +216,29 @@ export async function handleNodeApi(request, opts = {}) {
     return fromHandler(await handleVerifyCode(request));
   }
 
+  // ── Watch party ────────────────────────────────────────
+  if (p === "/api/party" && method === "POST") {
+    return fromHandler(await handleCreateParty(request));
+  }
+  if (p === "/api/party/join" && method === "POST") {
+    return fromHandler(await handleJoinParty(request));
+  }
+  if (p === "/api/party/public" && method === "GET") {
+    return fromHandler(await handlePublicParties(request));
+  }
+  if (p === "/api/party/history" && method === "GET") {
+    return fromHandler(await handlePartyHistory(request));
+  }
+  {
+    const pm = p.match(/^\/api\/party\/room\/([^/]+)(\/end)?$/);
+    if (pm && !pm[2] && method === "GET") {
+      return fromHandler(await handleGetParty(request, decodeURIComponent(pm[1])));
+    }
+    if (pm && pm[2] && method === "POST") {
+      return fromHandler(await handleEndParty(request, decodeURIComponent(pm[1])));
+    }
+  }
+
   // ── Profiles ───────────────────────────────────────────
   if (p === "/api/profiles") {
     if (method === "GET") return fromHandler(await handleGetProfiles(request));
@@ -271,6 +302,7 @@ export function isNodeApiPath(pathname) {
     p.startsWith("/api/playback") ||
     p.startsWith("/api/household") ||
     p.startsWith("/api/profiles") ||
+    p.startsWith("/api/party") ||
     p.startsWith("/api/watchlist")
   );
 }
