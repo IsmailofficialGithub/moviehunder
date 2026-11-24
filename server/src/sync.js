@@ -1,6 +1,13 @@
 import { dbConfigured, getPrisma } from "./db.js";
 import { requireUser } from "./auth.js";
 
+// Only keep posters the web/app can load from anywhere. Device-local paths
+// (file://, content://) from mobile downloads must never be synced.
+function remotePoster(v) {
+  const str = typeof v === "string" ? v.trim() : "";
+  return /^https?:\/\//i.test(str) ? str : null;
+}
+
 function asIso(d) {
   if (!d) return null;
   return d instanceof Date ? d.toISOString() : d;
@@ -17,7 +24,7 @@ function progressToPublic(row) {
     detailPath: row.detailPath,
     se: row.se,
     ep: row.ep,
-    poster: row.poster,
+    poster: remotePoster(row.poster),
     kind: row.kind,
     completed: row.completed,
     updatedAt: row.updatedAt?.getTime?.() || Date.parse(row.updatedAt) || 0,
@@ -209,7 +216,7 @@ export async function handlePutWatchProgress(request) {
       finalTitle = existing?.title || null;
     }
 
-    let finalPoster = item.poster || existing?.poster || null;
+    let finalPoster = remotePoster(item.poster) || remotePoster(existing?.poster);
     let finalDetailPath = item.detailPath || existing?.detailPath || null;
 
     if ((!finalPoster || !finalTitle || /^\d+$/.test(String(finalTitle))) && (item.subjectId || existing?.subjectId)) {
@@ -225,7 +232,7 @@ export async function handlePutWatchProgress(request) {
           select: { title: true, poster: true, detailPath: true },
         });
         if (sibling) {
-          if (!finalPoster && sibling.poster) finalPoster = sibling.poster;
+          if (!finalPoster) finalPoster = remotePoster(sibling.poster);
           if ((!finalTitle || /^\d+$/.test(String(finalTitle))) && sibling.title && !/^\d+$/.test(sibling.title)) {
             finalTitle = sibling.title;
           }
@@ -332,7 +339,7 @@ export async function handleSyncGuestHistory(request) {
     const ep = item.ep ?? meta.ep ?? "0";
     const key = (se !== "0" && ep !== "0") ? `t:${subId}:s${se}:e${ep}` : `t:${subId}:s0:e0`;
     const cleanTitle = item.title || meta.title || null;
-    const cleanPoster = item.poster || meta.poster || null;
+    const cleanPoster = remotePoster(item.poster) || remotePoster(meta.poster);
     const cleanDetailPath = item.detailPath || meta.detailPath || null;
 
     const existing = await prisma.watchProgress.findUnique({
@@ -371,7 +378,7 @@ export async function handleSyncGuestHistory(request) {
       },
       update: {
         title: cleanTitle || existing?.title || null,
-        poster: cleanPoster || existing?.poster || null,
+        poster: cleanPoster || remotePoster(existing?.poster),
         updatedAt,
       },
     });
@@ -717,8 +724,8 @@ export async function handleGetWatchlist(request) {
         slug: r.subjectId,
         name: r.title || "Untitled",
         title: r.title || "Untitled",
-        poster: r.poster,
-        poster_url: r.poster,
+        poster: remotePoster(r.poster),
+        poster_url: remotePoster(r.poster),
         detailPath: r.detailPath,
         type: r.type,
         year: r.year,
@@ -760,7 +767,7 @@ export async function handlePostWatchlist(request) {
       subjectId,
       type: body.type === "tv" ? "tv" : "movie",
       title: body.title || body.name || null,
-      poster: body.poster || body.poster_url || null,
+      poster: remotePoster(body.poster) || remotePoster(body.poster_url),
       detailPath: body.detailPath || null,
       year: body.year ? String(body.year) : null,
       rating: body.rating ? String(body.rating) : null,

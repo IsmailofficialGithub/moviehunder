@@ -149,7 +149,7 @@ export async function handleCreateParty(request) {
           se: str(body.se, 6) || "0",
           ep: str(body.ep, 6) || "0",
           title: str(body.title, 200) || null,
-          poster: str(body.poster, 500) || null,
+          poster: /^https?:\/\//i.test(str(body.poster, 500)) ? str(body.poster, 500) : null,
           maxMembers,
           members: { create: { userId: auth.user.id, role: "HOST" } },
           events: { create: { userId: auth.user.id, type: "created" } },

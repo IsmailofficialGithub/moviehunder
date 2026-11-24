@@ -14,8 +14,14 @@ export function partyWsUrl() {
   const env = (process.env.NEXT_PUBLIC_PARTY_WS_URL || "").trim();
   if (env) return env;
   if (typeof window === "undefined") return "";
-  const secure = window.location.protocol === "https:";
-  return `${secure ? "wss" : "ws"}://${window.location.hostname}:8790/party`;
+  const host = window.location.hostname;
+  // Local dev: party server runs next to the site.
+  if (host === "localhost" || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    return `ws://${host}:8790/party`;
+  }
+  // Production: the site is on Vercel, so the party server is reached through
+  // the API host's nginx (/party → 127.0.0.1:8790), never <site>:8790.
+  return `wss://api.${host.replace(/^www\./, "")}/party`;
 }
 
 export function partyShareLink(room) {

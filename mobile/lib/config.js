@@ -89,6 +89,9 @@ export function getPartyWsUrl() {
 
   const fromEnv = stripSlash(process.env.EXPO_PUBLIC_PARTY_WS_URL);
   if (fromEnv && !/127\.0\.0\.1|localhost/i.test(fromEnv)) return fromEnv;
+  // Production API is behind nginx, which forwards /party to the party server.
+  const api = getApiBase();
+  if (/^https:\/\//i.test(api)) return `${api.replace(/^https:/i, "wss:")}/party`;
   const host = lanHost();
   if (host) return `ws://${host}:8790/party`;
   return fromEnv || "ws://127.0.0.1:8790/party";

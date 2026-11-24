@@ -1154,6 +1154,7 @@ export default function DownloadsScreen() {
             ? `${item.title} · S${item.se}E${item.ep}`
             : item.title,
         poster: item.posterLocalUri || item.poster || "",
+        poster_remote: item.poster || "",
         kind: isSeriesItem(item) ? "series" : "movie",
         autoplay: "1",
         ...(isPlayable ? { downloadId: encodeURIComponent(item.id) } : {}),

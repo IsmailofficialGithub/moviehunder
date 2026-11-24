@@ -173,6 +173,9 @@ export default function PlayScreen({ party = null } = {}) {
   const ep = String(pc ? pc.ep ?? "0" : params.ep ?? "0");
   const title = String((pc ? pc.title : params.title) || "Now playing");
   const poster = String((pc ? pc.poster : params.poster) || "");
+  // Downloads pass a device-local poster (file://) for offline display; never
+  // send that to history/sync or party guests — they can't load it.
+  const sharedPoster = [poster, String(params.poster_remote || "")].find((u) => /^https?:\/\//i.test(u)) || "";
   const kind = String(params.kind || (Number(se) > 0 || Number(ep) > 0 ? "series" : "movie"));
   const durationHint = Number(params.duration) || 0;
   const wantsAutoplay = party ? false : params.autoplay !== "0";
@@ -522,7 +525,7 @@ export default function PlayScreen({ party = null } = {}) {
       if (pty) {
         // Host/co-host move the whole room; viewers can't change the episode.
         if (pty.canControl && !target.isDownload) {
-          pty.onNavigate({ subjectId, detailPath, title: pc?.title || title, poster, se: target.se, ep: target.ep });
+          pty.onNavigate({ subjectId, detailPath, title: pc?.title || title, poster: sharedPoster, se: target.se, ep: target.ep });
         }
         return;
       }
@@ -544,6 +547,7 @@ export default function PlayScreen({ party = null } = {}) {
               ? `${target.title || title} · S${target.se}E${target.ep}`
               : target.title || title,
             poster: target.poster || poster,
+            poster_remote: sharedPoster,
             kind: target.isSeries ? "series" : "movie",
             autoplay: "1",
             downloadId: encodeURIComponent(target.id),
@@ -562,13 +566,14 @@ export default function PlayScreen({ party = null } = {}) {
             ep: target.ep,
             title: `${cleanTitle || "Series"} - S${target.se}E${target.ep}`,
             poster,
+            poster_remote: sharedPoster,
             kind: "series",
             autoplay: "1",
           },
         });
       }
     },
-    [player, subjectId, detailPath, title, poster, router]
+    [player, subjectId, detailPath, title, poster, sharedPoster, router]
   );
 
   const nextItemRef = useRef(nextItem);
@@ -770,7 +775,7 @@ export default function PlayScreen({ party = null } = {}) {
             detailPath,
             se,
             ep,
-            poster,
+            poster: sharedPoster,
             kind,
           }).catch(() => {});
         }
@@ -827,7 +832,7 @@ export default function PlayScreen({ party = null } = {}) {
             detailPath,
             se,
             ep,
-            poster,
+            poster: sharedPoster,
             kind,
           }).catch(() => {});
         }

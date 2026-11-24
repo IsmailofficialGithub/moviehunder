@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import StreamPlayer from "../../components/StreamPlayer";
 import CreatePartyButton from "../../components/party/CreatePartyButton";
+import { openAppDownloadModal } from "../../components/AppDownloadPrompt";
 import { getDetail, getEpisodes, getRecommendations, searchTitles } from "../../lib/api";
 import { useAuth } from "../../components/AuthProvider";
 import { addHistoryItem } from "../../lib/guestHistory";
@@ -1108,10 +1109,15 @@ export default function PlayClient({ party = null } = {}) {
         </div>
 
         <div className={styles.headerActions}>
-          <Link href="/download-app" className={styles.downloadBtn} title="Download Native App">
+          <button
+            type="button"
+            className={styles.downloadBtn}
+            onClick={() => openAppDownloadModal()}
+            title="Download Native App"
+          >
             <Smartphone size={14} />
             <span>Get App</span>
-          </Link>
+          </button>
 
           <Link href="/pricing" className={styles.goPremiumBtn} title="Upgrade to VIP">
             <Sparkles size={14} />

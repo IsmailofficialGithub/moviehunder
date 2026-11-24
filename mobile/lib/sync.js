@@ -42,7 +42,7 @@ export async function pushWatch() {
     detailPath: e.detailPath,
     se: e.se,
     ep: e.ep,
-    poster: e.poster,
+    poster: /^https?:\/\//i.test(String(e.poster || "")) ? e.poster : null,
     kind: e.kind,
     completed: e.completed,
     updatedAt: e.updatedAt,
