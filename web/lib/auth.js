@@ -181,8 +181,9 @@ export async function setPassword(password) {
   });
 }
 
-export function googleStartUrl({ client = "web" } = {}) {
-  return `${apiBase()}/api/auth/google/start?client=${encodeURIComponent(client)}`;
+export function googleStartUrl({ client = "web", redirect = "" } = {}) {
+  const back = redirect && redirect !== "/profiles" ? `&redirect=${encodeURIComponent(redirect)}` : "";
+  return `${apiBase()}/api/auth/google/start?client=${encodeURIComponent(client)}${back}`;
 }
 
 export async function linkGoogle() {

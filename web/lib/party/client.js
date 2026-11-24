@@ -12,6 +12,7 @@ import { partyWsUrl } from "./api";
 const PING_SAMPLES = 5;
 const RESYNC_CLOCK_MS = 30_000;
 const MAX_BACKOFF_MS = 15_000;
+const JOIN_TIMEOUT_MS = 7000;
 const FATAL = new Set(["ROOM_NOT_FOUND", "BANNED", "NOT_A_MEMBER", "ROOM_FULL", "KICKED"]);
 
 export class PartyClient {
@@ -70,6 +71,18 @@ export class PartyClient {
     }
     const ws = new WebSocket(this.url);
     this.ws = ws;
+    // A connection that never gets "joined" (stalled upgrade, server hiccup) must not hang the
+    // page on "Joining…": drop it and retry with backoff.
+    clearTimeout(this.joinWatchdog);
+    this.joinWatchdog = setTimeout(() => {
+      if (this.ws === ws && this.status !== "open") {
+        try {
+          ws.close(4000, "JOIN_TIMEOUT");
+        } catch {
+          /* ignore */
+        }
+      }
+    }, JOIN_TIMEOUT_MS);
 
     ws.onopen = () => {
       this.send({ t: "hello", ticket: this.ticket });
@@ -115,6 +128,7 @@ export class PartyClient {
         return;
       }
       case "joined":
+        clearTimeout(this.joinWatchdog);
         this.attempt = 0;
         this.setStatus("open");
         this.startClockResync();
@@ -185,6 +199,7 @@ export class PartyClient {
 
   close() {
     this.closedByUser = true;
+    clearTimeout(this.joinWatchdog);
     clearTimeout(this.reconnectTimer);
     this.clearTimers();
     try {

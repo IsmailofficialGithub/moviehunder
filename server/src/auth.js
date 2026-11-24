@@ -429,6 +429,13 @@ function googleRedirectUri(request) {
   return `${url.origin}/api/auth/google/callback`;
 }
 
+// Only same-site paths ("/party/ABC?invite=…") may be used as the post-login destination.
+function safeReturnPath(value) {
+  const p = String(value || "");
+  if (!p.startsWith("/") || p.startsWith("//") || p.startsWith("/\\") || p.length > 500) return "";
+  return p;
+}
+
 export async function handleGoogleStart(request) {
   if (!googleConfigured()) {
     return { status: 503, body: { error: "Google OAuth not configured" } };
@@ -441,6 +448,7 @@ export async function handleGoogleStart(request) {
       n: randomToken().slice(0, 16),
       client,
       link,
+      r: safeReturnPath(url.searchParams.get("redirect")),
       ts: Date.now(),
     })
   ).toString("base64url");
@@ -617,6 +625,8 @@ export async function handleGoogleCallback(request) {
   const redirect = new URL(`${appPublicUrl()}/auth/callback`);
   redirect.searchParams.set("access_token", tokens.access_token);
   redirect.searchParams.set("refresh_token", tokens.refresh_token);
+  const back = safeReturnPath(state?.r);
+  if (back) redirect.searchParams.set("redirect", back);
   return { status: 302, redirect: redirect.toString() };
 }
 
@@ -735,5 +745,7 @@ export async function handleGoogleCallbackWithLink(request) {
   const redirect = new URL(`${appPublicUrl()}/auth/callback`);
   redirect.searchParams.set("access_token", tokens.access_token);
   redirect.searchParams.set("refresh_token", tokens.refresh_token);
+  const back = safeReturnPath(state?.r);
+  if (back) redirect.searchParams.set("redirect", back);
   return { status: 302, redirect: redirect.toString() };
 }
