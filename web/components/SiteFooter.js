@@ -8,8 +8,8 @@ import styles from "./SiteFooter.module.css";
 export default function SiteFooter() {
   const pathname = usePathname();
 
-  // Hide footer inside fullscreen player
-  if (pathname?.startsWith("/play")) {
+  // Hide footer inside the player and watch-party rooms
+  if (pathname?.startsWith("/play") || /^\/party\/[^/]+/.test(pathname || "")) {
     return null;
   }
 
