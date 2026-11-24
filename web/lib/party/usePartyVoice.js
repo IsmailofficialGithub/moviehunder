@@ -98,8 +98,15 @@ export function usePartyVoice(party) {
 
   // Ducking: lower the movie while someone else is speaking, restore after.
   const duckRef = useRef(null); // { original, ducked }
+  // Echo guard: while someone else talks, the mic gate needs a louder (closer) voice to open, so
+  // their voice coming out of your speakers isn't sent back to them.
+  const remoteTalking = state.speakers.some((id) => id !== myId);
+  useEffect(() => {
+    voiceRef.current?.stream?.setRemoteActive?.(remoteTalking);
+  }, [remoteTalking, state.micLive]);
+
   // Also duck while *you* talk, so less movie sound leaks from your speakers into your mic.
-  const othersTalking = state.speakers.some((id) => id !== myId) || selfSpeaking;
+  const othersTalking = remoteTalking || selfSpeaking;
   useEffect(() => {
     const video = party.getVideo();
     if (!video) return;
