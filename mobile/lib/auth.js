@@ -203,6 +203,11 @@ export async function linkGoogle() {
   return authFetch("/api/auth/link/google", { method: "POST", body: {} });
 }
 
+/** Authenticated JSON request to the API (used by watch party). */
+export function authRequest(path, opts) {
+  return authFetch(path, opts);
+}
+
 export async function syncGet(path) {
   return authFetch(path);
 }
