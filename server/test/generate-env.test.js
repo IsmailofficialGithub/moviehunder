@@ -78,3 +78,30 @@ CORS_ALLOWED_ORIGIN_SUFFIXES=offstream.co
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test("validateAndGenerateEnv merges watch party PARTY_* overrides from the environment", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "env-test-"));
+  const sampleEnv = `
+DATABASE_URL=postgresql://postgres:postgrespassword@127.0.0.1:5432/Test_movies?schema=public
+AUTH_JWT_SECRET=super-secure-jwt-secret-that-is-at-least-32-chars-long
+APP_PUBLIC_URL=https://offstream.co
+GOOGLE_REDIRECT_URI=https://api.offstream.co/api/auth/google/callback
+CORS_ALLOWED_ORIGIN_SUFFIXES=offstream.co
+PARTY_PORT=1111
+`;
+  const saved = { ...process.env };
+  Object.assign(process.env, { PARTY_PORT: "8790", PARTY_RTC_ANNOUNCED_IP: "203.0.113.7", PARTY_VOICE_MAX_SPEAKERS: "6" });
+  try {
+    validateAndGenerateEnv(sampleEnv, tmpDir);
+    const envFile = fs.readFileSync(path.join(tmpDir, ".env"), "utf8");
+    assert.match(envFile, /^PARTY_PORT=8790$/m, "existing key is overridden");
+    assert.match(envFile, /^PARTY_RTC_ANNOUNCED_IP=203\.0\.113\.7$/m, "missing key is appended");
+    assert.doesNotMatch(envFile, /PARTY_PORT=1111/);
+  } finally {
+    for (const k of ["PARTY_PORT", "PARTY_RTC_ANNOUNCED_IP", "PARTY_VOICE_MAX_SPEAKERS"]) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
