@@ -340,9 +340,27 @@
     height: 14px;
   }
 
+  /* Phones: tight dots in the bottom-right corner so they never sit on the "View details" button. */
   .dots {
     opacity: 1;
-    bottom: 10px;
-    gap: 5px;
+    left: auto;
+    right: 10px;
+    bottom: 14px;
+    gap: 0;
+    justify-content: flex-end;
+  }
+
+  .dot {
+    width: 16px;
+    height: 24px;
+  }
+
+  .dot::before {
+    width: 6px;
+    height: 6px;
+  }
+
+  .dotOn::before {
+    width: 14px;
   }
 }

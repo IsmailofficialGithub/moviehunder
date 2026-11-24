@@ -2,7 +2,7 @@
 .page {
   padding-left: var(--page-pad, 24px);
   padding-right: var(--page-pad, 24px);
-  max-width: 1320px;
+  max-width: 1680px;
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
@@ -517,11 +517,70 @@
   }
 }
 @media (max-width: 560px) {
-  .features {
-    grid-template-columns: 1fr;
+  /* Phones: compact hero, room ID + Join on one row, features as small 2×2 tiles. */
+  .hero {
+    margin-top: 12px;
+    border-radius: 16px;
+    min-height: 0;
+  }
+  .heroText {
+    padding: 20px 16px;
+    gap: 10px;
+  }
+  .heroTitle {
+    font-size: 1.6rem;
+  }
+  .heroSub {
+    font-size: 13px;
+    line-height: 1.45;
   }
   .joinBox {
-    flex-direction: column;
+    max-width: none;
+    gap: 8px;
+  }
+  .codeInput {
+    height: 44px;
+    padding: 0 12px;
+    font-size: 16px;
+    letter-spacing: 0.18em;
+  }
+  .codeInput::placeholder {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+  }
+  .primaryBtn {
+    height: 44px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+  .ghostLink {
+    font-size: 12px;
+  }
+  .features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .feature {
+    padding: 10px;
+    gap: 8px;
+    align-items: center;
+    border-radius: 12px;
+  }
+  .featureIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+  .feature strong {
+    font-size: 12px;
+    margin: 0;
+  }
+  .feature div > span {
+    display: none;
+  }
+  .section {
+    margin-top: 24px;
   }
   .empty {
     flex-direction: column;
