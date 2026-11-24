@@ -124,6 +124,7 @@ export function usePartyRoom({ code, initialTicket, enabled = true }) {
         detachedRef.current = false;
         setDetached(false);
       }),
+      client.on("room_settings", (m) => setRoom((r) => (r ? { ...r, ...(m.settings || {}) } : r))),
       client.on("member_join", (m) => setMembers((list) => upsert(list, m.member))),
       client.on("member", (m) => {
         setMembers((list) => upsert(list, m.member));

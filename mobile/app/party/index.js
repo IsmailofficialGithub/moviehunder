@@ -1,5 +1,5 @@
 // Watch-party lobby: join by room ID, live public parties, your party history.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,14 +15,33 @@ export default function PartyLobbyScreen() {
   const { isSignedIn, loading } = useAuth();
   const [code, setCode] = useState("");
   const [rooms, setRooms] = useState([]);
+  const [total, setTotal] = useState(0);
+  const seenRef = useRef([]);
   const [history, setHistory] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
+  // 10 random live public rooms; "Show others" skips rooms already shown.
+  const applyRooms = (pub) => {
+    const list = pub?.rooms || [];
+    const unseen = list.filter((x) => !seenRef.current.includes(x.id)).map((x) => x.id);
+    seenRef.current = unseen.length ? [...seenRef.current, ...unseen] : list.map((x) => x.id);
+    setRooms(list);
+    setTotal(pub?.total ?? list.length);
+  };
+
   const load = useCallback(async () => {
     setRefreshing(true);
+    seenRef.current = [];
     const [pub, hist] = await Promise.all([listPublicParties().catch(() => null), partyHistory().catch(() => null)]);
-    setRooms(pub?.rooms || []);
+    applyRooms(pub);
     setHistory((hist?.parties || []).filter((p) => !p.endedAt));
+    setRefreshing(false);
+  }, []);
+
+  const showOthers = useCallback(async () => {
+    setRefreshing(true);
+    const pub = await listPublicParties(seenRef.current).catch(() => null);
+    if (pub) applyRooms(pub);
     setRefreshing(false);
   }, []);
 
@@ -35,7 +54,7 @@ export default function PartyLobbyScreen() {
 
   const sections = [
     ...(history.length ? [{ header: "Your live parties" }, ...history.map((r) => ({ room: r, mine: true }))] : []),
-    { header: "Public parties" },
+    { header: total ? `Public parties · ${total} live` : "Public parties", others: total > rooms.length },
     ...rooms.map((r) => ({ room: r })),
   ];
 
@@ -74,7 +93,15 @@ export default function PartyLobbyScreen() {
         }
         renderItem={({ item }) =>
           item.header ? (
-            <Text style={styles.h2}>{item.header}</Text>
+            <View style={styles.headRow}>
+              <Text style={[styles.h2, { flex: 1 }]}>{item.header}</Text>
+              {item.others ? (
+                <Pressable style={styles.othersBtn} onPress={showOthers} disabled={refreshing}>
+                  <Ionicons name="shuffle" size={14} color={colors.text} />
+                  <Text style={styles.othersText}>Show others</Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : (
             <Pressable style={styles.roomRow} onPress={() => open(item.room.code)}>
               {item.room.content?.poster ? (
@@ -126,4 +153,17 @@ const styles = StyleSheet.create({
   roomRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 8 },
   poster: { width: 96, height: 54, borderRadius: radii.sm, backgroundColor: colors.panelSoft },
   roomTitle: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  headRow: { flexDirection: "row", alignItems: "center", paddingRight: spacing.md },
+  othersBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: spacing.lg,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  othersText: { color: colors.text, fontSize: 12, fontWeight: "600" },
 });

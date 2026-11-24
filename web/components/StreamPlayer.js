@@ -427,6 +427,7 @@ export default function StreamPlayer({
   const [hold2xActive, setHold2xActive] = useState(false);
   const isHolding2xRef = useRef(false);
   const holdTimerRef = useRef(null);
+  const pointerDownPosRef = useRef(null);
   const prevRateRef = useRef(1);
   const suppressClickRef = useRef(false);
   const lastEpKeyRef = useRef(`${subjectId}_${se}_${ep}`);

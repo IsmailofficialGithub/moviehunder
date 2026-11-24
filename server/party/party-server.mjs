@@ -172,6 +172,7 @@ async function subscribeControl() {
       try {
         const evt = JSON.parse(raw);
         if (evt.type === "ended" && evt.roomId) hub.endedExternally(evt.roomId);
+        if (evt.type === "settings" && evt.roomId) hub.settingsChanged(evt.roomId, evt.settings || {});
       } catch {
         /* ignore */
       }

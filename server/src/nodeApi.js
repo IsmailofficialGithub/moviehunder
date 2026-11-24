@@ -59,6 +59,7 @@ import {
   handlePublicParties,
   handlePartyHistory,
   handleEndParty,
+  handleUpdatePartySettings,
 } from "./party.js";
 
 async function readJson(request) {
@@ -230,6 +231,10 @@ export async function handleNodeApi(request, opts = {}) {
     return fromHandler(await handlePartyHistory(request));
   }
   {
+    const ps = p.match(/^\/api\/party\/room\/([^/]+)\/settings$/);
+    if (ps && (method === "POST" || method === "PATCH")) {
+      return fromHandler(await handleUpdatePartySettings(request, decodeURIComponent(ps[1])));
+    }
     const pm = p.match(/^\/api\/party\/room\/([^/]+)(\/end)?$/);
     if (pm && !pm[2] && method === "GET") {
       return fromHandler(await handleGetParty(request, decodeURIComponent(pm[1])));

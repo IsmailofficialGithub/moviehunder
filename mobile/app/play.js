@@ -523,8 +523,8 @@ export default function PlayScreen({ party = null } = {}) {
       if (!target) return;
       const pty = partyRef.current;
       if (pty) {
-        // Host/co-host move the whole room; viewers can't change the episode.
-        if (pty.canControl && !target.isDownload) {
+        // Only the room creator moves the whole room; everyone else stays put.
+        if (pty.canNavigate && !target.isDownload) {
           pty.onNavigate({ subjectId, detailPath, title: pc?.title || title, poster: sharedPoster, se: target.se, ep: target.ep });
         }
         return;

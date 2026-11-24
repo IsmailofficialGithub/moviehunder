@@ -3,7 +3,8 @@ import { authRequest } from "../auth";
 export const createParty = (body) => authRequest("/api/party", { method: "POST", body });
 export const joinParty = ({ code, password, invite }) =>
   authRequest("/api/party/join", { method: "POST", body: { code, password, invite } });
-export const listPublicParties = () => authRequest("/api/party/public");
+export const listPublicParties = (exclude = []) =>
+  authRequest(`/api/party/public${exclude.length ? `?exclude=${encodeURIComponent(exclude.slice(-200).join(","))}` : ""}`);
 export const partyHistory = (limit = 30) => authRequest(`/api/party/history?limit=${limit}`);
 
 // Public web origin used for shareable links (same as web getSiteUrl default).

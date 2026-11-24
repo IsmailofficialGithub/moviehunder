@@ -16,6 +16,16 @@ const TICKET_TTL = "10m";
 const JOIN_FAIL_LIMIT = 10;
 const JOIN_FAIL_WINDOW_S = 600;
 const PUBLIC_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const PUBLIC_PAGE_SIZE = 10;
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 export const ONLINE_HASH = "party:online";
 
 export function generateRoomCode() {
@@ -241,18 +251,29 @@ export async function handleJoinParty(request) {
 export async function handlePublicParties(request) {
   const auth = await requireUser(request);
   if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
+  // ?exclude=id1,id2 → rooms the viewer already saw ("Show others").
+  let exclude = new Set();
+  try {
+    const raw = new URL(request.url).searchParams.get("exclude") || "";
+    exclude = new Set(raw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 200));
+  } catch {}
+
   const rooms = await getPrisma().partyRoom.findMany({
     where: { visibility: "PUBLIC", endedAt: null, createdAt: { gte: new Date(Date.now() - PUBLIC_MAX_AGE_MS) } },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 500,
     include: { host: true },
   });
   const counts = await onlineCounts(rooms.map((r) => r.id));
-  const list = rooms
+  const live = rooms
     .map((r) => roomView(r, { viewerId: auth.user.id, online: counts[r.id] ?? 0 }))
-    .filter((r) => r.online > 0)
-    .sort((a, b) => b.online - a.online);
-  return { status: 200, body: { rooms: list } };
+    .filter((r) => r.online > 0);
+
+  // Random sample: unseen rooms first, then top up from already-seen ones.
+  const fresh = shuffle(live.filter((r) => !exclude.has(r.id)));
+  const seen = shuffle(live.filter((r) => exclude.has(r.id)));
+  const list = [...fresh, ...seen].slice(0, PUBLIC_PAGE_SIZE);
+  return { status: 200, body: { rooms: list, total: live.length } };
 }
 
 // GET /api/party/history
@@ -279,6 +300,65 @@ export async function handlePartyHistory(request) {
       })),
     },
   };
+}
+
+// POST /api/party/room/:code/settings — room creator (host) only.
+// Body: { name?, visibility?: "PUBLIC"|"PRIVATE", password?, maxMembers? }
+export async function handleUpdatePartySettings(request, code) {
+  const auth = await requireUser(request);
+  if (!auth.ok) return { status: auth.status, body: { error: auth.error } };
+  const body = await readJson(request);
+  const prisma = getPrisma();
+  const room = await prisma.partyRoom.findUnique({ where: { code: normalizeCode(code) }, include: { host: true } });
+  if (!room || room.endedAt) return { status: 404, body: { error: "Room not found or ended" } };
+  if (room.hostUserId !== auth.user.id) return { status: 403, body: { error: "Only the room creator can change settings" } };
+
+  const data = {};
+  if (body.name !== undefined) data.name = str(body.name, 80) || null;
+
+  if (body.visibility !== undefined) {
+    data.visibility = String(body.visibility).toUpperCase() === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+  }
+  const nextVisibility = data.visibility || room.visibility;
+  const password = body.password === undefined || body.password === null ? "" : String(body.password);
+  if (nextVisibility === "PRIVATE") {
+    if (password) {
+      if (password.length < 4 || password.length > 64) {
+        return { status: 400, body: { error: "Password must be 4–64 characters" } };
+      }
+      data.passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    } else if (!room.passwordHash) {
+      return { status: 400, body: { error: "Set a password (4–64 characters) to make the room private" } };
+    }
+  } else {
+    data.passwordHash = null;
+  }
+
+  if (body.maxMembers !== undefined) {
+    const plan = await userPlan(prisma, auth.user.id);
+    const requested = Number(body.maxMembers) || plan.partyMaxMembers;
+    data.maxMembers = Math.max(2, Math.min(requested, plan.partyMaxMembers));
+  }
+
+  const updated = await prisma.partyRoom.update({ where: { id: room.id }, data, include: { host: true } });
+  await prisma.partyEvent
+    .create({ data: { roomId: room.id, userId: auth.user.id, type: "settings" } })
+    .catch(() => {});
+  try {
+    const redis = await getRedis();
+    await redis.publish(
+      "party:control",
+      JSON.stringify({
+        type: "settings",
+        roomId: room.id,
+        settings: { name: updated.name, visibility: updated.visibility, maxMembers: updated.maxMembers },
+      })
+    );
+  } catch {
+    /* members pick it up on next join */
+  }
+  const online = (await onlineCounts([room.id]))[room.id] ?? null;
+  return { status: 200, body: { room: roomView(updated, { viewerId: auth.user.id, online }) } };
 }
 
 // POST /api/party/room/:code/end — host only
