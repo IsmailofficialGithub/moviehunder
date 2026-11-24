@@ -1099,4 +1099,14 @@
   }
 }
 
-
+.navBadge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  vertical-align: 2px;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #5a00a2);
+}

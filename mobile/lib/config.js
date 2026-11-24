@@ -82,6 +82,18 @@ export function getPlayRelayBase() {
   return fromEnv || "http://127.0.0.1:8788";
 }
 
+// Watch-party realtime server (WebSocket). Connected directly — the API proxy can't carry upgrades.
+export function getPartyWsUrl() {
+  const fromRemote = stripSlash(remoteEnvState.party_ws_url || remoteEnvState.expo_public_party_ws_url);
+  if (fromRemote) return fromRemote;
+
+  const fromEnv = stripSlash(process.env.EXPO_PUBLIC_PARTY_WS_URL);
+  if (fromEnv && !/127\.0\.0\.1|localhost/i.test(fromEnv)) return fromEnv;
+  const host = lanHost();
+  if (host) return `ws://${host}:8790/party`;
+  return fromEnv || "ws://127.0.0.1:8790/party";
+}
+
 // Shared secret for API gate (must match server APP_CLIENT_KEY)
 export function getAppClientKey() {
   const fromRemote = String(

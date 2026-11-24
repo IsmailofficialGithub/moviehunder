@@ -29,6 +29,7 @@ const NAV = [
   { href: "/animation", label: "Anime", route: "animation" },
   { href: "/ranking", label: "Top", route: "ranking" },
   { href: "/songs", label: "Songs", route: "songs" },
+  { href: "/party", label: "Watch Party", route: "party", badge: "NEW" },
 ];
 
 export default function SiteHeader() {
@@ -374,6 +375,7 @@ export default function SiteHeader() {
                 className={item.route === active ? styles.active : undefined}
               >
                 {item.label}
+                {item.badge ? <span className={styles.navBadge}>{item.badge}</span> : null}
               </Link>
             ))}
           </nav>
@@ -776,6 +778,19 @@ export default function SiteHeader() {
                         <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                       <span>Watchlist</span>
+                    </Link>
+
+                    <Link
+                      href="/party"
+                      className={`${styles.dropdownItem} ${pathname.startsWith("/party") ? styles.dropdownItemActive : ""}`}
+                      onClick={() => setProfileMenuOpen(false)}
+                      role="menuitem"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" className={styles.dropdownItemIcon} aria-hidden>
+                        <circle cx="9" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18.5 20a6.5 6.5 0 0 0-3-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                      </svg>
+                      <span>Watch Parties</span>
                     </Link>
 
                     <Link

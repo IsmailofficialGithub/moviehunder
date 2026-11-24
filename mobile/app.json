@@ -49,6 +49,23 @@
         "WRITE_SETTINGS",
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "offstream.co",
+              "pathPrefix": "/party/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {
@@ -94,7 +111,13 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "MovieHunter uses the microphone for voice chat in watch parties."
+        }
+      ]
     ],
     "extra": {
       "router": {},

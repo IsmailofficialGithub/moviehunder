@@ -11,6 +11,7 @@ export function isProxiedApiPath(pathname) {
     p.startsWith("/api/playback") ||
     p.startsWith("/api/household") ||
     p.startsWith("/api/profiles") ||
+    p.startsWith("/api/party") ||
     p.startsWith("/api/watchlist")
   );
 }

@@ -54,6 +54,7 @@ process.on("SIGTERM", () => shutdown(0));
 console.log("Starting Flick server…");
 console.log("  Catalog API  → http://127.0.0.1:8787");
 console.log("  Play relay   → http://127.0.0.1:8788");
+console.log("  Party (ws)   → ws://127.0.0.1:8790/party");
 console.log("");
 
 // --ip 0.0.0.0 so phones on LAN can reach the catalog API
@@ -61,3 +62,4 @@ run("api", "npx", ["wrangler", "dev", "--ip", "0.0.0.0", "--port", "8787"], {
   fatal: true,
 });
 run("relay", "node", ["play-relay.mjs"], { fatal: false });
+run("party", "node", ["party/party-server.mjs"], { fatal: false });

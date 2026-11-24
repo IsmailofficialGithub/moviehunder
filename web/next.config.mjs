@@ -49,6 +49,10 @@ const nextConfig = {
         destination: `${backend}/api/profiles/:path*`,
       },
       {
+        source: "/api/party/:path*",
+        destination: `${backend}/api/party/:path*`,
+      },
+      {
         source: "/detail/:slug*",
         destination: "/title/:slug*",
       },

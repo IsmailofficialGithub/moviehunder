@@ -18,6 +18,7 @@ import EmptyState from "../../components/EmptyState";
 import ProgressBorder from "../../components/ProgressBorder";
 import PosterCard from "../../components/PosterCard";
 import TitleSkeleton from "../../components/TitleSkeleton";
+import CreatePartySheet from "../../components/party/CreatePartySheet";
 import {
   getAnimation,
   getDetail,
@@ -641,6 +642,19 @@ export default function TitleScreen() {
                 </Text>
               </Pressable>
             </View>
+            {subjectId ? (
+              <CreatePartySheet
+                style={{ marginTop: 10, alignSelf: "flex-start" }}
+                content={{
+                  subjectId: String(subjectId),
+                  detailPath: slug,
+                  se: String(isSeries ? activeSeason?.episodes?.[0]?.se ?? activeSeason?.season ?? 1 : 0),
+                  ep: String(isSeries ? activeSeason?.episodes?.[0]?.ep ?? 1 : 0),
+                  title: meta.title || slug,
+                  poster: meta.poster || undefined,
+                }}
+              />
+            ) : null}
           </View>
 
           {!isSeries && movieWatchPct > 0 ? (

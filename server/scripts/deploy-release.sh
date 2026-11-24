@@ -71,6 +71,7 @@ rollback() {
   npm install --no-audit --no-fund --production=false || true
   npx --no-install prisma generate || true
   sudo /usr/bin/pm2 restart moviehunter-api moviehunter-relay --update-env || true
+  sudo /usr/bin/pm2 restart moviehunter-party --update-env || true
 
   echo "========================================="
   echo " [ROLLBACK] Rollback completed. System restored."
@@ -120,6 +121,15 @@ if ! sudo /usr/bin/pm2 restart moviehunter-api moviehunter-relay --update-env; t
   rollback
 fi
 
+# Watch-party realtime server (WebSocket + mediasoup voice). Non-critical: a failure here
+# never rolls back the release — parties are unavailable but the site keeps working.
+if sudo /usr/bin/pm2 describe moviehunter-party >/dev/null 2>&1; then
+  sudo /usr/bin/pm2 restart moviehunter-party --update-env || echo "WARNING: moviehunter-party restart failed"
+else
+  sudo /usr/bin/pm2 start party/party-server.mjs --name moviehunter-party --cwd "$SERVER_DIR" --kill-timeout 5000 \
+    && sudo /usr/bin/pm2 save || echo "WARNING: moviehunter-party could not be started"
+fi
+
 # 7. Health Check (3 retries, 5s delay)
 echo "[7/7] Running post-deploy health checks (3 attempts)..."
 health_passed=false
@@ -143,6 +153,9 @@ for attempt in 1 2 3; do
   echo "  - Local API (8787):    HTTP $code_api"
   echo "  - Local Relay (8788):  HTTP $code_relay"
   echo "  - Public Edge HTTPS:   HTTP $code_edge"
+  # Informational only (party server is optional)
+  code_party=$(curl -s -o /dev/null -w "%{http_code}" -m 5 http://127.0.0.1:${PARTY_PORT:-8790}/health || echo "000")
+  echo "  - Party server:        HTTP $code_party (non-blocking)"
 
   if [ "$code_api" = "200" ] && [ "$code_relay" = "200" ] && [ "$code_edge" = "200" ]; then
     health_passed=true

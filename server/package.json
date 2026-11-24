@@ -8,6 +8,8 @@
     "dev": "node scripts/dev.mjs",
     "dev:api": "wrangler dev --port 8787",
     "dev:relay": "node play-relay.mjs",
+    "dev:party": "node party/party-server.mjs",
+    "test": "node --test test/*.test.js",
     "start:api": "node scripts/start-api.mjs",
     "deploy": "wrangler deploy",
     "prisma:generate": "prisma generate",
@@ -23,7 +25,9 @@
     "argon2": "^0.45.1",
     "fflate": "^0.8.2",
     "jose": "^6.2.12",
+    "mediasoup": "^3.32.2",
     "nodemailer": "^10.0.12",
-    "redis": "^6.3.0"
+    "redis": "^6.3.0",
+    "ws": "^8.18.3"
   }
 }

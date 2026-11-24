@@ -101,8 +101,19 @@ export async function requireUser(request) {
   const header = request.headers.get("authorization") || "";
   const m = header.match(/^Bearer\s+(.+)$/i);
   if (!m) return { ok: false, status: 401, error: "Missing bearer token" };
+  return verifyAccessToken(m[1]);
+}
+
+/** Verify a raw access token (shared by HTTP Bearer auth and the party WebSocket). */
+export async function verifyAccessToken(token) {
+  const raw = String(token || "").trim();
+  if (!raw) return { ok: false, status: 401, error: "Missing bearer token" };
   try {
-    const { payload } = await jwtVerify(m[1].trim(), jwtSecret());
+    const { payload } = await jwtVerify(raw, jwtSecret());
+    // Party join tickets share the signing secret but must never act as login tokens.
+    if (payload.type === "party_ticket") {
+      return { ok: false, status: 401, error: "Invalid token" };
+    }
     const userId = String(payload.sub || "");
     if (!userId) return { ok: false, status: 401, error: "Invalid token" };
     const prisma = getPrisma();

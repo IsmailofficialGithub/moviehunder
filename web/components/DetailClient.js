@@ -20,6 +20,7 @@ import TitleCard from "./TitleCard";
 import LazyPoster from "./LazyPoster";
 import { useWatchlist } from "../lib/watchlist";
 import styles from "./DetailClient.module.css";
+import CreatePartyButton from "./party/CreatePartyButton";
 
 function defaultEpisode(seasons) {
   if (!seasons || !seasons.length) return { se: "0", ep: "0" };
@@ -436,6 +437,20 @@ export default function DetailClient({ slug, detail, episodes }) {
                 {watchlistSaving ? "Saving…" : inWatchlist ? "Saved" : "Watchlist"}
               </span>
             </button>
+
+            {subjectId ? (
+              <CreatePartyButton
+                className={styles.watchlistBtn}
+                content={{
+                  subjectId: String(subjectId),
+                  detailPath: slug,
+                  se: String(isSeries ? selectedSe : 0),
+                  ep: String(isSeries ? selectedEp : 0),
+                  title: meta.title || slug,
+                  poster: meta.poster || undefined,
+                }}
+              />
+            ) : null}
 
             {!subjectId ? (
               <span className={styles.warn}>Playback isn’t available</span>
