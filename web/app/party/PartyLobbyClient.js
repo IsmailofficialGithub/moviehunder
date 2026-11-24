@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Film, Lock, MessageCircle, Mic, RefreshCw, Users, Zap } from "lucide-react";
+import { ArrowRight, Film, Lock, MessageCircle, Mic, RefreshCw, Shuffle, Users, Zap } from "lucide-react";
 import { useAuth } from "../../components/AuthProvider";
 import { hueFor } from "../../components/party/Avatar";
 import { listPublicParties, partyHistory } from "../../lib/party/api";
@@ -23,7 +23,29 @@ export default function PartyLobbyClient() {
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState("");
   const [rooms, setRooms] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [shuffling, setShuffling] = useState(false);
+  const seenRef = useRef([]);
   const [history, setHistory] = useState(null);
+
+  // 10 random live public rooms. "Show others" excludes rooms already shown
+  // (server tops up with seen ones once everything has been shown).
+  const loadRooms = useCallback(async (others = false) => {
+    if (!others) seenRef.current = [];
+    setShuffling(true);
+    try {
+      const r = await listPublicParties(others ? seenRef.current : []);
+      const list = r.rooms || [];
+      const unseen = list.filter((x) => !seenRef.current.includes(x.id)).map((x) => x.id);
+      seenRef.current = unseen.length ? [...seenRef.current, ...unseen] : list.map((x) => x.id);
+      setRooms(list);
+      setTotal(r.total ?? list.length);
+    } catch {
+      setRooms((prev) => prev || []);
+    } finally {
+      setShuffling(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -32,21 +54,14 @@ export default function PartyLobbyClient() {
       return;
     }
     let alive = true;
-    const load = () => {
-      listPublicParties()
-        .then((r) => alive && setRooms(r.rooms || []))
-        .catch(() => alive && setRooms([]));
-    };
-    load();
+    loadRooms(false);
     partyHistory()
       .then((r) => alive && setHistory(r.parties || []))
       .catch(() => alive && setHistory([]));
-    const iv = setInterval(load, 15_000);
     return () => {
       alive = false;
-      clearInterval(iv);
     };
-  }, [loading, isSignedIn, router]);
+  }, [loading, isSignedIn, router, loadRooms]);
 
   const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   const submit = (e) => {
@@ -158,7 +173,17 @@ export default function PartyLobbyClient() {
       <section className={styles.section}>
         <div className={styles.sectionHead}>
           <h2>Public parties</h2>
-          {rooms?.length ? <span className={styles.countBadge}>{rooms.length} live</span> : null}
+          {total ? <span className={styles.countBadge}>{total} live</span> : null}
+          <div className={styles.sectionActions}>
+            <button type="button" className={styles.ghostBtn} onClick={() => loadRooms(false)} disabled={shuffling} title="Refresh">
+              <RefreshCw size={14} className={shuffling ? styles.spin : undefined} /> Refresh
+            </button>
+            {total > (rooms?.length || 0) && (
+              <button type="button" className={styles.ghostBtn} onClick={() => loadRooms(true)} disabled={shuffling}>
+                <Shuffle size={14} /> Show others
+              </button>
+            )}
+          </div>
         </div>
         {rooms === null ? (
           <SkeletonGrid />

@@ -80,6 +80,7 @@ export default function PartyRoomScreen() {
       content,
       role: party.role,
       canControl: party.canControl,
+      canNavigate: party.role === "HOST", // only the creator changes title/episode
       onNavigate: party.actions.navigate,
       onPlayer: party.onPlayer,
       onLocalSeek: party.onLocalSeek,

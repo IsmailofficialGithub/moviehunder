@@ -186,7 +186,8 @@ export class PartyHub {
         return;
       }
       case "content": {
-        if (!canControl(m.role)) return fail("FORBIDDEN");
+        // Changing title/episode ("next") is the room creator's call only.
+        if (m.role !== ROLES.HOST) return fail("FORBIDDEN");
         const content = sanitizeContent(msg.content);
         if (!content) return fail("BAD_CONTENT");
         room.content = content;
@@ -333,6 +334,18 @@ export class PartyHub {
     }
     this.rooms.delete(room.id);
     this.store.setOnline(room.id, 0).catch(() => {});
+  }
+
+  /** Called when the creator changed room settings via REST. */
+  settingsChanged(roomId, settings) {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+    const next = {};
+    if (settings.name !== undefined) next.name = settings.name ?? null;
+    if (settings.visibility === "PUBLIC" || settings.visibility === "PRIVATE") next.visibility = settings.visibility;
+    if (Number.isFinite(Number(settings.maxMembers))) next.maxMembers = Number(settings.maxMembers);
+    Object.assign(room, next);
+    this.broadcast(room, { t: "room_settings", settings: next });
   }
 
   /** Called when a room was ended elsewhere (REST). */

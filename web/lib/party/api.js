@@ -6,8 +6,11 @@ export const createParty = (body) => authFetch("/api/party", { method: "POST", b
 export const joinParty = ({ code, password, invite }) =>
   authFetch("/api/party/join", { method: "POST", body: { code, password, invite } });
 export const getParty = (code) => authFetch(`/api/party/room/${encodeURIComponent(code)}`);
+export const updatePartySettings = (code, body) =>
+  authFetch(`/api/party/room/${encodeURIComponent(code)}/settings`, { method: "POST", body });
 export const endParty = (code) => authFetch(`/api/party/room/${encodeURIComponent(code)}/end`, { method: "POST" });
-export const listPublicParties = () => authFetch("/api/party/public");
+export const listPublicParties = (exclude = []) =>
+  authFetch(`/api/party/public${exclude.length ? `?exclude=${encodeURIComponent(exclude.slice(-200).join(","))}` : ""}`);
 export const partyHistory = (limit = 30) => authFetch(`/api/party/history?limit=${limit}`);
 
 export function partyWsUrl() {

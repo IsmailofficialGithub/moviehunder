@@ -2,8 +2,8 @@ import { createClient } from "redis";
 
 let redisClient = null;
 
-export function getRedisConfig(targetPort) {
-  if (process.env.REDIS_URL) {
+export function getRedisConfig(targetPort, { ignoreUrl = false } = {}) {
+  if (process.env.REDIS_URL && !ignoreUrl) {
     return { url: process.env.REDIS_URL };
   }
 
@@ -51,9 +51,17 @@ export async function getRedis() {
 
   // If explicit URL or PORT is configured, use it
   if (process.env.REDIS_URL || process.env.REDIS_PORT) {
-    const config = getRedisConfig();
-    redisClient = await tryConnect(config);
-    return redisClient;
+    try {
+      redisClient = await tryConnect(getRedisConfig());
+      return redisClient;
+    } catch (err) {
+      // A stale REDIS_URL (wrong port/password) must not hide a working
+      // REDIS_HOST/REDIS_PORT/REDIS_PASSWORD setup — fall back to that.
+      if (!process.env.REDIS_URL) throw err;
+      redisClient = await tryConnect(getRedisConfig(undefined, { ignoreUrl: true }));
+      console.warn("[redis] REDIS_URL failed (" + (err?.message || err) + "); using REDIS_HOST/REDIS_PORT instead");
+      return redisClient;
+    }
   }
 
   // Default: try 6380 (moviehunter-redis container default)

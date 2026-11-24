@@ -543,3 +543,43 @@
     animation: none;
   }
 }
+
+.sectionActions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.ghostBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e4e4e7;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ghostBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+}
+.ghostBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.spin {
+  animation: lobbySpin 0.8s linear infinite;
+}
+@keyframes lobbySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 520px) {
+  .sectionHead {
+    flex-wrap: wrap;
+  }
+}

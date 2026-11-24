@@ -142,6 +142,7 @@ function extractLanguageTag(titleText, slugText, badgeText) {
  *   content: { subjectId: string, detailPath: string, se: string, ep: string, title?: string, poster?: string },
  *   role: "HOST"|"COHOST"|"VIEWER",
  *   canControl: boolean,
+ *   canNavigate: boolean,                   // room creator only: change title/episode
  *   onNavigate: (target: object) => void,   // controller changes title/episode for the room
  *   onActiveVideo: (video: HTMLVideoElement|null) => void,
  *   overlay?: import("react").ReactNode,
@@ -466,10 +467,10 @@ export default function PlayClient({ party = null } = {}) {
     };
   }, [flatEpisodeList, se, ep, isSeries]);
 
-  // Party: only host/co-host may move the room; viewers stay on the room's title.
+  // Party: only the room creator may move the room; everyone else stays on the room's title.
   const partyNavigate = (target) => {
     if (!party || !target) return false;
-    if (party.canControl) party.onNavigate(target);
+    if (party.canNavigate) party.onNavigate(target);
     return true;
   };
 
@@ -967,7 +968,7 @@ export default function PlayClient({ party = null } = {}) {
                   href={href}
                   className={styles.recGridCard}
                   onClick={(e) => {
-                    if (party?.canControl) {
+                    if (party?.canNavigate) {
                       e.preventDefault();
                       partyNavigate(recTarget);
                     }
@@ -1028,7 +1029,7 @@ export default function PlayClient({ party = null } = {}) {
                   href={href}
                   className={styles.recCard}
                   onClick={(e) => {
-                    if (party?.canControl) {
+                    if (party?.canNavigate) {
                       e.preventDefault();
                       partyNavigate(recTarget);
                     }
@@ -1193,8 +1194,8 @@ export default function PlayClient({ party = null } = {}) {
                   title={title}
                   poster={poster}
                   initialTime={initialTime}
-                  prevEpisode={prevEpisode}
-                  nextEpisode={nextEpisode}
+                  prevEpisode={party && !party.canNavigate ? null : prevEpisode}
+                  nextEpisode={party && !party.canNavigate ? null : nextEpisode}
                   onPrevEpisode={() => goTo(prevEpisode)}
                   onNextEpisode={() => goTo(nextEpisode)}
                   server={activeServer}

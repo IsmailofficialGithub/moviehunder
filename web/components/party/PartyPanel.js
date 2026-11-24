@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Copy, Check, LogOut, Power, Share2, Users, MessageCircle, Mic, MicOff, Lock, Globe } from "lucide-react";
+import { Copy, Check, LogOut, Power, Share2, Users, MessageCircle, Mic, MicOff, Lock, Globe, Settings } from "lucide-react";
 import VoiceBar from "./VoiceBar";
 import Avatar, { hueFor } from "./Avatar";
-import { partyShareLink } from "../../lib/party/api";
+import { partyShareLink, updatePartySettings } from "../../lib/party/api";
 import styles from "./party.module.css";
 
 const QUICK_REACTIONS = ["😂", "😮", "😍", "🔥", "👏", "😢"];
@@ -14,8 +14,12 @@ export default function PartyPanel({ party, voice, inviteToken, onLeave }) {
   const { room, members, chat, you, isHost, actions, status } = party;
   const [tab, setTab] = useState("chat");
   const [copied, setCopied] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [override, setOverride] = useState(null);
 
   if (!room) return null;
+  // Settings saved via REST also arrive over the socket; `override` covers the gap.
+  const view = override ? { ...room, ...override } : room;
   const shareRoom = { code: room.code, inviteToken };
 
   const copy = async (what, text) => {
@@ -47,10 +51,10 @@ export default function PartyPanel({ party, voice, inviteToken, onLeave }) {
         <div className={styles.roomTitle}>
           <span className={`${styles.statusDot} ${status === "open" ? styles.statusOnline : styles.statusOffline}`} aria-hidden="true" />
           <div className={styles.roomTitleText}>
-            <h2>{room.name || room.content?.title || "Watch party"}</h2>
+            <h2>{view.name || view.content?.title || "Watch party"}</h2>
             <span className={styles.muted}>
-              {room.visibility === "PUBLIC" ? <Globe size={11} /> : <Lock size={11} />}{" "}
-              {room.visibility === "PUBLIC" ? "Public" : "Private"} · {members.length}/{room.maxMembers} watching
+              {view.visibility === "PUBLIC" ? <Globe size={11} /> : <Lock size={11} />}{" "}
+              {view.visibility === "PUBLIC" ? "Public" : "Private"} · {members.length}/{view.maxMembers} watching
               {status !== "open" ? " · reconnecting" : ""}
             </span>
           </div>
@@ -71,6 +75,16 @@ export default function PartyPanel({ party, voice, inviteToken, onLeave }) {
               {copied === "link" ? <Check size={14} /> : <Share2 size={14} />} Invite link
             </button>
           )}
+          {isHost && (
+            <button
+              type="button"
+              className={`${styles.btn} ${showSettings ? styles.btnPrimary : ""}`}
+              onClick={() => setShowSettings((v) => !v)}
+              aria-expanded={showSettings}
+            >
+              <Settings size={14} /> Settings
+            </button>
+          )}
           {isHost ? (
             <button
               type="button"
@@ -86,6 +100,16 @@ export default function PartyPanel({ party, voice, inviteToken, onLeave }) {
           )}
         </div>
       </div>
+
+      {isHost && showSettings && (
+        <RoomSettings
+          room={view}
+          onSaved={(r) => {
+            setOverride({ name: r.name, visibility: r.visibility, maxMembers: r.maxMembers });
+            setShowSettings(false);
+          }}
+        />
+      )}
 
       {voice ? <VoiceBar voice={voice} /> : null}
 
@@ -187,6 +211,100 @@ function ChatTab({ chat, actions, myId }) {
         </button>
       </form>
     </>
+  );
+}
+
+/** Room creator only: rename, switch public/private (+password), change max people. */
+function RoomSettings({ room, onSaved }) {
+  const [name, setName] = useState(room.name || "");
+  const [visibility, setVisibility] = useState(room.visibility || "PRIVATE");
+  const [password, setPassword] = useState("");
+  const [maxMembers, setMaxMembers] = useState(room.maxMembers || 10);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const wasPrivate = room.visibility === "PRIVATE";
+
+  const save = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (visibility === "PRIVATE" && !wasPrivate && password.length < 4) {
+      setError("Set a password (at least 4 characters) for a private room.");
+      return;
+    }
+    if (password && (password.length < 4 || password.length > 64)) {
+      setError("Password must be 4–64 characters.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const body = { name: name.trim(), visibility, maxMembers: Number(maxMembers) || undefined };
+      if (visibility === "PRIVATE" && password) body.password = password;
+      const res = await updatePartySettings(room.code, body);
+      onSaved(res.room || { ...room, ...body });
+    } catch (err) {
+      setError(err?.message || "Couldn't save settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className={styles.settingsForm} onSubmit={save}>
+      <label className={styles.settingsField}>
+        <span>Room name</span>
+        <input className={styles.input} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="Optional" />
+      </label>
+      <div className={styles.settingsField}>
+        <span>Who can join</span>
+        <div className={styles.settingsSegment} role="radiogroup">
+          {[
+            ["PUBLIC", Globe, "Public"],
+            ["PRIVATE", Lock, "Private"],
+          ].map(([v, Icon, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={visibility === v}
+              className={`${styles.btn} ${visibility === v ? styles.btnPrimary : ""}`}
+              onClick={() => setVisibility(v)}
+            >
+              <Icon size={13} /> {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {visibility === "PRIVATE" && (
+        <label className={styles.settingsField}>
+          <span>{wasPrivate ? "New password (leave empty to keep)" : "Password"}</span>
+          <input
+            className={styles.input}
+            type="password"
+            value={password}
+            maxLength={64}
+            autoComplete="new-password"
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </label>
+      )}
+      <label className={styles.settingsField}>
+        <span>Max people</span>
+        <input
+          className={styles.input}
+          type="number"
+          min={2}
+          max={100}
+          value={maxMembers}
+          onChange={(e) => setMaxMembers(e.target.value)}
+        />
+      </label>
+      {error && <p className={styles.settingsError}>{error}</p>}
+      <div className={styles.settingsActions}>
+        <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={saving}>
+          {saving ? "Saving…" : "Save settings"}
+        </button>
+      </div>
+    </form>
   );
 }
 

@@ -98,6 +98,7 @@ export default function PartyRoomClient() {
       content,
       role: party.role,
       canControl: party.canControl,
+      canNavigate: party.role === "HOST", // only the creator changes title/episode
       onNavigate: party.actions.navigate,
       onActiveVideo: party.onActiveVideo,
       overlay: <PartyOverlay party={party} voice={voice} />,
